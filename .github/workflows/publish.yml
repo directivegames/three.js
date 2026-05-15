@@ -8,8 +8,9 @@ permissions:
   contents: write
 
 jobs:
-  version-bump:
+  publish:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -21,6 +22,8 @@ jobs:
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
           node-version: 24
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org/'
 
       - name: Configure Git
         run: |
@@ -33,41 +36,6 @@ jobs:
           npm version patch --no-git-tag-version
           echo "new_version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
           echo "package_name=$(node -p "require('./package.json').name")" >> $GITHUB_OUTPUT
-
-      - name: Commit and push version bump
-        run: |
-          git add package.json package-lock.json
-          git commit -m "Bump version to ${{ steps.bump-version.outputs.new_version }} [skip ci]"
-          git pull --rebase --autostash
-          git push
-
-      - name: Set output
-        id: set-version
-        run: |
-          echo "version=${{ steps.bump-version.outputs.new_version }}" >> $GITHUB_OUTPUT
-          echo "package_name=${{ steps.bump-version.outputs.package_name }}" >> $GITHUB_OUTPUT
-
-    outputs:
-      version: ${{ steps.set-version.outputs.version }}
-      package_name: ${{ steps.set-version.outputs.package_name }}
-
-  publish:
-    needs: version-bump
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          fetch-depth: 0
-          ref: ${{ github.ref }}
-
-      - name: Use Node.js 24
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
-        with:
-          node-version: 24
-          cache: 'npm'
-          registry-url: 'https://registry.npmjs.org/'
 
       - name: Update npm to latest
         run: npm install -g npm@latest
@@ -84,10 +52,17 @@ jobs:
       - name: Publish package
         run: npm publish --access public
 
+      - name: Commit and push version bump
+        run: |
+          git add package.json package-lock.json
+          git commit -m "Bump version to ${{ steps.bump-version.outputs.new_version }} [skip ci]"
+          git pull --rebase --autostash
+          git push
+
       - name: Verify published package
         run: |
-          PACKAGE_NAME="${{ needs.version-bump.outputs.package_name }}"
-          PACKAGE_VERSION="${{ needs.version-bump.outputs.version }}"
+          PACKAGE_NAME="${{ steps.bump-version.outputs.package_name }}"
+          PACKAGE_VERSION="${{ steps.bump-version.outputs.new_version }}"
 
           # Create temp directory and try installing
           TEMP_DIR=$(mktemp -d)
