@@ -8,6 +8,7 @@
   "module": "./build/three.module.js",
   "exports": {
     ".": {
+      "types": "./index.d.ts",
       "import": "./build/three.module.js",
       "require": "./build/three.cjs"
     },
