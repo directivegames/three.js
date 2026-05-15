@@ -1,6 +1,6 @@
 {
   "name": "@gnsx/three",
-  "version": "0.184.3",
+  "version": "0.184.4",
   "types": "index.d.ts",
   "description": "JavaScript 3D library",
   "type": "module",
