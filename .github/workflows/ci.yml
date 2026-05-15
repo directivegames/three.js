@@ -1,6 +1,9 @@
 name: CI
 
 on:
+  push:
+    branches:
+      - directive
   pull_request:
     paths-ignore:
       - 'build/**'
