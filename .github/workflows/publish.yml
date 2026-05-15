@@ -108,27 +108,63 @@ jobs:
       - name: Notify Slack
         if: always()
         run: |
+          # Determine overall status
+          JOB_STATUS="${{ job.status }}"
           PACKAGE_NAME="${{ steps.bump-version.outputs.package_name }}"
           PACKAGE_VERSION="${{ steps.bump-version.outputs.new_version }}"
 
-          if [ "${{ job.status }}" == "success" ]; then
-            STATUS="✅ Published"
+          if [ "$JOB_STATUS" == "success" ]; then
+            OVERALL_STATUS="✅ *$PACKAGE_NAME Publish Succeeded!*"
             COLOR="good"
           else
-            STATUS="❌ Failed"
+            OVERALL_STATUS="❌ *$PACKAGE_NAME Publish Failed!*"
             COLOR="danger"
           fi
 
-          curl -X POST "${{ secrets.SLACK_WEBHOOK_URL }}" \
+          # Get commit info
+          COMMIT_MSG=$(git log -1 --pretty=%B | head -1)
+          COMMIT_AUTHOR=$(git log -1 --pretty=%an)
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+
+          curl -X POST "${{ secrets.GENESYS_SLACK_WEBHOOK_URL }}" \
             -H 'Content-Type: application/json' \
             -d "{
               \"attachments\": [
                 {
                   \"color\": \"$COLOR\",
-                  \"title\": \"$STATUS: $PACKAGE_NAME@$PACKAGE_VERSION\",
-                  \"text\": \"Publish workflow completed\",
+                  \"title\": \"$OVERALL_STATUS\",
+                  \"text\": \"$PACKAGE_NAME publish workflow completed\",
+                  \"fields\": [
+                    {
+                      \"title\": \"Version\",
+                      \"value\": \"$PACKAGE_VERSION\",
+                      \"short\": true
+                    },
+                    {
+                      \"title\": \"Status\",
+                      \"value\": \"$JOB_STATUS\",
+                      \"short\": true
+                    },
+                    {
+                      \"title\": \"Commit\",
+                      \"value\": \"<https://github.com/${{ github.repository }}/commit/${{ github.sha }}|$COMMIT_SHA: $COMMIT_MSG>\",
+                      \"short\": false
+                    },
+                    {
+                      \"title\": \"Author\",
+                      \"value\": \"$COMMIT_AUTHOR\",
+                      \"short\": true
+                    }
+                  ],
                   \"footer\": \"GitHub Actions\",
-                  \"footer_icon\": \"https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png\"
+                  \"footer_icon\": \"https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png\",
+                  \"actions\": [
+                    {
+                      \"type\": \"button\",
+                      \"text\": \"View Workflow\",
+                      \"url\": \"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+                    }
+                  ]
                 }
               ]
             }"
