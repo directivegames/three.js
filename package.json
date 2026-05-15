@@ -1,14 +1,12 @@
 {
   "name": "@gnsx/three",
   "version": "0.184.5",
-  "types": "index.d.ts",
   "description": "JavaScript 3D library",
   "type": "module",
   "main": "./build/three.cjs",
   "module": "./build/three.module.js",
   "exports": {
     ".": {
-      "types": "./index.d.ts",
       "import": "./build/three.module.js",
       "require": "./build/three.cjs"
     },
@@ -31,7 +29,6 @@
     "build",
     "examples/jsm",
     "examples/fonts",
-    "index.d.ts",
     "LICENSE",
     "package.json",
     "README.md",
@@ -127,8 +124,5 @@
       "build/three.module.js"
     ],
     "directories": {}
-  },
-  "dependencies": {
-    "@gnsx/three-types": "^0.184.1"
   }
 }
