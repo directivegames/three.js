@@ -1,0 +1,128 @@
+name: Publish
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: write
+
+jobs:
+  version-bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PAT_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: 24
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions@github.com"
+
+      - name: Bump version
+        id: bump-version
+        run: |
+          npm version patch --no-git-tag-version
+          echo "new_version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+          echo "package_name=$(node -p "require('./package.json').name")" >> $GITHUB_OUTPUT
+
+      - name: Commit and push version bump
+        run: |
+          git add package.json package-lock.json
+          git commit -m "Bump version to ${{ steps.bump-version.outputs.new_version }} [skip ci]"
+          git pull --rebase --autostash
+          git push
+
+      - name: Set output
+        id: set-version
+        run: |
+          echo "version=${{ steps.bump-version.outputs.new_version }}" >> $GITHUB_OUTPUT
+          echo "package_name=${{ steps.bump-version.outputs.package_name }}" >> $GITHUB_OUTPUT
+
+    outputs:
+      version: ${{ steps.set-version.outputs.version }}
+      package_name: ${{ steps.set-version.outputs.package_name }}
+
+  publish:
+    needs: version-bump
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version: 24
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org/'
+
+      - name: Update npm to latest
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build package
+        run: npm run build
+
+      - name: Publish package
+        run: npm publish --access public
+
+      - name: Verify published package
+        run: |
+          PACKAGE_NAME="${{ needs.version-bump.outputs.package_name }}"
+          PACKAGE_VERSION="${{ needs.version-bump.outputs.version }}"
+
+          # Create temp directory and try installing
+          TEMP_DIR=$(mktemp -d)
+          echo "Created temp directory: $TEMP_DIR"
+
+          cd "$TEMP_DIR"
+          npm init -y
+
+          # Retry npm install until the version is available (registry propagation can lag)
+          echo "Waiting for $PACKAGE_NAME@$PACKAGE_VERSION to be available on npm registry..."
+          for i in {1..100}; do
+            if npm install "$PACKAGE_NAME@$PACKAGE_VERSION" 2>/dev/null; then
+              echo "Package available and installed on attempt $i"
+              break
+            fi
+            echo "Attempt $i: Package not yet available, waiting 5s..."
+            sleep 5
+            if [ "$i" -eq 100 ]; then
+              echo "❌ Package never became available after 100 attempts"
+              exit 1
+            fi
+          done
+
+          # Verify installation succeeded
+          NODE_MODULES_PATH="node_modules/$PACKAGE_NAME"
+          if [ -d "$NODE_MODULES_PATH" ]; then
+            INSTALLED_VERSION=$(node -p "require('./$NODE_MODULES_PATH/package.json').version")
+            if [ "$INSTALLED_VERSION" == "$PACKAGE_VERSION" ]; then
+              echo "✅ Successfully verified installation of $PACKAGE_NAME@$INSTALLED_VERSION"
+            else
+              echo "❌ Version mismatch: expected $PACKAGE_VERSION, got $INSTALLED_VERSION"
+              exit 1
+            fi
+          else
+            echo "❌ Package was not installed correctly"
+            exit 1
+          fi
+
+          # Cleanup
+          cd -
+          rm -rf "$TEMP_DIR"
