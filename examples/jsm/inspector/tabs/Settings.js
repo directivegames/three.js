@@ -232,7 +232,7 @@ class Settings extends Parameters {
 
 		const extUrl = new URL( extension.url, new URL( _EXTENSIONS_PATH, import.meta.url ) ).href;
 
-		const module = await import( extUrl );
+		const module = await import( /* webpackIgnore: true */ extUrl );
 
 		const keys = Object.keys( module );
 		const ExtensionClass = module[ keys[ 0 ] ];
