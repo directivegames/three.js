@@ -514,28 +514,71 @@ class Inspector extends RendererInspector {
 
 }
 
+const STORAGE_KEY_THREE_INSPECTOR = 'threejs-inspector';
+
+function getStorageOrNull() {
+
+	try {
+
+		const storage = globalThis.localStorage;
+		if ( storage === undefined || storage === null ) return null;
+		if ( typeof storage.getItem !== 'function' || typeof storage.setItem !== 'function' ) return null;
+		return storage;
+
+	} catch {
+
+		return null;
+
+	}
+
+}
+
 function getItem( id ) {
 
-	const data = JSON.parse( localStorage.getItem( 'threejs-inspector' ) || '{}' );
-	return data[ id ] || {};
+	const storage = getStorageOrNull();
+	if ( storage === null ) return {};
+
+	try {
+
+		const raw = storage.getItem( STORAGE_KEY_THREE_INSPECTOR );
+		const data = JSON.parse( raw || '{}' );
+		return data[ id ] || {};
+
+	} catch {
+
+		return {};
+
+	}
 
 }
 
 function setItem( id, state ) {
 
-	const data = JSON.parse( localStorage.getItem( 'threejs-inspector' ) || '{}' );
+	const storage = getStorageOrNull();
+	if ( storage === null ) return;
 
-	if ( state === null ) {
+	try {
 
-		delete data[ id ];
+		const raw = storage.getItem( STORAGE_KEY_THREE_INSPECTOR );
+		const data = JSON.parse( raw || '{}' );
 
-	} else {
+		if ( state === null ) {
 
-		data[ id ] = state;
+			delete data[ id ];
+
+		} else {
+
+			data[ id ] = state;
+
+		}
+
+		storage.setItem( STORAGE_KEY_THREE_INSPECTOR, JSON.stringify( data ) );
+
+	} catch {
+
+		// Headless / private mode / blocked storage: skip persistence
 
 	}
-
-	localStorage.setItem( 'threejs-inspector', JSON.stringify( data ) );
 
 }
 
