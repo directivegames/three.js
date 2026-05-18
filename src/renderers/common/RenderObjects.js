@@ -200,6 +200,7 @@ class RenderObjects {
 		}
 
 		this.chainMaps = {};
+
 	}
 
 	/**
