@@ -72,6 +72,21 @@ class RenderObjects {
 		 */
 		this.chainMaps = {};
 
+		/**
+		 * Strongly tracks every render object created through {@link createRenderObject}
+		 * so {@link dispose} can iterate them. ChainMap is `WeakMap`-backed and not
+		 * iterable, so without this set the dispose listeners installed by
+		 * `RenderObject` on shared materials and geometries (e.g. PMREM, `QuadGeometry`)
+		 * would leak when the renderer is torn down while those singletons live on.
+		 *
+		 * Entries are removed in the same `onDispose` callback that cleans the chain
+		 * map entry, so steady-state behavior is unchanged.
+		 *
+		 * @private
+		 * @type {Set<RenderObject>}
+		 */
+		this._renderObjects = new Set();
+
 	}
 
 	/**
@@ -172,8 +187,19 @@ class RenderObjects {
 	 */
 	dispose() {
 
-		this.chainMaps = {};
+		// Snapshot first: `RenderObject.dispose()` fires `onDispose` which
+		// mutates `_renderObjects` (and the chain map). Iterating the live set
+		// would skip entries.
+		const renderObjects = Array.from( this._renderObjects );
+		this._renderObjects.clear();
 
+		for ( const renderObject of renderObjects ) {
+
+			renderObject.dispose();
+
+		}
+
+		this.chainMaps = {};
 	}
 
 	/**
@@ -198,6 +224,8 @@ class RenderObjects {
 
 		const renderObject = new RenderObject( nodes, geometries, renderer, object, material, scene, camera, lightsNode, renderContext, clippingContext );
 
+		this._renderObjects.add( renderObject );
+
 		renderObject.onDispose = () => {
 
 			this.pipelines.delete( renderObject );
@@ -205,6 +233,8 @@ class RenderObjects {
 			this.nodes.delete( renderObject );
 
 			chainMap.delete( renderObject.getChainArray() );
+
+			this._renderObjects.delete( renderObject );
 
 		};
 

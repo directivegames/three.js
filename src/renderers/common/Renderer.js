@@ -2529,6 +2529,11 @@ class Renderer {
 
 			} );
 
+			// Drop the strong reference to the active `RenderContext` so module-level
+			// `WeakMap<RenderContext, …>` caches can release entries once
+			// `_renderContexts.dispose()` has cleared its dictionary.
+			this._currentRenderContext = null;
+
 		}
 
 		this.setRenderTarget( null );

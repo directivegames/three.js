@@ -55,6 +55,28 @@ class Textures extends DataMap {
 		 */
 		this._htmlTextures = new Set();
 
+		/**
+		 * Strongly tracks every texture that has had a `'dispose'` listener
+		 * installed by {@link updateTexture}. `DataMap` is `WeakMap`-backed and
+		 * not iterable; without this set the listener (whose closure references
+		 * `Textures` → `renderer`) would leak when {@link dispose} is called
+		 * while shared textures live on.
+		 *
+		 * @private
+		 * @type {Set<Texture>}
+		 */
+		this._textures = new Set();
+
+		/**
+		 * Strongly tracks every render target that has had a `'dispose'` listener
+		 * installed by {@link updateRenderTarget}. Same rationale as
+		 * {@link _textures}.
+		 *
+		 * @private
+		 * @type {Set<RenderTarget>}
+		 */
+		this._renderTargets = new Set();
+
 	}
 
 	/**
@@ -180,6 +202,8 @@ class Textures extends DataMap {
 			};
 
 			renderTarget.addEventListener( 'dispose', renderTargetData.onDispose );
+
+			this._renderTargets.add( renderTarget );
 
 		}
 
@@ -401,6 +425,8 @@ class Textures extends DataMap {
 
 			texture.addEventListener( 'dispose', textureData.onDispose );
 
+			this._textures.add( texture );
+
 		}
 
 		//
@@ -569,6 +595,8 @@ class Textures extends DataMap {
 			this.delete( renderTarget );
 			this.backend.delete( renderTarget );
 
+			this._renderTargets.delete( renderTarget );
+
 			this.info.memory.renderTargets --;
 
 		}
@@ -618,9 +646,47 @@ class Textures extends DataMap {
 
 			this.delete( texture );
 
+			this._textures.delete( texture );
+
 			this.info.destroyTexture( texture );
 
 		}
+
+	}
+
+	/**
+	 * Frees internal resources. Destroys every tracked render target and
+	 * texture so the `'dispose'` listeners installed by {@link updateTexture}
+	 * and {@link updateRenderTarget} are removed; without this, listeners on
+	 * shared textures (PMREM, environment maps, etc.) would retain this
+	 * `Textures` instance (and its renderer) across renderer teardown.
+	 *
+	 * @override
+	 */
+	dispose() {
+
+		// Snapshot first: `_destroy*` mutates the sets.
+		const renderTargets = Array.from( this._renderTargets );
+		this._renderTargets.clear();
+
+		for ( const renderTarget of renderTargets ) {
+
+			this._destroyRenderTarget( renderTarget );
+
+		}
+
+		const textures = Array.from( this._textures );
+		this._textures.clear();
+
+		for ( const texture of textures ) {
+
+			this._destroyTexture( texture );
+
+		}
+
+		this._htmlTextures.clear();
+
+		super.dispose();
 
 	}
 
