@@ -76,3 +76,29 @@ export default RendererReferenceNode;
  * @returns {RendererReferenceNode}
  */
 export const rendererReference = ( name, type, renderer = null ) => new RendererReferenceNode( name, type, renderer );
+
+// WITH_GENESYS
+/**
+ * Clears strong links from a {@link RendererReferenceNode} to a disposed renderer.
+ * Module-level nodes (e.g. `toneMappingExposure`) set `.reference` each frame via
+ * `updateReference()` and are not cleared by {@link Renderer#dispose} otherwise.
+ *
+ * @param {RendererReferenceNode} node - The reference node to detach.
+ * @param {Renderer} renderer - The renderer being disposed.
+ */
+export function detachRendererReference( node, renderer ) {
+
+	if ( node.reference === renderer ) {
+
+		node.reference = null;
+
+	}
+
+	if ( node.renderer === renderer ) {
+
+		node.renderer = null;
+
+	}
+
+}
+// !WITH_GENESYS

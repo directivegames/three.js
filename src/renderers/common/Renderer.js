@@ -33,6 +33,10 @@ import { RenderTarget } from '../../core/RenderTarget.js';
 import { DoubleSide, BackSide, FrontSide, SRGBColorSpace, NoToneMapping, LinearFilter, HalfFloatType, RGBAFormat, PCFShadowMap, VSMShadowMap } from '../../constants.js';
 
 import { float, vec3, vec4, Fn } from '../../nodes/tsl/TSLCore.js';
+// WITH_GENESYS
+import { detachRendererReference } from '../../nodes/accessors/RendererReferenceNode.js';
+import { toneMappingExposure } from '../../nodes/display/ToneMappingNode.js';
+// !WITH_GENESYS
 import { reference } from '../../nodes/accessors/ReferenceNode.js';
 import { highpModelNormalViewMatrix, highpModelViewMatrix } from '../../nodes/accessors/ModelNode.js';
 import { context } from '../../nodes/core/ContextNode.js';
@@ -2537,6 +2541,11 @@ class Renderer {
 			// !WITH_GENESYS
 
 		}
+
+		// WITH_GENESYS
+		// Module-level TSL `toneMappingExposure` retains the last renderer in `.reference`.
+		detachRendererReference( toneMappingExposure, this );
+		// !WITH_GENESYS
 
 		this.setRenderTarget( null );
 		this.setAnimationLoop( null );
