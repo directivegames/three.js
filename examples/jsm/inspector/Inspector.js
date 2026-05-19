@@ -514,6 +514,7 @@ class Inspector extends RendererInspector {
 
 }
 
+// WITH_GENESYS
 const STORAGE_KEY_THREE_INSPECTOR = 'threejs-inspector';
 
 function getStorageOrNull() {
@@ -581,5 +582,6 @@ function setItem( id, state ) {
 	}
 
 }
+// !WITH_GENESYS
 
 export { Inspector, getItem, setItem };
