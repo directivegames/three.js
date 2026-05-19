@@ -55,6 +55,7 @@ class Textures extends DataMap {
 		 */
 		this._htmlTextures = new Set();
 
+		// WITH_GENESYS
 		/**
 		 * Strongly tracks every texture that has had a `'dispose'` listener
 		 * installed by {@link updateTexture}. `DataMap` is `WeakMap`-backed and
@@ -76,6 +77,7 @@ class Textures extends DataMap {
 		 * @type {Set<RenderTarget>}
 		 */
 		this._renderTargets = new Set();
+		// !WITH_GENESYS
 
 	}
 
@@ -203,7 +205,9 @@ class Textures extends DataMap {
 
 			renderTarget.addEventListener( 'dispose', renderTargetData.onDispose );
 
+			// WITH_GENESYS
 			this._renderTargets.add( renderTarget );
+			// !WITH_GENESYS
 
 		}
 
@@ -425,7 +429,9 @@ class Textures extends DataMap {
 
 			texture.addEventListener( 'dispose', textureData.onDispose );
 
+			// WITH_GENESYS
 			this._textures.add( texture );
+			// !WITH_GENESYS
 
 		}
 
@@ -595,7 +601,9 @@ class Textures extends DataMap {
 			this.delete( renderTarget );
 			this.backend.delete( renderTarget );
 
+			// WITH_GENESYS
 			this._renderTargets.delete( renderTarget );
+			// !WITH_GENESYS
 
 			this.info.memory.renderTargets --;
 
@@ -646,7 +654,9 @@ class Textures extends DataMap {
 
 			this.delete( texture );
 
+			// WITH_GENESYS
 			this._textures.delete( texture );
+			// !WITH_GENESYS
 
 			this.info.destroyTexture( texture );
 
@@ -654,6 +664,7 @@ class Textures extends DataMap {
 
 	}
 
+	// WITH_GENESYS
 	/**
 	 * Frees internal resources. Destroys every tracked render target and
 	 * texture so the `'dispose'` listeners installed by {@link updateTexture}
@@ -689,6 +700,7 @@ class Textures extends DataMap {
 		super.dispose();
 
 	}
+	// !WITH_GENESYS
 
 }
 

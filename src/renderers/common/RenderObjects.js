@@ -72,6 +72,7 @@ class RenderObjects {
 		 */
 		this.chainMaps = {};
 
+		// WITH_GENESYS
 		/**
 		 * Strongly tracks every render object created through {@link createRenderObject}
 		 * so {@link dispose} can iterate them. ChainMap is `WeakMap`-backed and not
@@ -86,6 +87,7 @@ class RenderObjects {
 		 * @type {Set<RenderObject>}
 		 */
 		this._renderObjects = new Set();
+		// !WITH_GENESYS
 
 	}
 
@@ -187,6 +189,7 @@ class RenderObjects {
 	 */
 	dispose() {
 
+		// WITH_GENESYS
 		// Snapshot first: `RenderObject.dispose()` fires `onDispose` which
 		// mutates `_renderObjects` (and the chain map). Iterating the live set
 		// would skip entries.
@@ -199,6 +202,7 @@ class RenderObjects {
 
 		}
 
+		// !WITH_GENESYS
 		this.chainMaps = {};
 
 	}
@@ -225,7 +229,9 @@ class RenderObjects {
 
 		const renderObject = new RenderObject( nodes, geometries, renderer, object, material, scene, camera, lightsNode, renderContext, clippingContext );
 
+		// WITH_GENESYS
 		this._renderObjects.add( renderObject );
+		// !WITH_GENESYS
 
 		renderObject.onDispose = () => {
 
@@ -235,7 +241,9 @@ class RenderObjects {
 
 			chainMap.delete( renderObject.getChainArray() );
 
+			// WITH_GENESYS
 			this._renderObjects.delete( renderObject );
+			// !WITH_GENESYS
 
 		};
 
