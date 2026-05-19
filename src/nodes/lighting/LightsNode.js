@@ -418,6 +418,114 @@ class LightsNode extends Node {
 
 }
 
+// WITH_GENESYS
+/**
+ * A lights node that composes a live scene lights node with material-local
+ * lighting nodes like environment, AO and light map lighting.
+ *
+ * @augments LightsNode
+ */
+class MaterialLightsNode extends LightsNode {
+
+	static get type() {
+
+		return 'MaterialLightsNode';
+
+	}
+
+	/**
+	 * Constructs a new material lights node.
+	 *
+	 * @param {LightsNode} lightsNode - The live scene lights node.
+	 * @param {Array<LightingNode>} materialLights - Material-local lighting nodes.
+	 */
+	constructor( lightsNode, materialLights = [] ) {
+
+		super();
+
+		this.lightsNode = lightsNode;
+		this.materialLights = materialLights;
+		this.updateType = lightsNode.getUpdateType();
+		this.updateBeforeType = lightsNode.getUpdateBeforeType();
+		this.updateAfterType = lightsNode.getUpdateAfterType();
+
+	}
+
+	customCacheKey() {
+
+		const hash = [ this.lightsNode.getCacheKey( true ) ];
+
+		for ( const lightNode of this.materialLights ) {
+
+			hash.push( lightNode.getCacheKey( true ) );
+
+		}
+
+		return hashArray( hash );
+
+	}
+
+	setupLights( builder, materialLights ) {
+
+		this.lightsNode.setupLights( builder, this.lightsNode.getLightNodes( builder ) );
+
+		for ( const lightNode of materialLights ) {
+
+			lightNode.build( builder );
+
+		}
+
+	}
+
+	update( frame ) {
+
+		if ( this.lightsNode.update ) this.lightsNode.update( frame );
+
+	}
+
+	updateBefore( frame ) {
+
+		if ( this.lightsNode.updateBefore ) this.lightsNode.updateBefore( frame );
+
+	}
+
+	updateAfter( frame ) {
+
+		if ( this.lightsNode.updateAfter ) this.lightsNode.updateAfter( frame );
+
+	}
+
+	dispose() {
+
+		super.dispose();
+
+		this.lightsNode = null;
+		this.materialLights = null;
+
+	}
+
+	getLightNodes() {
+
+		return this.materialLights;
+
+	}
+
+	getLights() {
+
+		return this.lightsNode.getLights();
+
+	}
+
+	get hasLights() {
+
+		return this.lightsNode.getScope().hasLights || this.materialLights.length > 0;
+
+	}
+
+}
+export { MaterialLightsNode };
+// !WITH_GENESYS
+
 export default LightsNode;
 
 /**

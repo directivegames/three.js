@@ -118,6 +118,9 @@ export { default as LightingContextNode } from './lighting/LightingContextNode.j
 export { default as LightingNode } from './lighting/LightingNode.js';
 export { default as LightProbeNode } from './lighting/LightProbeNode.js';
 export { default as LightsNode } from './lighting/LightsNode.js';
+// WITH_GENESYS
+export { MaterialLightsNode } from './lighting/LightsNode.js';
+// !WITH_GENESYS
 export { default as PointLightNode } from './lighting/PointLightNode.js';
 export { default as PointShadowNode } from './lighting/PointShadowNode.js';
 export { default as ProjectorLightNode } from './lighting/ProjectorLightNode.js';

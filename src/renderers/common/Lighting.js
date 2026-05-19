@@ -1,4 +1,9 @@
-import { LightsNode } from '../../nodes/Nodes.js';
+import {
+	LightsNode,
+	// WITH_GENESYS
+	MaterialLightsNode,
+	// !WITH_GENESYS
+} from '../../nodes/Nodes.js';
 
 const _defaultLights = /*@__PURE__*/ new LightsNode();
 const _weakMap = /*@__PURE__*/ new WeakMap();
@@ -25,6 +30,22 @@ class Lighting {
 		return new LightsNode().setLights( lights );
 
 	}
+
+	// WITH_GENESYS
+	/**
+	 * Creates a lights node that composes live scene lighting with material-local
+	 * lighting nodes such as environment, AO and light map lighting.
+	 *
+	 * @param {LightsNode} lightsNode - The live scene lights node.
+	 * @param {Array<LightingNode>} materialLights - Material-local lighting nodes.
+	 * @return {MaterialLightsNode} The material lights node.
+	 */
+	createMaterialNode( lightsNode, materialLights = [] ) {
+
+		return new MaterialLightsNode( lightsNode, materialLights );
+
+	}
+	// !WITH_GENESYS
 
 	/**
 	 * Returns a lights node for the given scene and camera.

@@ -1047,7 +1047,10 @@ class NodeMaterial extends Material {
 
 		if ( materialLightsNode.length > 0 ) {
 
-			lightsN = builder.renderer.lighting.createNode( [ ...lightsN.getLights(), ...materialLightsNode ] );
+			// WITH_GENESYS
+			lightsN = builder.renderer.lighting.createMaterialNode( lightsN, materialLightsNode );
+			// !WITH_GENESYS
+			// lightsN = builder.renderer.lighting.createNode( [ ...lightsN.getLights(), ...materialLightsNode ] );
 
 		}
 
