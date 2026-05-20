@@ -12482,7 +12482,23 @@ class TextureNode extends UniformNode {
 
 			if ( this.updateMatrix === true ) {
 
-				uvNode = this.getTransformedUV( uvNode );
+				// eslint-disable-next-line no-constant-condition
+				{
+
+					// WITH_GENESYS: Do not apply UV matrix to integer texel coords or storage textures.
+					const explicitUV = this.uvNode;
+					const explicitUVType = explicitUV ? explicitUV.getNodeType( builder ) : null;
+					const isIntegerTexelCoord = explicitUVType === 'uvec2' || explicitUVType === 'uvec3' || explicitUVType === 'ivec2' || explicitUVType === 'ivec3';
+					const isStorageTexture = texture.isStorageTexture === true;
+
+					if ( isIntegerTexelCoord === false && isStorageTexture === false ) {
+
+						uvNode = this.getTransformedUV( uvNode );
+
+					}
+					// !WITH_GENESYS
+
+				}
 
 			}
 
@@ -15376,7 +15392,13 @@ class CubeTextureNode extends TextureNode {
 
 		// rotate first
 
-		uvNode = materialEnvRotation.mul( uvNode );
+		// WITH_GENESYS: Skip material/scene env rotation in compute — no material or scene context.
+		if ( builder.shaderStage !== 'compute' ) {
+
+			uvNode = materialEnvRotation.mul( uvNode );
+
+		}
+		// !WITH_GENESYS
 
 		// flip
 
@@ -38708,6 +38730,10 @@ class StorageTextureNode extends TextureNode {
 		 */
 		this.access = NodeAccess.WRITE_ONLY;
 
+		// WITH_GENESYS: Storage writes use integer texel coordinates (uvec2/uvec3), not UV matrix transforms.
+		// this.setUpdateMatrix( false );
+		// !WITH_GENESYS
+
 	}
 
 	/**
@@ -38908,6 +38934,10 @@ const textureStore = ( value, uvNode, storeNode ) => {
 		node = storageTexture( value, uvNode, storeNode );
 
 	}
+
+	// WITH_GENESYS
+	// node.setUpdateMatrix( false );
+	// !WITH_GENESYS
 
 	if ( storeNode !== null ) node.toStack();
 

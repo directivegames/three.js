@@ -1,7 +1,6 @@
 import {
 	Box3,
 	CubeCamera,
-	Data3DTexture,
 	FloatType,
 	HalfFloatType,
 	LinearFilter,
@@ -20,8 +19,24 @@ import {
 	WebGLRenderTarget
 } from 'three';
 // WITH_GENESYS
-import { CubeRenderTarget } from 'three/webgpu';
-import { LightProbeGenerator } from '../lights/LightProbeGenerator.js';
+import { CubeRenderTarget, Storage3DTexture } from 'three/webgpu';
+import {
+	Fn,
+	If,
+	Loop,
+	PI,
+	convert,
+	cubeTexture,
+	float,
+	int,
+	select,
+	storageTexture,
+	textureStore,
+	uniform,
+	uvec3,
+	vec3,
+	vec4
+} from 'three/tsl';
 // !WITH_GENESYS
 
 // Shared fullscreen-quad scene / camera
@@ -44,13 +59,18 @@ let _cachedNear = 0;
 let _cachedFar = 0;
 
 // WITH_GENESYS
-// Cached WebGPU bake resources. The WebGPU path reads SH coefficients back to
-// CPU and packs the existing atlas format into a Data3DTexture.
+// Cached WebGPU bake resources. The WebGPU path projects cubemaps on the GPU
+// via TSL compute and writes directly into a Storage3DTexture atlas.
 let _webgpuCubeRenderTarget = null;
 let _webgpuCubeCamera = null;
 let _webgpuCachedCubemapSize = 0;
 let _webgpuCachedNear = 0;
 let _webgpuCachedFar = 0;
+let _webgpuComputeNode = null;
+let _webgpuComputeCubemapSize = 0;
+let _webgpuComputeAtlas = null;
+let _webgpuComputeEnvMap = null;
+let _webgpuProbeUniforms = null;
 // !WITH_GENESYS
 
 // Cached batch render target
@@ -376,20 +396,26 @@ class LightProbeGrid extends Object3D {
 	 */
 	async _bakeWebGPU( renderer, scene, options = {} ) {
 
+		const cubemapSize = options.cubemapSize !== undefined ? options.cubemapSize : 8;
 		const { cubeRenderTarget, cubeCamera } = _ensureWebGPUBakeResources( options );
 
 		this._ensureWebGPUTexture();
 		this.updateBoundingBox();
+
+		const computeNode = _ensureWebGPUComputeResources( cubemapSize, cubeRenderTarget.texture, this.texture );
+		const uniforms = _webgpuProbeUniforms;
 
 		this.visible = false;
 
 		const res = this.resolution;
 		const nx = res.x, ny = res.y, nz = res.z;
 		const paddedSlices = nz + 2 * ATLAS_PADDING;
-		const atlasDepth = 7 * paddedSlices;
-		const data = this.texture.image.data;
 
-		data.fill( 0 );
+		uniforms.paddedSlices.value = paddedSlices;
+
+		const savedShadowAutoUpdate = renderer.shadowMap.autoUpdate;
+		renderer.shadowMap.autoUpdate = false;
+		renderer.shadowMap.needsUpdate = true;
 
 		for ( let iz = 0; iz < nz; iz ++ ) {
 
@@ -401,14 +427,11 @@ class LightProbeGrid extends Object3D {
 					cubeCamera.position.copy( _position );
 					cubeCamera.update( renderer, scene );
 
-					const lightProbe = await LightProbeGenerator.fromCubeRenderTarget( renderer, cubeRenderTarget );
-					const coefficients = lightProbe.sh.coefficients;
+					uniforms.probeIx.value = ix;
+					uniforms.probeIy.value = iy;
+					uniforms.probeIz.value = iz;
 
-					for ( let textureIndex = 0; textureIndex < 7; textureIndex ++ ) {
-
-						_writePackedCoefficient( data, nx, ny, textureIndex * paddedSlices + ATLAS_PADDING + iz, ix, iy, coefficients, textureIndex );
-
-					}
+					await renderer.computeAsync( computeNode );
 
 				}
 
@@ -416,19 +439,35 @@ class LightProbeGrid extends Object3D {
 
 		}
 
+		renderer.shadowMap.autoUpdate = savedShadowAutoUpdate;
+
+		// Padding slices (GPU-to-GPU copy of nearest edge data slices).
+		const atlas = this.texture;
+
 		for ( let textureIndex = 0; textureIndex < 7; textureIndex ++ ) {
 
 			const baseSlice = textureIndex * paddedSlices;
+			const dataSlice = baseSlice + ATLAS_PADDING;
+			const trailingSlice = dataSlice + nz;
 
-			_copyAtlasSlice( data, nx, ny, baseSlice + ATLAS_PADDING, baseSlice );
-			_copyAtlasSlice( data, nx, ny, baseSlice + ATLAS_PADDING + nz - 1, baseSlice + ATLAS_PADDING + nz );
+			renderer.copyTextureToTexture(
+				atlas,
+				atlas,
+				new Box3( new Vector3( 0, 0, dataSlice ), new Vector3( nx, ny, dataSlice + 1 ) ),
+				new Vector3( 0, 0, baseSlice )
+			);
+
+			renderer.copyTextureToTexture(
+				atlas,
+				atlas,
+				new Box3( new Vector3( 0, 0, dataSlice + nz - 1 ), new Vector3( nx, ny, dataSlice + nz ) ),
+				new Vector3( 0, 0, trailingSlice )
+			);
 
 		}
 
-		this.texture.image.width = nx;
-		this.texture.image.height = ny;
-		this.texture.image.depth = atlasDepth;
-		this.texture.needsUpdate = true;
+		await renderer.backend.device.queue.onSubmittedWorkDone();
+
 		this.visible = true;
 
 	}
@@ -474,7 +513,7 @@ class LightProbeGrid extends Object3D {
 
 	// WITH_GENESYS
 	/**
-	 * Ensures the atlas Data3DTexture exists with the correct dimensions for WebGPU.
+	 * Ensures the atlas Storage3DTexture exists with the correct dimensions for WebGPU.
 	 *
 	 * @private
 	 */
@@ -491,7 +530,6 @@ class LightProbeGrid extends Object3D {
 		const res = this.resolution;
 		const nx = res.x, ny = res.y, nz = res.z;
 		const atlasDepth = 7 * ( nz + 2 * ATLAS_PADDING );
-		const dataLength = nx * ny * atlasDepth * 4;
 
 		if ( this.texture !== null ) {
 
@@ -503,16 +541,12 @@ class LightProbeGrid extends Object3D {
 
 			}
 
-			image.data = new Float32Array( dataLength );
-			image.width = nx;
-			image.height = ny;
-			image.depth = atlasDepth;
-
-			return;
+			this.texture.dispose();
+			this.texture = null;
 
 		}
 
-		const texture = new Data3DTexture( new Float32Array( dataLength ), nx, ny, atlasDepth );
+		const texture = new Storage3DTexture( nx, ny, atlasDepth );
 
 		texture.format = RGBAFormat;
 		texture.type = FloatType;
@@ -815,86 +849,134 @@ function _ensureWebGPUBakeResources( options ) {
 
 }
 
-function _getAtlasOffset( nx, ny, slice, ix, iy ) {
+function _ensureWebGPUComputeResources( cubemapSize, envMapTexture, atlasTexture ) {
 
-	return ( ( slice * ny + iy ) * nx + ix ) * 4;
+	if (
+		_webgpuComputeNode !== null &&
+		_webgpuComputeCubemapSize === cubemapSize &&
+		_webgpuComputeAtlas === atlasTexture &&
+		_webgpuComputeEnvMap === envMapTexture
+	) {
 
-}
-
-function _writePackedCoefficient( data, nx, ny, slice, ix, iy, coefficients, textureIndex ) {
-
-	const offset = _getAtlasOffset( nx, ny, slice, ix, iy );
-	const c0 = coefficients[ 0 ];
-	const c1 = coefficients[ 1 ];
-	const c2 = coefficients[ 2 ];
-	const c3 = coefficients[ 3 ];
-	const c4 = coefficients[ 4 ];
-	const c5 = coefficients[ 5 ];
-	const c6 = coefficients[ 6 ];
-	const c7 = coefficients[ 7 ];
-	const c8 = coefficients[ 8 ];
-
-	switch ( textureIndex ) {
-
-		case 0:
-			data[ offset ] = c0.x;
-			data[ offset + 1 ] = c0.y;
-			data[ offset + 2 ] = c0.z;
-			data[ offset + 3 ] = c1.x;
-			break;
-
-		case 1:
-			data[ offset ] = c1.y;
-			data[ offset + 1 ] = c1.z;
-			data[ offset + 2 ] = c2.x;
-			data[ offset + 3 ] = c2.y;
-			break;
-
-		case 2:
-			data[ offset ] = c2.z;
-			data[ offset + 1 ] = c3.x;
-			data[ offset + 2 ] = c3.y;
-			data[ offset + 3 ] = c3.z;
-			break;
-
-		case 3:
-			data[ offset ] = c4.x;
-			data[ offset + 1 ] = c4.y;
-			data[ offset + 2 ] = c4.z;
-			data[ offset + 3 ] = c5.x;
-			break;
-
-		case 4:
-			data[ offset ] = c5.y;
-			data[ offset + 1 ] = c5.z;
-			data[ offset + 2 ] = c6.x;
-			data[ offset + 3 ] = c6.y;
-			break;
-
-		case 5:
-			data[ offset ] = c6.z;
-			data[ offset + 1 ] = c7.x;
-			data[ offset + 2 ] = c7.y;
-			data[ offset + 3 ] = c7.z;
-			break;
-
-		default:
-			data[ offset ] = c8.x;
-			data[ offset + 1 ] = c8.y;
-			data[ offset + 2 ] = c8.z;
-			data[ offset + 3 ] = 0;
+		return _webgpuComputeNode;
 
 	}
 
-}
+	_webgpuComputeCubemapSize = cubemapSize;
+	_webgpuComputeAtlas = atlasTexture;
+	_webgpuComputeEnvMap = envMapTexture;
 
-function _copyAtlasSlice( data, nx, ny, sourceSlice, targetSlice ) {
+	const probeIx = uniform( 'uint' );
+	const probeIy = uniform( 'uint' );
+	const probeIz = uniform( 'uint' );
+	const paddedSlices = uniform( 'uint' );
 
-	const sliceSize = nx * ny * 4;
-	const sourceOffset = sourceSlice * sliceSize;
-	const targetOffset = targetSlice * sliceSize;
+	_webgpuProbeUniforms = { probeIx, probeIy, probeIz, paddedSlices };
 
-	data.copyWithin( targetOffset, sourceOffset, sourceOffset + sliceSize );
+	const atlas = storageTexture( atlasTexture );
+
+	const projectProbe = Fn( () => {
+
+		const accum0 = vec3( 0 ).toVar();
+		const accum1 = vec3( 0 ).toVar();
+		const accum2 = vec3( 0 ).toVar();
+		const accum3 = vec3( 0 ).toVar();
+		const accum4 = vec3( 0 ).toVar();
+		const accum5 = vec3( 0 ).toVar();
+		const accum6 = vec3( 0 ).toVar();
+		const accum7 = vec3( 0 ).toVar();
+		const accum8 = vec3( 0 ).toVar();
+		const totalWeight = float( 0 ).toVar();
+		const pixelSize = float( 2 ).div( float( cubemapSize ) );
+
+		Loop(
+			{ end: 6, name: 'face', type: 'int' },
+			{ end: cubemapSize, name: 'iy', type: 'int' },
+			{ end: cubemapSize, name: 'ix', type: 'int' },
+			( { face, iy, ix } ) => {
+
+				const col = convert( ix, 'float' ).add( 0.5 ).mul( pixelSize ).sub( 1.0 );
+				const row = float( 1 ).sub( convert( iy, 'float' ).add( 0.5 ).mul( pixelSize ) );
+
+				const dirX = select( face.equal( int( 0 ) ), float( 1 ), select( face.equal( int( 1 ) ), float( - 1 ), select( face.equal( int( 5 ) ), col.negate(), col ) ) );
+				const dirY = select( face.equal( int( 2 ) ), float( 1 ), select( face.equal( int( 3 ) ), float( - 1 ), row ) );
+				const dirZ = select( face.equal( int( 0 ) ), col.negate(), select( face.equal( int( 1 ) ), col, select( face.equal( int( 2 ) ), row.negate(), select( face.equal( int( 3 ) ), row, select( face.equal( int( 4 ) ), float( 1 ), float( - 1 ) ) ) ) ) );
+				const coord = vec3( dirX, dirY, dirZ );
+
+				const lengthSq = coord.dot( coord );
+				const weight = float( 4 ).div( lengthSq.sqrt().mul( lengthSq ) );
+				totalWeight.addAssign( weight );
+
+				const dir = coord.normalize();
+				// Pass explicit direction — omitting UV would default to reflectVector (needs camera).
+				const cw = cubeTexture( envMapTexture, coord ).rgb.mul( weight );
+
+				accum0.addAssign( cw.mul( 0.282095 ) );
+				accum1.addAssign( cw.mul( 0.488603 ).mul( dir.y ) );
+				accum2.addAssign( cw.mul( 0.488603 ).mul( dir.z ) );
+				accum3.addAssign( cw.mul( 0.488603 ).mul( dir.x ) );
+				accum4.addAssign( cw.mul( 1.092548 ).mul( dir.x ).mul( dir.y ) );
+				accum5.addAssign( cw.mul( 1.092548 ).mul( dir.y ).mul( dir.z ) );
+				accum6.addAssign( cw.mul( 0.315392 ).mul( dir.z.mul( dir.z ).mul( 3 ).sub( 1 ) ) );
+				accum7.addAssign( cw.mul( 1.092548 ).mul( dir.x ).mul( dir.z ) );
+				accum8.addAssign( cw.mul( 0.546274 ).mul( dir.x.mul( dir.x ).sub( dir.y.mul( dir.y ) ) ) );
+
+			}
+
+		);
+
+		const norm = float( 4 ).mul( PI ).div( totalWeight );
+		const c0 = accum0.mul( norm );
+		const c1 = accum1.mul( norm );
+		const c2 = accum2.mul( norm );
+		const c3 = accum3.mul( norm );
+		const c4 = accum4.mul( norm );
+		const c5 = accum5.mul( norm );
+		const c6 = accum6.mul( norm );
+		const c7 = accum7.mul( norm );
+		const c8 = accum8.mul( norm );
+
+		Loop( { end: 7, name: 't', type: 'int' }, ( { t } ) => {
+
+			const atlasZ = paddedSlices.mul( t ).add( 1 ).add( probeIz );
+
+			If( t.equal( int( 0 ) ), () => {
+
+				textureStore( atlas, uvec3( probeIx, probeIy, atlasZ ), vec4( c0.x, c0.y, c0.z, c1.x ) ).toWriteOnly();
+
+			} ).ElseIf( t.equal( int( 1 ) ), () => {
+
+				textureStore( atlas, uvec3( probeIx, probeIy, atlasZ ), vec4( c1.y, c1.z, c2.x, c2.y ) ).toWriteOnly();
+
+			} ).ElseIf( t.equal( int( 2 ) ), () => {
+
+				textureStore( atlas, uvec3( probeIx, probeIy, atlasZ ), vec4( c2.z, c3.x, c3.y, c3.z ) ).toWriteOnly();
+
+			} ).ElseIf( t.equal( int( 3 ) ), () => {
+
+				textureStore( atlas, uvec3( probeIx, probeIy, atlasZ ), vec4( c4.x, c4.y, c4.z, c5.x ) ).toWriteOnly();
+
+			} ).ElseIf( t.equal( int( 4 ) ), () => {
+
+				textureStore( atlas, uvec3( probeIx, probeIy, atlasZ ), vec4( c5.y, c5.z, c6.x, c6.y ) ).toWriteOnly();
+
+			} ).ElseIf( t.equal( int( 5 ) ), () => {
+
+				textureStore( atlas, uvec3( probeIx, probeIy, atlasZ ), vec4( c6.z, c7.x, c7.y, c7.z ) ).toWriteOnly();
+
+			} ).Else( () => {
+
+				textureStore( atlas, uvec3( probeIx, probeIy, atlasZ ), vec4( c8.x, c8.y, c8.z, float( 0 ) ) ).toWriteOnly();
+
+			} );
+
+		} );
+
+	} );
+
+	_webgpuComputeNode = projectProbe().compute( 1 );
+
+	return _webgpuComputeNode;
 
 }
 // !WITH_GENESYS

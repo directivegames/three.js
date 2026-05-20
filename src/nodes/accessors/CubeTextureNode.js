@@ -126,7 +126,13 @@ class CubeTextureNode extends TextureNode {
 
 		// rotate first
 
-		uvNode = materialEnvRotation.mul( uvNode );
+		// WITH_GENESYS: Skip material/scene env rotation in compute — no material or scene context.
+		if ( builder.shaderStage !== 'compute' ) {
+
+			uvNode = materialEnvRotation.mul( uvNode );
+
+		}
+		// !WITH_GENESYS
 
 		// flip
 

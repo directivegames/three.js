@@ -366,7 +366,27 @@ class TextureNode extends UniformNode {
 
 			if ( this.updateMatrix === true ) {
 
-				uvNode = this.getTransformedUV( uvNode );
+				// eslint-disable-next-line no-constant-condition
+				if ( true ) {
+
+					// WITH_GENESYS: Do not apply UV matrix to integer texel coords or storage textures.
+					const explicitUV = this.uvNode;
+					const explicitUVType = explicitUV ? explicitUV.getNodeType( builder ) : null;
+					const isIntegerTexelCoord = explicitUVType === 'uvec2' || explicitUVType === 'uvec3' || explicitUVType === 'ivec2' || explicitUVType === 'ivec3';
+					const isStorageTexture = texture.isStorageTexture === true;
+
+					if ( isIntegerTexelCoord === false && isStorageTexture === false ) {
+
+						uvNode = this.getTransformedUV( uvNode );
+
+					}
+					// !WITH_GENESYS
+
+				} else {
+
+					uvNode = this.getTransformedUV( uvNode );
+
+				}
 
 			}
 
