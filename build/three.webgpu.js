@@ -38730,10 +38730,6 @@ class StorageTextureNode extends TextureNode {
 		 */
 		this.access = NodeAccess.WRITE_ONLY;
 
-		// WITH_GENESYS: Storage writes use integer texel coordinates (uvec2/uvec3), not UV matrix transforms.
-		// this.setUpdateMatrix( false );
-		// !WITH_GENESYS
-
 	}
 
 	/**
@@ -38934,10 +38930,6 @@ const textureStore = ( value, uvNode, storeNode ) => {
 		node = storageTexture( value, uvNode, storeNode );
 
 	}
-
-	// WITH_GENESYS
-	// node.setUpdateMatrix( false );
-	// !WITH_GENESYS
 
 	if ( storeNode !== null ) node.toStack();
 
