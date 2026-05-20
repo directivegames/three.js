@@ -2556,6 +2556,28 @@ class Renderer {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Releases renderer resources scoped to `scene` when the scene is removed but
+	 * this renderer instance continues to run. Disposes matching {@link RenderObject}s,
+	 * the internal background skybox mesh, and cached background/environment nodes.
+	 *
+	 * Does not call `texture.dispose()` on {@link Scene#background} or
+	 * {@link Scene#environment}; the caller remains responsible for those textures.
+	 *
+	 * @param {Scene} scene - The scene being removed.
+	 */
+	disposeSceneResources( scene ) {
+
+		if ( this._initialized !== true ) return;
+
+		this._objects.disposeSceneResources( scene );
+		this._nodes.clearSceneBackgroundAndEnvironmentNodes( scene );
+		this._background.disposeScene( scene );
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * Sets the given render target. Calling this method means the renderer does not
 	 * target the default framebuffer (meaning the canvas) anymore but a custom framebuffer.

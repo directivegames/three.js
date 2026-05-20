@@ -207,6 +207,29 @@ class RenderObjects {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Disposes every {@link RenderObject} associated with `scene`.
+	 *
+	 * @param {Scene} scene - The scene being removed.
+	 */
+	disposeSceneResources( scene ) {
+
+		const renderObjects = Array.from( this._renderObjects );
+
+		for ( const renderObject of renderObjects ) {
+
+			if ( renderObject.scene === scene ) {
+
+				renderObject.dispose();
+
+			}
+
+		}
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * Factory method for creating render objects with the given list of parameters.
 	 *

@@ -44,6 +44,37 @@ class Background extends DataMap {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Disposes the renderer-owned background skybox mesh (material and geometry)
+	 * for `scene` and clears cached mesh state.
+	 *
+	 * Does not dispose {@link Scene#background}.
+	 *
+	 * @param {Scene} scene - The scene.
+	 */
+	disposeScene( scene ) {
+
+		if ( this.has( scene ) === false ) return;
+
+		const sceneData = this.get( scene );
+
+		const backgroundMesh = sceneData.backgroundMesh;
+
+		if ( backgroundMesh !== undefined ) {
+
+			backgroundMesh.material.dispose();
+			backgroundMesh.geometry.dispose();
+
+			delete sceneData.backgroundMesh;
+			delete sceneData.backgroundMeshNode;
+			delete sceneData.backgroundCacheKey;
+
+		}
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * Updates the background for the given scene. Depending on how `Scene.background`
 	 * or `Scene.backgroundNode` are configured, this method might configure a simple clear
@@ -63,12 +94,20 @@ class Background extends DataMap {
 
 		if ( background === null ) {
 
+			// WITH_GENESYS
+			this.disposeScene( scene );
+			// !WITH_GENESYS
+
 			// no background settings, use clear color configuration from the renderer
 
 			renderer._clearColor.getRGB( _clearColor );
 			_clearColor.a = renderer._clearColor.a;
 
 		} else if ( background.isColor === true ) {
+
+			// WITH_GENESYS
+			this.disposeScene( scene );
+			// !WITH_GENESYS
 
 			// background is an opaque color
 

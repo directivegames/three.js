@@ -693,6 +693,30 @@ class NodeManager extends DataMap {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Clears cached background and environment node state for `scene`.
+	 *
+	 * Does not call `texture.dispose()` on {@link Scene#background} or
+	 * {@link Scene#environment}.
+	 *
+	 * @param {Scene} scene - The scene.
+	 */
+	clearSceneBackgroundAndEnvironmentNodes( scene ) {
+
+		if ( this.has( scene ) === false ) return;
+
+		const sceneData = this.get( scene );
+
+		delete sceneData.backgroundNode;
+		delete sceneData.background;
+		delete sceneData.backgroundBlurriness;
+		delete sceneData.environmentNode;
+		delete sceneData.environment;
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * This method is part of the caching of nodes which are used to represents the
 	 * scene's background, fog or environment.
