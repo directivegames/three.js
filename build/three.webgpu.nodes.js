@@ -43228,6 +43228,15 @@ class LightProbeGridNode extends LightingNode {
 
 		super();
 
+		/**
+		 * This flag can be used for type testing.
+		 *
+		 * @type {boolean}
+		 * @readonly
+		 * @default true
+		 */
+		this.isLightProbeGridNode = true;
+
 		this.lightProbeGrids = lightProbeGrids;
 		this.activeLightProbeGrid = null;
 
@@ -43375,6 +43384,15 @@ class LightsNode extends Node {
 		 * @type {Array<Object3D>}
 		 */
 		this._lightProbeGrids = [];
+
+		/**
+		 * Cached light probe grid node reused across {@link LightsNode#setupLightsNode} calls.
+		 *
+		 * @private
+		 * @type {?LightProbeGridNode}
+		 * @default null
+		 */
+		this._lightProbeGridNode = null;
 		// !WITH_GENESYS
 
 		/**
@@ -43442,7 +43460,6 @@ class LightsNode extends Node {
 			const lightProbeGrid = lightProbeGrids[ i ];
 
 			_hashData.push( lightProbeGrid.id );
-			_hashData.push( lightProbeGrid.texture !== null ? lightProbeGrid.texture.id : -1 );
 
 		}
 		// !WITH_GENESYS
@@ -43556,16 +43573,42 @@ class LightsNode extends Node {
 		}
 
 		// WITH_GENESYS
-		if ( this._lightProbeGrids.length > 0 ) {
-
-			lightNodes.push( new LightProbeGridNode( this._lightProbeGrids ) );
-
-		}
+		this._appendLightProbeGridNode( lightNodes );
 		// !WITH_GENESYS
 
 		this._lightNodes = lightNodes;
 
 	}
+
+	// WITH_GENESYS
+	/**
+	 * Appends the cached {@link LightProbeGridNode} for the current probe grids.
+	 *
+	 * @private
+	 * @param {Array<LightingNode>} lightNodes - The light nodes array being built.
+	 */
+	_appendLightProbeGridNode( lightNodes ) {
+
+		if ( this._lightProbeGrids.length === 0 ) {
+
+			return;
+
+		}
+
+		if ( this._lightProbeGridNode === null ) {
+
+			this._lightProbeGridNode = new LightProbeGridNode( this._lightProbeGrids );
+
+		} else {
+
+			this._lightProbeGridNode.lightProbeGrids = this._lightProbeGrids;
+
+		}
+
+		lightNodes.push( this._lightProbeGridNode );
+
+	}
+	// !WITH_GENESYS
 
 	/**
 	 * Sets up a direct light in the lighting model.
@@ -43723,6 +43766,12 @@ class LightsNode extends Node {
 	setLightProbeGrids( lightProbeGrids ) {
 
 		this._lightProbeGrids = lightProbeGrids;
+
+		if ( this._lightProbeGridNode !== null ) {
+
+			this._lightProbeGridNode.lightProbeGrids = lightProbeGrids;
+
+		}
 
 		this._lightNodes = null;
 		this._lightNodesHash = null;

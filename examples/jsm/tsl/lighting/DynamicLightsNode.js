@@ -1,7 +1,4 @@
 import {
-	// WITH_GENESYS
-	LightProbeGridNode,
-	// !WITH_GENESYS
 	LightsNode,
 	NodeUtils,
 	warn
@@ -158,7 +155,6 @@ class DynamicLightsNode extends LightsNode {
 			const lightProbeGrid = this._lightProbeGrids[ i ];
 
 			_hashData.push( lightProbeGrid.id );
-			_hashData.push( lightProbeGrid.texture !== null ? lightProbeGrid.texture.id : - 1 );
 
 		}
 		// !WITH_GENESYS
@@ -249,11 +245,7 @@ class DynamicLightsNode extends LightsNode {
 		}
 
 		// WITH_GENESYS
-		if ( this._lightProbeGrids.length > 0 ) {
-
-			lightNodes.push( new LightProbeGridNode( this._lightProbeGrids ) );
-
-		}
+		this._appendLightProbeGridNode( lightNodes );
 		// !WITH_GENESYS
 
 		this._lightNodes = lightNodes;

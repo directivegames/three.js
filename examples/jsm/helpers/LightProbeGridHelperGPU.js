@@ -102,13 +102,13 @@ class LightProbeGridHelper extends InstancedMesh {
 
 		if ( this.instanceMatrix.count !== count ) {
 
+			this.instanceMatrix.dispose();
 			this.instanceMatrix = new InstancedBufferAttribute( new Float32Array( count * 16 ), 16 );
 
 		}
 
 		this.count = count;
 
-		const uvwArray = new Float32Array( count * 3 );
 		const matrix = new Matrix4();
 		const probePos = new Vector3();
 
@@ -119,10 +119,6 @@ class LightProbeGridHelper extends InstancedMesh {
 			for ( let iy = 0; iy < res.y; iy ++ ) {
 
 				for ( let ix = 0; ix < res.x; ix ++ ) {
-
-					uvwArray[ i * 3 ] = ( ix + 0.5 ) / res.x;
-					uvwArray[ i * 3 + 1 ] = ( iy + 0.5 ) / res.y;
-					uvwArray[ i * 3 + 2 ] = ( iz + 0.5 ) / res.z;
 
 					probes.getProbePosition( ix, iy, iz, probePos );
 					matrix.makeTranslation( probePos.x, probePos.y, probePos.z );
@@ -137,7 +133,43 @@ class LightProbeGridHelper extends InstancedMesh {
 		}
 
 		this.instanceMatrix.needsUpdate = true;
-		this.geometry.setAttribute( 'instanceUVW', new InstancedBufferAttribute( uvwArray, 3 ) );
+
+		let instanceUVW = this.geometry.getAttribute( 'instanceUVW' );
+
+		if ( instanceUVW === undefined || instanceUVW.count !== count ) {
+
+			if ( instanceUVW !== undefined ) {
+
+				instanceUVW.dispose();
+
+			}
+
+			const uvwArray = new Float32Array( count * 3 );
+
+			i = 0;
+
+			for ( let iz = 0; iz < res.z; iz ++ ) {
+
+				for ( let iy = 0; iy < res.y; iy ++ ) {
+
+					for ( let ix = 0; ix < res.x; ix ++ ) {
+
+						uvwArray[ i * 3 ] = ( ix + 0.5 ) / res.x;
+						uvwArray[ i * 3 + 1 ] = ( iy + 0.5 ) / res.y;
+						uvwArray[ i * 3 + 2 ] = ( iz + 0.5 ) / res.z;
+
+						i ++;
+
+					}
+
+				}
+
+			}
+
+			instanceUVW = new InstancedBufferAttribute( uvwArray, 3 );
+			this.geometry.setAttribute( 'instanceUVW', instanceUVW );
+
+		}
 
 		this._probesSH.value = probes.texture || _emptyTexture;
 		this._probesResolution.value.copy( probes.resolution );
@@ -148,6 +180,16 @@ class LightProbeGridHelper extends InstancedMesh {
 	 * Frees the GPU-related resources allocated by this instance.
 	 */
 	dispose() {
+
+		this.instanceMatrix.dispose();
+
+		const instanceUVW = this.geometry.getAttribute( 'instanceUVW' );
+
+		if ( instanceUVW !== undefined ) {
+
+			instanceUVW.dispose();
+
+		}
 
 		this.geometry.dispose();
 		this.material.dispose();

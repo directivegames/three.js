@@ -64,6 +64,15 @@ class LightProbeGridNode extends LightingNode {
 
 		super();
 
+		/**
+		 * This flag can be used for type testing.
+		 *
+		 * @type {boolean}
+		 * @readonly
+		 * @default true
+		 */
+		this.isLightProbeGridNode = true;
+
 		this.lightProbeGrids = lightProbeGrids;
 		this.activeLightProbeGrid = null;
 

@@ -490,15 +490,28 @@ class LightProbeGrid extends Object3D {
 		const res = this.resolution;
 		const nx = res.x, ny = res.y, nz = res.z;
 		const atlasDepth = 7 * ( nz + 2 * ATLAS_PADDING );
+		const dataLength = nx * ny * atlasDepth * 4;
 
-		if ( this.texture !== null &&
-			this.texture.image.width === nx &&
-			this.texture.image.height === ny &&
-			this.texture.image.depth === atlasDepth ) return;
+		if ( this.texture !== null ) {
 
-		if ( this.texture !== null ) this.texture.dispose();
+			const image = this.texture.image;
 
-		const texture = new Data3DTexture( new Float32Array( nx * ny * atlasDepth * 4 ), nx, ny, atlasDepth );
+			if ( image.width === nx && image.height === ny && image.depth === atlasDepth ) {
+
+				return;
+
+			}
+
+			image.data = new Float32Array( dataLength );
+			image.width = nx;
+			image.height = ny;
+			image.depth = atlasDepth;
+
+			return;
+
+		}
+
+		const texture = new Data3DTexture( new Float32Array( dataLength ), nx, ny, atlasDepth );
 
 		texture.format = RGBAFormat;
 		texture.type = FloatType;
