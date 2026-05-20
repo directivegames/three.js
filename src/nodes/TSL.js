@@ -168,6 +168,10 @@ export { default as V_GGX_SmithCorrelated } from './functions/BSDF/V_GGX_SmithCo
 export * from './lighting/LightUtils.js';
 
 export { default as getGeometryRoughness } from './functions/material/getGeometryRoughness.js';
+// WITH_GENESYS
+export { default as getLightProbeGridIrradiance } from './functions/material/getLightProbeGridIrradiance.js';
+export { getLightProbeGridIrradianceAtUV } from './functions/material/getLightProbeGridIrradiance.js';
+// !WITH_GENESYS
 export { default as getParallaxCorrectNormal } from './functions/material/getParallaxCorrectNormal.js';
 export { default as getRoughness } from './functions/material/getRoughness.js';
 export { default as getShIrradianceAt } from './functions/material/getShIrradianceAt.js';

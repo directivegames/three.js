@@ -1,4 +1,11 @@
-import { LightsNode, NodeUtils, warn } from 'three/webgpu';
+import {
+	// WITH_GENESYS
+	LightProbeGridNode,
+	// !WITH_GENESYS
+	LightsNode,
+	NodeUtils,
+	warn
+} from 'three/webgpu';
 import { nodeObject } from 'three/tsl';
 
 import AmbientLightDataNode from './data/AmbientLightDataNode.js';
@@ -145,6 +152,17 @@ class DynamicLightsNode extends LightsNode {
 
 		}
 
+		// WITH_GENESYS
+		for ( let i = 0; i < this._lightProbeGrids.length; i ++ ) {
+
+			const lightProbeGrid = this._lightProbeGrids[ i ];
+
+			_hashData.push( lightProbeGrid.id );
+			_hashData.push( lightProbeGrid.texture !== null ? lightProbeGrid.texture.id : - 1 );
+
+		}
+		// !WITH_GENESYS
+
 		const cacheKey = NodeUtils.hashArray( _hashData );
 
 		_hashData.length = 0;
@@ -229,6 +247,14 @@ class DynamicLightsNode extends LightsNode {
 			}
 
 		}
+
+		// WITH_GENESYS
+		if ( this._lightProbeGrids.length > 0 ) {
+
+			lightNodes.push( new LightProbeGridNode( this._lightProbeGrids ) );
+
+		}
+		// !WITH_GENESYS
 
 		this._lightNodes = lightNodes;
 

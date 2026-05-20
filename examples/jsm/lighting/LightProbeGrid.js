@@ -1,6 +1,7 @@
 import {
 	Box3,
 	CubeCamera,
+	Data3DTexture,
 	FloatType,
 	HalfFloatType,
 	LinearFilter,
@@ -18,6 +19,10 @@ import {
 	WebGLCubeRenderTarget,
 	WebGLRenderTarget
 } from 'three';
+// WITH_GENESYS
+import { CubeRenderTarget } from 'three/webgpu';
+import { LightProbeGenerator } from '../lights/LightProbeGenerator.js';
+// !WITH_GENESYS
 
 // Shared fullscreen-quad scene / camera
 let _scene = null;
@@ -37,6 +42,16 @@ let _cubeCamera = null;
 let _cachedCubemapSize = 0;
 let _cachedNear = 0;
 let _cachedFar = 0;
+
+// WITH_GENESYS
+// Cached WebGPU bake resources. The WebGPU path reads SH coefficients back to
+// CPU and packs the existing atlas format into a Data3DTexture.
+let _webgpuCubeRenderTarget = null;
+let _webgpuCubeCamera = null;
+let _webgpuCachedCubemapSize = 0;
+let _webgpuCachedNear = 0;
+let _webgpuCachedFar = 0;
+// !WITH_GENESYS
 
 // Cached batch render target
 let _batchTarget = null;
@@ -210,8 +225,17 @@ class LightProbeGrid extends Object3D {
 	 * @param {number} [options.cubemapSize=8] - Resolution of each cubemap face.
 	 * @param {number} [options.near=0.1] - Near plane for the cube camera.
 	 * @param {number} [options.far=100] - Far plane for the cube camera.
+	 * @return {void|Promise<void>} A promise when baking with WebGPU.
 	 */
 	bake( renderer, scene, options = {} ) {
+
+		// WITH_GENESYS
+		if ( renderer.isWebGPURenderer === true ) {
+
+			return this._bakeWebGPU( renderer, scene, options );
+
+		}
+		// !WITH_GENESYS
 
 		const { cubeRenderTarget, cubeCamera } = _ensureBakeResources( options );
 
@@ -338,6 +362,77 @@ class LightProbeGrid extends Object3D {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Bakes all probes with a WebGPU renderer.
+	 *
+	 * @private
+	 * @async
+	 * @param {WebGPURenderer} renderer - The renderer.
+	 * @param {Scene} scene - The scene to render.
+	 * @param {Object} [options] - Bake options.
+	 * @return {Promise<void>} Resolves when baking has completed.
+	 */
+	async _bakeWebGPU( renderer, scene, options = {} ) {
+
+		const { cubeRenderTarget, cubeCamera } = _ensureWebGPUBakeResources( options );
+
+		this._ensureWebGPUTexture();
+		this.updateBoundingBox();
+
+		this.visible = false;
+
+		const res = this.resolution;
+		const nx = res.x, ny = res.y, nz = res.z;
+		const paddedSlices = nz + 2 * ATLAS_PADDING;
+		const atlasDepth = 7 * paddedSlices;
+		const data = this.texture.image.data;
+
+		data.fill( 0 );
+
+		for ( let iz = 0; iz < nz; iz ++ ) {
+
+			for ( let iy = 0; iy < ny; iy ++ ) {
+
+				for ( let ix = 0; ix < nx; ix ++ ) {
+
+					this.getProbePosition( ix, iy, iz, _position );
+					cubeCamera.position.copy( _position );
+					cubeCamera.update( renderer, scene );
+
+					const lightProbe = await LightProbeGenerator.fromCubeRenderTarget( renderer, cubeRenderTarget );
+					const coefficients = lightProbe.sh.coefficients;
+
+					for ( let textureIndex = 0; textureIndex < 7; textureIndex ++ ) {
+
+						_writePackedCoefficient( data, nx, ny, textureIndex * paddedSlices + ATLAS_PADDING + iz, ix, iy, coefficients, textureIndex );
+
+					}
+
+				}
+
+			}
+
+		}
+
+		for ( let textureIndex = 0; textureIndex < 7; textureIndex ++ ) {
+
+			const baseSlice = textureIndex * paddedSlices;
+
+			_copyAtlasSlice( data, nx, ny, baseSlice + ATLAS_PADDING, baseSlice );
+			_copyAtlasSlice( data, nx, ny, baseSlice + ATLAS_PADDING + nz - 1, baseSlice + ATLAS_PADDING + nz );
+
+		}
+
+		this.texture.image.width = nx;
+		this.texture.image.height = ny;
+		this.texture.image.depth = atlasDepth;
+		this.texture.needsUpdate = true;
+		this.visible = true;
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * Ensures the atlas 3D render target exists with the correct dimensions.
 	 *
@@ -346,6 +441,15 @@ class LightProbeGrid extends Object3D {
 	_ensureTextures() {
 
 		if ( this._renderTarget !== null ) return;
+
+		// WITH_GENESYS
+		if ( this.texture !== null ) {
+
+			this.texture.dispose();
+			this.texture = null;
+
+		}
+		// !WITH_GENESYS
 
 		const res = this.resolution;
 		const nx = res.x, ny = res.y, nz = res.z;
@@ -367,6 +471,46 @@ class LightProbeGrid extends Object3D {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Ensures the atlas Data3DTexture exists with the correct dimensions for WebGPU.
+	 *
+	 * @private
+	 */
+	_ensureWebGPUTexture() {
+
+		if ( this._renderTarget !== null ) {
+
+			this._renderTarget.dispose();
+			this._renderTarget = null;
+			this.texture = null;
+
+		}
+
+		const res = this.resolution;
+		const nx = res.x, ny = res.y, nz = res.z;
+		const atlasDepth = 7 * ( nz + 2 * ATLAS_PADDING );
+
+		if ( this.texture !== null &&
+			this.texture.image.width === nx &&
+			this.texture.image.height === ny &&
+			this.texture.image.depth === atlasDepth ) return;
+
+		if ( this.texture !== null ) this.texture.dispose();
+
+		const texture = new Data3DTexture( new Float32Array( nx * ny * atlasDepth * 4 ), nx, ny, atlasDepth );
+
+		texture.format = RGBAFormat;
+		texture.type = FloatType;
+		texture.minFilter = LinearFilter;
+		texture.magFilter = LinearFilter;
+		texture.generateMipmaps = false;
+
+		this.texture = texture;
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * Frees GPU resources.
 	 */
@@ -378,7 +522,12 @@ class LightProbeGrid extends Object3D {
 			this._renderTarget = null;
 			this.texture = null;
 
-		}
+		} else if ( this.texture !== null ) { // WITH_GENESYS
+
+			this.texture.dispose();
+			this.texture = null;
+
+		} // !WITH_GENESYS
 
 	}
 
@@ -626,6 +775,115 @@ function _ensureBakeResources( options ) {
 	return { cubeRenderTarget: _cubeRenderTarget, cubeCamera: _cubeCamera };
 
 }
+
+// WITH_GENESYS
+function _ensureWebGPUBakeResources( options ) {
+
+	const {
+		cubemapSize = 8,
+		near = 0.1,
+		far = 100
+	} = options;
+
+	if ( _webgpuCubeRenderTarget === null || cubemapSize !== _webgpuCachedCubemapSize || near !== _webgpuCachedNear || far !== _webgpuCachedFar ) {
+
+		if ( _webgpuCubeRenderTarget !== null ) _webgpuCubeRenderTarget.dispose();
+
+		_webgpuCubeRenderTarget = new CubeRenderTarget( cubemapSize, { type: HalfFloatType } );
+		_webgpuCubeCamera = new CubeCamera( near, far, _webgpuCubeRenderTarget );
+		_webgpuCachedCubemapSize = cubemapSize;
+		_webgpuCachedNear = near;
+		_webgpuCachedFar = far;
+
+	}
+
+	return { cubeRenderTarget: _webgpuCubeRenderTarget, cubeCamera: _webgpuCubeCamera };
+
+}
+
+function _getAtlasOffset( nx, ny, slice, ix, iy ) {
+
+	return ( ( slice * ny + iy ) * nx + ix ) * 4;
+
+}
+
+function _writePackedCoefficient( data, nx, ny, slice, ix, iy, coefficients, textureIndex ) {
+
+	const offset = _getAtlasOffset( nx, ny, slice, ix, iy );
+	const c0 = coefficients[ 0 ];
+	const c1 = coefficients[ 1 ];
+	const c2 = coefficients[ 2 ];
+	const c3 = coefficients[ 3 ];
+	const c4 = coefficients[ 4 ];
+	const c5 = coefficients[ 5 ];
+	const c6 = coefficients[ 6 ];
+	const c7 = coefficients[ 7 ];
+	const c8 = coefficients[ 8 ];
+
+	switch ( textureIndex ) {
+
+		case 0:
+			data[ offset ] = c0.x;
+			data[ offset + 1 ] = c0.y;
+			data[ offset + 2 ] = c0.z;
+			data[ offset + 3 ] = c1.x;
+			break;
+
+		case 1:
+			data[ offset ] = c1.y;
+			data[ offset + 1 ] = c1.z;
+			data[ offset + 2 ] = c2.x;
+			data[ offset + 3 ] = c2.y;
+			break;
+
+		case 2:
+			data[ offset ] = c2.z;
+			data[ offset + 1 ] = c3.x;
+			data[ offset + 2 ] = c3.y;
+			data[ offset + 3 ] = c3.z;
+			break;
+
+		case 3:
+			data[ offset ] = c4.x;
+			data[ offset + 1 ] = c4.y;
+			data[ offset + 2 ] = c4.z;
+			data[ offset + 3 ] = c5.x;
+			break;
+
+		case 4:
+			data[ offset ] = c5.y;
+			data[ offset + 1 ] = c5.z;
+			data[ offset + 2 ] = c6.x;
+			data[ offset + 3 ] = c6.y;
+			break;
+
+		case 5:
+			data[ offset ] = c6.z;
+			data[ offset + 1 ] = c7.x;
+			data[ offset + 2 ] = c7.y;
+			data[ offset + 3 ] = c7.z;
+			break;
+
+		default:
+			data[ offset ] = c8.x;
+			data[ offset + 1 ] = c8.y;
+			data[ offset + 2 ] = c8.z;
+			data[ offset + 3 ] = 0;
+
+	}
+
+}
+
+function _copyAtlasSlice( data, nx, ny, sourceSlice, targetSlice ) {
+
+	const sliceSize = nx * ny * 4;
+	const sourceOffset = sourceSlice * sliceSize;
+	const targetOffset = targetSlice * sliceSize;
+
+	data.copyWithin( targetOffset, sourceOffset, sourceOffset + sliceSize );
+
+}
+// !WITH_GENESYS
 
 function _ensureBatchTarget( totalProbes ) {
 

@@ -202,6 +202,10 @@ export const getCurrentStack = TSL.getCurrentStack;
 export const getDirection = TSL.getDirection;
 export const getDistanceAttenuation = TSL.getDistanceAttenuation;
 export const getGeometryRoughness = TSL.getGeometryRoughness;
+// WITH_GENESYS
+export const getLightProbeGridIrradiance = TSL.getLightProbeGridIrradiance;
+export const getLightProbeGridIrradianceAtUV = TSL.getLightProbeGridIrradianceAtUV;
+// !WITH_GENESYS
 export const getNormalFromDepth = TSL.getNormalFromDepth;
 export const interleavedGradientNoise = TSL.interleavedGradientNoise;
 export const vogelDiskSample = TSL.vogelDiskSample;

@@ -161,6 +161,15 @@ class RenderList {
 		 */
 		this.lightsArray = [];
 
+		// WITH_GENESYS
+		/**
+		 * The scene's light probe grids stored in an array.
+		 *
+		 * @type {Array<Object3D>}
+		 */
+		this.lightProbeGridsArray = [];
+		// !WITH_GENESYS
+
 		/**
 		 * The scene.
 		 *
@@ -202,6 +211,9 @@ class RenderList {
 		this.bundles.length = 0;
 
 		this.lightsArray.length = 0;
+		// WITH_GENESYS
+		this.lightProbeGridsArray.length = 0;
+		// !WITH_GENESYS
 
 		this.occlusionQueryCount = 0;
 
@@ -353,6 +365,19 @@ class RenderList {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Pushes a light probe grid into the render list.
+	 *
+	 * @param {Object3D} lightProbeGrid - The light probe grid.
+	 */
+	pushLightProbeGrid( lightProbeGrid ) {
+
+		this.lightProbeGridsArray.push( lightProbeGrid );
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * Sorts the internal render lists.
 	 *
@@ -376,6 +401,9 @@ class RenderList {
 		// update lights
 
 		this.lightsNode.setLights( this.lightsArray );
+		// WITH_GENESYS
+		this.lightsNode.setLightProbeGrids( this.lightProbeGridsArray );
+		// !WITH_GENESYS
 
 		// Clear references from inactive renderItems in the list
 

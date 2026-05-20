@@ -2,13 +2,13 @@
 
 A 3D grid of L2 Spherical Harmonic irradiance probes that provides position-dependent diffuse global illumination.
 
-All seven packed SH sub-volumes are stored in a **single** RGBA `WebGL3DRenderTarget` using a texture-atlas layout along the Z axis. Each sub-volume occupies `( nz + 2 )` atlas slices: one padding slice at each end (a copy of the nearest edge data slice) to prevent color bleeding when the hardware trilinear filter reads across a sub-volume boundary.
+All seven packed SH sub-volumes are stored in a **single** RGBA 3D texture using a texture-atlas layout along the Z axis. Each sub-volume occupies `( nz + 2 )` atlas slices: one padding slice at each end (a copy of the nearest edge data slice) to prevent color bleeding when the hardware trilinear filter reads across a sub-volume boundary.
 
 Atlas layout (nz = resolution.z, PADDING = 1):
 
 Total atlas depth = `7 * ( nz + 2 )`.
 
-Baking is fully GPU-resident: cubemap rendering, SH projection, and texture packing all happen on the GPU with zero CPU readback.
+Baking is GPU-resident with `WebGLRenderer`. With `WebGPURenderer`, cubemap capture uses WebGPU and SH projection is packed into the same `Data3DTexture` atlas asynchronously.
 
 ## Code Example
 
@@ -103,9 +103,9 @@ The full width of the volume along X.
 
 ## Methods
 
-### .bake( renderer : WebGLRenderer, scene : Scene, options : Object )
+### .bake( renderer : WebGLRenderer | WebGPURenderer, scene : Scene, options : Object )
 
-Bakes all probes by rendering cubemaps at each probe position and projecting to L2 SH. Fully GPU-resident with zero CPU readback.
+Bakes all probes by rendering cubemaps at each probe position and projecting to L2 SH. Returns `void` with `WebGLRenderer` and a `Promise<void>` with `WebGPURenderer`.
 
 **renderer**
 

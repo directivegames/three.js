@@ -2,6 +2,9 @@ import Node from '../core/Node.js';
 import { nodeObject, property, vec3 } from '../tsl/TSLBase.js';
 import { hashArray } from '../core/NodeUtils.js';
 import { warn } from '../../utils.js';
+// WITH_GENESYS
+import LightProbeGridNode from './LightProbeGridNode.js';
+// !WITH_GENESYS
 
 const sortLights = ( lights ) => {
 
@@ -79,6 +82,16 @@ class LightsNode extends Node {
 		 */
 		this._lights = [];
 
+		// WITH_GENESYS
+		/**
+		 * A list of light probe grids collected from the scene.
+		 *
+		 * @private
+		 * @type {Array<Object3D>}
+		 */
+		this._lightProbeGrids = [];
+		// !WITH_GENESYS
+
 		/**
 		 * For each light in the scene, this node will create a
 		 * corresponding light node.
@@ -135,6 +148,19 @@ class LightsNode extends Node {
 			}
 
 		}
+
+		// WITH_GENESYS
+		const lightProbeGrids = this._lightProbeGrids;
+
+		for ( let i = 0; i < lightProbeGrids.length; i ++ ) {
+
+			const lightProbeGrid = lightProbeGrids[ i ];
+
+			_hashData.push( lightProbeGrid.id );
+			_hashData.push( lightProbeGrid.texture !== null ? lightProbeGrid.texture.id : - 1 );
+
+		}
+		// !WITH_GENESYS
 
 		const cacheKey = hashArray( _hashData );
 
@@ -243,6 +269,14 @@ class LightsNode extends Node {
 			}
 
 		}
+
+		// WITH_GENESYS
+		if ( this._lightProbeGrids.length > 0 ) {
+
+			lightNodes.push( new LightProbeGridNode( this._lightProbeGrids ) );
+
+		}
+		// !WITH_GENESYS
 
 		this._lightNodes = lightNodes;
 
@@ -394,6 +428,25 @@ class LightsNode extends Node {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Configures this node with an array of light probe grids.
+	 *
+	 * @param {Array<Object3D>} lightProbeGrids - An array of light probe grids.
+	 * @return {LightsNode} A reference to this node.
+	 */
+	setLightProbeGrids( lightProbeGrids ) {
+
+		this._lightProbeGrids = lightProbeGrids;
+
+		this._lightNodes = null;
+		this._lightNodesHash = null;
+
+		return this;
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * Returns an array of the scene's lights.
 	 *
@@ -412,7 +465,11 @@ class LightsNode extends Node {
 	 */
 	get hasLights() {
 
-		return this._lights.length > 0;
+		return this._lights.length > 0
+			// WITH_GENESYS
+			|| this._lightProbeGrids.length > 0
+			// !WITH_GENESYS
+		;
 
 	}
 

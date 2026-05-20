@@ -935,7 +935,11 @@ class Renderer {
 
 					renderList.pushLight( object );
 
-				}
+				} else if ( object.isLightProbeGrid && object.layers.test( camera.layers ) ) { // WITH_GENESYS
+
+					renderList.pushLightProbeGrid( object );
+
+				} // !WITH_GENESYS
 
 			} );
 
@@ -3085,7 +3089,11 @@ class Renderer {
 
 				renderList.pushLight( object );
 
-			} else if ( object.isSprite ) {
+			} else if ( object.isLightProbeGrid ) { // WITH_GENESYS
+
+				renderList.pushLightProbeGrid( object );
+
+			} else if ( object.isSprite ) { // !WITH_GENESYS
 
 				const frustum = camera.isArrayCamera ? _frustumArray : _frustum;
 
