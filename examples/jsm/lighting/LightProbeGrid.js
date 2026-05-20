@@ -225,14 +225,15 @@ class LightProbeGrid extends Object3D {
 	 * @param {number} [options.cubemapSize=8] - Resolution of each cubemap face.
 	 * @param {number} [options.near=0.1] - Near plane for the cube camera.
 	 * @param {number} [options.far=100] - Far plane for the cube camera.
-	 * @return {void|Promise<void>} A promise when baking with WebGPU.
+	 * @return {Promise<void>} Resolves when baking has completed.
 	 */
-	bake( renderer, scene, options = {} ) {
+	async bake( renderer, scene, options = {} ) {
 
 		// WITH_GENESYS
 		if ( renderer.isWebGPURenderer === true ) {
 
-			return this._bakeWebGPU( renderer, scene, options );
+			await this._bakeWebGPU( renderer, scene, options );
+			return;
 
 		}
 		// !WITH_GENESYS
