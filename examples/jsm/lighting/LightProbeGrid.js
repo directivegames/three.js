@@ -196,6 +196,33 @@ class LightProbeGrid extends Object3D {
 		 */
 		this._renderTarget = null;
 
+		/**
+		 * Array of cube textures captured during baking, only populated
+		 * when `retainCubemaps` option is true in {@link LightProbeGrid#bake}.
+		 *
+		 * @type {?CubeTexture[]}
+		 * @default null
+		 */
+		this.cubeTextures = null;
+
+		/**
+		 * Render targets backing retained cube textures.
+		 *
+		 * @private
+		 * @type {?Array<WebGLCubeRenderTarget|CubeRenderTarget>}
+		 * @default null
+		 */
+		this._cubeRenderTargets = null;
+
+		/**
+		 * Whether retained cube render targets are WebGPU render targets.
+		 *
+		 * @private
+		 * @type {?boolean}
+		 * @default null
+		 */
+		this._cubeRenderTargetsWebGPU = null;
+
 		this.updateBoundingBox();
 
 	}
@@ -245,14 +272,18 @@ class LightProbeGrid extends Object3D {
 	 * @param {number} [options.cubemapSize=8] - Resolution of each cubemap face.
 	 * @param {number} [options.near=0.1] - Near plane for the cube camera.
 	 * @param {number} [options.far=100] - Far plane for the cube camera.
+	 * @param {boolean} [options.retainCubemaps=false] - Whether to retain the captured cube maps for visualization.
 	 * @return {Promise<void>} Resolves when baking has completed.
 	 */
 	async bake( renderer, scene, options = {} ) {
 
 		const wasVisible = this.visible; // WITH_GENESYS
+		const retainCubemaps = options.retainCubemaps === true;
 
 		// Prevent feedback: temporarily hide the volume during baking
 		this.visible = false;
+
+		if ( ! retainCubemaps ) this._disposeRetainedCubemaps();
 
 		// WITH_GENESYS
 		if ( renderer.isWebGPURenderer === true ) {
@@ -296,6 +327,26 @@ class LightProbeGrid extends Object3D {
 			renderer.shadowMap.autoUpdate = false;
 			renderer.shadowMap.needsUpdate = true;
 
+			// Initialize cube texture/render target arrays if retaining
+			if ( retainCubemaps ) {
+
+				if ( this.cubeTextures === null || this.cubeTextures.length !== totalProbes ) {
+
+					this.cubeTextures = new Array( totalProbes );
+
+				}
+
+				if ( this._cubeRenderTargets === null || this._cubeRenderTargets.length !== totalProbes ) {
+
+					this._disposeRetainedCubemaps();
+					this.cubeTextures = new Array( totalProbes );
+
+					this._cubeRenderTargets = new Array( totalProbes );
+
+				}
+
+			}
+
 			for ( let iz = 0; iz < res.z; iz ++ ) {
 
 				for ( let iy = 0; iy < res.y; iy ++ ) {
@@ -305,11 +356,33 @@ class LightProbeGrid extends Object3D {
 						const probeIndex = ix + iy * res.x + iz * res.x * res.y;
 
 						this.getProbePosition( ix, iy, iz, _position );
-						cubeCamera.position.copy( _position );
-						cubeCamera.update( renderer, scene );
+
+						let envMapTexture = cubeRenderTarget.texture;
+
+						if ( retainCubemaps ) {
+
+							const retainedTarget = this._ensureRetainedCubeRenderTarget( probeIndex, options );
+							const retainedCamera = new CubeCamera(
+								options.near !== undefined ? options.near : 0.1,
+								options.far !== undefined ? options.far : 100,
+								retainedTarget
+							);
+
+							retainedCamera.position.copy( _position );
+							retainedCamera.update( renderer, scene );
+
+							envMapTexture = retainedTarget.texture;
+							this.cubeTextures[ probeIndex ] = retainedTarget.texture;
+
+						} else {
+
+							cubeCamera.position.copy( _position );
+							cubeCamera.update( renderer, scene );
+
+						}
 
 						// SH projection
-						_shMaterial.uniforms.envMap.value = cubeRenderTarget.texture;
+						_shMaterial.uniforms.envMap.value = envMapTexture;
 						_mesh.material = _shMaterial;
 						batchTarget.viewport.set( 0, probeIndex, 9, 1 );
 						batchTarget.scissor.set( 0, probeIndex, 9, 1 );
@@ -388,6 +461,83 @@ class LightProbeGrid extends Object3D {
 
 	// WITH_GENESYS
 	/**
+	 * Ensures a retained cube render target exists for a probe.
+	 *
+	 * @private
+	 * @param {number} probeIndex - The probe index.
+	 * @param {Object} options - Bake options.
+	 * @param {boolean} [webgpu=false] - Whether to create a WebGPU cube render target.
+	 * @return {WebGLCubeRenderTarget|CubeRenderTarget} The retained cube render target.
+	 */
+	_ensureRetainedCubeRenderTarget( probeIndex, options, webgpu = false ) {
+
+		const cubemapSize = options.cubemapSize !== undefined ? options.cubemapSize : 8;
+
+		if ( this._cubeRenderTargetsWebGPU !== null && this._cubeRenderTargetsWebGPU !== webgpu ) {
+
+			this._disposeRetainedCubemaps();
+
+		}
+
+		if ( this._cubeRenderTargets === null ) {
+
+			this._cubeRenderTargets = [];
+
+		}
+
+		this._cubeRenderTargetsWebGPU = webgpu;
+
+		let target = this._cubeRenderTargets[ probeIndex ];
+
+		if ( target === undefined || target.width !== cubemapSize || target.height !== cubemapSize ) {
+
+			if ( target !== undefined ) target.dispose();
+
+			target = webgpu === true
+				? new CubeRenderTarget( cubemapSize, { type: HalfFloatType } )
+				: new WebGLCubeRenderTarget( cubemapSize, { type: HalfFloatType } );
+			this._cubeRenderTargets[ probeIndex ] = target;
+
+		}
+
+		return target;
+
+	}
+
+	/**
+	 * Frees retained cube map render targets.
+	 *
+	 * @private
+	 */
+	_disposeRetainedCubemaps() {
+
+		if ( this._cubeRenderTargets !== null ) {
+
+			for ( const target of this._cubeRenderTargets ) {
+
+				if ( target !== undefined ) target.dispose();
+
+			}
+
+			this._cubeRenderTargets = null;
+
+		}
+
+		this._cubeRenderTargetsWebGPU = null;
+		this.cubeTextures = null;
+
+	}
+
+	/**
+	 * Frees retained cube maps used for cube map visualization.
+	 */
+	disposeRetainedCubemaps() {
+
+		this._disposeRetainedCubemaps();
+
+	}
+
+	/**
 	 * Bakes all probes with a WebGPU renderer.
 	 *
 	 * @private
@@ -400,6 +550,7 @@ class LightProbeGrid extends Object3D {
 	async _bakeWebGPU( renderer, scene, options = {} ) {
 
 		const cubemapSize = options.cubemapSize !== undefined ? options.cubemapSize : 8;
+		const retainCubemaps = options.retainCubemaps === true;
 		const { cubeRenderTarget, cubeCamera } = _ensureWebGPUBakeResources( options );
 
 		this._ensureWebGPUTexture();
@@ -410,6 +561,7 @@ class LightProbeGrid extends Object3D {
 
 		const res = this.resolution;
 		const nx = res.x, ny = res.y, nz = res.z;
+		const totalProbes = nx * ny * nz;
 		const paddedSlices = nz + 2 * ATLAS_PADDING;
 
 		uniforms.paddedSlices.value = paddedSlices;
@@ -418,15 +570,52 @@ class LightProbeGrid extends Object3D {
 		renderer.shadowMap.autoUpdate = false;
 		renderer.shadowMap.needsUpdate = true;
 
+		// Initialize cube textures array if retaining
+		if ( retainCubemaps ) {
+
+			if ( this.cubeTextures === null || this.cubeTextures.length !== totalProbes ) {
+
+				this.cubeTextures = new Array( totalProbes );
+
+			}
+
+			if ( this._cubeRenderTargets === null || this._cubeRenderTargets.length !== totalProbes ) {
+
+				this._disposeRetainedCubemaps();
+				this.cubeTextures = new Array( totalProbes );
+				this._cubeRenderTargets = new Array( totalProbes );
+
+			}
+
+		}
+
 		for ( let iz = 0; iz < nz; iz ++ ) {
 
 			for ( let iy = 0; iy < ny; iy ++ ) {
 
 				for ( let ix = 0; ix < nx; ix ++ ) {
 
+					const probeIndex = ix + iy * nx + iz * nx * ny;
+
 					this.getProbePosition( ix, iy, iz, _position );
 					cubeCamera.position.copy( _position );
 					cubeCamera.update( renderer, scene );
+
+					if ( retainCubemaps ) {
+
+						const retainedTarget = this._ensureRetainedCubeRenderTarget( probeIndex, options, true );
+						const retainedCamera = new CubeCamera(
+							options.near !== undefined ? options.near : 0.1,
+							options.far !== undefined ? options.far : 100,
+							retainedTarget
+						);
+
+						retainedCamera.position.copy( _position );
+						retainedCamera.update( renderer, scene );
+
+						this.cubeTextures[ probeIndex ] = retainedTarget.texture;
+
+					}
 
 					uniforms.probeIx.value = ix;
 					uniforms.probeIy.value = iy;
@@ -575,6 +764,8 @@ class LightProbeGrid extends Object3D {
 			this.texture = null;
 
 		} // !WITH_GENESYS
+
+		this._disposeRetainedCubemaps();
 
 	}
 
