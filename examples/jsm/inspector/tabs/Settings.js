@@ -233,7 +233,7 @@ class Settings extends Parameters {
 		const extUrl = new URL( extension.url, new URL( _EXTENSIONS_PATH, import.meta.url ) ).href;
 
 		// WITH_GENESYS
-		const module = await import( /* webpackIgnore: true */ extUrl );
+		const module = await import( /* @vite-ignore */ /* webpackIgnore: true */ extUrl );
 		// !WITH_GENESYS
 
 		const keys = Object.keys( module );
