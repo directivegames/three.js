@@ -621,7 +621,7 @@ class LightProbeGrid extends Object3D {
 					uniforms.probeIy.value = iy;
 					uniforms.probeIz.value = iz;
 
-					await renderer.computeAsync( computeNode );
+					renderer.compute( computeNode );
 
 				}
 
