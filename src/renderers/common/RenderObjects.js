@@ -228,6 +228,30 @@ class RenderObjects {
 		}
 
 	}
+
+	/**
+	 * Disposes every {@link RenderObject} for `object` drawn with `scene`.
+	 * Call before disposing a renderer-owned mesh (e.g. background skybox) so WebGPU
+	 * bindings are released while the renderer keeps running.
+	 *
+	 * @param {Object3D} object - The 3D object.
+	 * @param {Scene} scene - The scene reference used when the object was rendered.
+	 */
+	disposeObjectResources( object, scene ) {
+
+		const renderObjects = Array.from( this._renderObjects );
+
+		for ( const renderObject of renderObjects ) {
+
+			if ( renderObject.object === object && renderObject.scene === scene ) {
+
+				renderObject.dispose();
+
+			}
+
+		}
+
+	}
 	// !WITH_GENESYS
 
 	/**

@@ -63,6 +63,8 @@ class Background extends DataMap {
 
 		if ( backgroundMesh !== undefined ) {
 
+			this.renderer._objects.disposeObjectResources( backgroundMesh, scene );
+
 			backgroundMesh.material.dispose();
 			backgroundMesh.geometry.dispose();
 
@@ -94,20 +96,12 @@ class Background extends DataMap {
 
 		if ( background === null ) {
 
-			// WITH_GENESYS
-			this.disposeScene( scene );
-			// !WITH_GENESYS
-
 			// no background settings, use clear color configuration from the renderer
 
 			renderer._clearColor.getRGB( _clearColor );
 			_clearColor.a = renderer._clearColor.a;
 
 		} else if ( background.isColor === true ) {
-
-			// WITH_GENESYS
-			this.disposeScene( scene );
-			// !WITH_GENESYS
 
 			// background is an opaque color
 
