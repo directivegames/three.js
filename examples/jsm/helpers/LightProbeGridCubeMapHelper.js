@@ -7,9 +7,14 @@ import {
 } from 'three';
 import { NodeMaterial } from 'three/webgpu';
 import {
+	abs,
 	cubeTexture,
 	Fn,
-	normalWorld,
+	max,
+	normalLocal,
+	positionLocal,
+	select,
+	vec3,
 	vec4
 } from 'three/tsl';
 
@@ -17,7 +22,41 @@ function createNodeMaterial( texture ) {
 
 	const fragmentNode = Fn( () => {
 
-		return vec4( cubeTexture( texture, normalWorld ).rgb, 1.0 );
+		// Get local position and normal
+		const localPos = positionLocal;
+		const localNormal = normalLocal;
+
+		// Get absolute normal components to determine dominant axis
+		const absNormal = abs( localNormal );
+		const maxComp = max( max( absNormal.x, absNormal.y ), absNormal.z );
+
+		// Determine which face we're on and compute sample direction
+		const isX = maxComp.equal( absNormal.x );
+		const isY = maxComp.equal( absNormal.y ).and( isX.not() );
+
+		// Match LightProbeGrid / WebGL cubemap face conventions (see LightProbeGrid.js SH projection).
+		const xPositive = localNormal.x.greaterThan( 0.0 );
+		const xDir = select( xPositive,
+			vec3( 1.0, localPos.y, localPos.z.negate() ).normalize(),
+			vec3( - 1.0, localPos.y, localPos.z ).normalize()
+		);
+
+		const yPositive = localNormal.y.greaterThan( 0.0 );
+		const yDir = select( yPositive,
+			vec3( localPos.x, 1.0, localPos.z.negate() ).normalize(),
+			vec3( localPos.x, - 1.0, localPos.z ).normalize()
+		);
+
+		const zPositive = localNormal.z.greaterThan( 0.0 );
+		const zDir = select( zPositive,
+			vec3( localPos.x, localPos.y, 1.0 ).normalize(),
+			vec3( localPos.x, localPos.y, - 1.0 ).normalize()
+		);
+
+		// Select the appropriate direction based on which axis is dominant
+		const sampleDir = select( isX, xDir, select( isY, yDir, zDir ) );
+
+		return vec4( cubeTexture( texture, sampleDir ).rgb, 1.0 );
 
 	} )();
 
@@ -40,11 +79,13 @@ function createShaderMaterial( texture ) {
 
 		vertexShader: /* glsl */`
 
-			varying vec3 vWorldNormal;
+			varying vec3 vLocalPosition;
+			varying vec3 vNormal;
 
 			void main() {
 
-				vWorldNormal = normalize( mat3( modelMatrix ) * normal );
+				vLocalPosition = position;
+				vNormal = normal;
 				gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
 
 			}
@@ -57,12 +98,56 @@ function createShaderMaterial( texture ) {
 
 			uniform samplerCube cubeTexture;
 
-			varying vec3 vWorldNormal;
+			varying vec3 vLocalPosition;
+			varying vec3 vNormal;
 
 			void main() {
+				// Get the dominant axis from the normal to determine which face we're on
+				vec3 absNormal = abs( vNormal );
+				float maxComp = max( max( absNormal.x, absNormal.y ), absNormal.z );
 
-				vec3 direction = normalize( vWorldNormal );
-				vec3 color = textureCube( cubeTexture, direction ).rgb;
+				vec3 sampleDir;
+
+				// Match LightProbeGrid / WebGL cubemap face conventions (see LightProbeGrid.js SH projection).
+				if ( maxComp == absNormal.x ) {
+
+					if ( vNormal.x > 0.0 ) {
+
+						sampleDir = normalize( vec3( 1.0, vLocalPosition.y, -vLocalPosition.z ) );
+
+					} else {
+
+						sampleDir = normalize( vec3( -1.0, vLocalPosition.y, vLocalPosition.z ) );
+
+					}
+
+				} else if ( maxComp == absNormal.y ) {
+
+					if ( vNormal.y > 0.0 ) {
+
+						sampleDir = normalize( vec3( vLocalPosition.x, 1.0, -vLocalPosition.z ) );
+
+					} else {
+
+						sampleDir = normalize( vec3( vLocalPosition.x, -1.0, vLocalPosition.z ) );
+
+					}
+
+				} else {
+
+					if ( vNormal.z > 0.0 ) {
+
+						sampleDir = normalize( vec3( vLocalPosition.x, vLocalPosition.y, 1.0 ) );
+
+					} else {
+
+						sampleDir = normalize( vec3( vLocalPosition.x, vLocalPosition.y, -1.0 ) );
+
+					}
+
+				}
+
+				vec3 color = textureCube( cubeTexture, sampleDir ).rgb;
 
 				gl_FragColor = vec4( color, 1.0 );
 
