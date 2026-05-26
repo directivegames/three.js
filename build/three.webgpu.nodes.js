@@ -30567,6 +30567,53 @@ class RenderObjects {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Disposes every {@link RenderObject} associated with `scene`.
+	 *
+	 * @param {Scene} scene - The scene being removed.
+	 */
+	disposeSceneResources( scene ) {
+
+		const renderObjects = Array.from( this._renderObjects );
+
+		for ( const renderObject of renderObjects ) {
+
+			if ( renderObject.scene === scene ) {
+
+				renderObject.dispose();
+
+			}
+
+		}
+
+	}
+
+	/**
+	 * Disposes every {@link RenderObject} for `object` drawn with `scene`.
+	 * Call before disposing a renderer-owned mesh (e.g. background skybox) so WebGPU
+	 * bindings are released while the renderer keeps running.
+	 *
+	 * @param {Object3D} object - The 3D object.
+	 * @param {Scene} scene - The scene reference used when the object was rendered.
+	 */
+	disposeObjectResources( object, scene ) {
+
+		const renderObjects = Array.from( this._renderObjects );
+
+		for ( const renderObject of renderObjects ) {
+
+			if ( renderObject.object === object && renderObject.scene === scene ) {
+
+				renderObject.dispose();
+
+			}
+
+		}
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * Factory method for creating render objects with the given list of parameters.
 	 *
@@ -48685,6 +48732,39 @@ class Background extends DataMap {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Disposes the renderer-owned background skybox mesh (material and geometry)
+	 * for `scene` and clears cached mesh state.
+	 *
+	 * Does not dispose {@link Scene#background}.
+	 *
+	 * @param {Scene} scene - The scene.
+	 */
+	disposeScene( scene ) {
+
+		if ( this.has( scene ) === false ) return;
+
+		const sceneData = this.get( scene );
+
+		const backgroundMesh = sceneData.backgroundMesh;
+
+		if ( backgroundMesh !== undefined ) {
+
+			this.renderer._objects.disposeObjectResources( backgroundMesh, scene );
+
+			backgroundMesh.material.dispose();
+			backgroundMesh.geometry.dispose();
+
+			delete sceneData.backgroundMesh;
+			delete sceneData.backgroundMeshNode;
+			delete sceneData.backgroundCacheKey;
+
+		}
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * Updates the background for the given scene. Depending on how `Scene.background`
 	 * or `Scene.backgroundNode` are configured, this method might configure a simple clear
@@ -55427,6 +55507,30 @@ class NodeManager extends DataMap {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Clears cached background and environment node state for `scene`.
+	 *
+	 * Does not call `texture.dispose()` on {@link Scene#background} or
+	 * {@link Scene#environment}.
+	 *
+	 * @param {Scene} scene - The scene.
+	 */
+	clearSceneBackgroundAndEnvironmentNodes( scene ) {
+
+		if ( this.has( scene ) === false ) return;
+
+		const sceneData = this.get( scene );
+
+		delete sceneData.backgroundNode;
+		delete sceneData.background;
+		delete sceneData.backgroundBlurriness;
+		delete sceneData.environmentNode;
+		delete sceneData.environment;
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * This method is part of the caching of nodes which are used to represents the
 	 * scene's background, fog or environment.
@@ -60926,6 +61030,28 @@ class Renderer {
 		this.setAnimationLoop( null );
 
 	}
+
+	// WITH_GENESYS
+	/**
+	 * Releases renderer resources scoped to `scene` when the scene is removed but
+	 * this renderer instance continues to run. Disposes matching {@link RenderObject}s,
+	 * the internal background skybox mesh, and cached background/environment nodes.
+	 *
+	 * Does not call `texture.dispose()` on {@link Scene#background} or
+	 * {@link Scene#environment}; the caller remains responsible for those textures.
+	 *
+	 * @param {Scene} scene - The scene being removed.
+	 */
+	disposeSceneResources( scene ) {
+
+		if ( this._initialized !== true ) return;
+
+		this._objects.disposeSceneResources( scene );
+		this._nodes.clearSceneBackgroundAndEnvironmentNodes( scene );
+		this._background.disposeScene( scene );
+
+	}
+	// !WITH_GENESYS
 
 	/**
 	 * Sets the given render target. Calling this method means the renderer does not

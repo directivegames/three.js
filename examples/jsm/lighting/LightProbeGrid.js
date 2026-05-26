@@ -238,7 +238,11 @@ class LightProbeGrid extends Object3D {
 	 */
 	getProbePosition( ix, iy, iz, target ) {
 
-		const pos = this.position;
+		// const pos = this.position;
+		// WITH_GENESYS
+		const pos = _position;
+		this.getWorldPosition( pos );
+		// !WITH_GENESYS
 		const res = this.resolution;
 		const w = this.width, h = this.height, d = this.depth;
 
@@ -257,8 +261,15 @@ class LightProbeGrid extends Object3D {
 	 */
 	updateBoundingBox() {
 
+		// WITH_GENESYS
+		this.getWorldPosition( _position );
+		_size.set( this.width, this.height, this.depth );
+		this.boundingBox.setFromCenterAndSize( _position, _size );
+		// !WITH_GENESYS
+		/*
 		_size.set( this.width, this.height, this.depth );
 		this.boundingBox.setFromCenterAndSize( this.position, _size );
+		*/
 
 	}
 
