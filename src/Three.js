@@ -8,3 +8,6 @@ export { UniformsUtils } from './renderers/shaders/UniformsUtils.js';
 export { ShaderChunk } from './renderers/shaders/ShaderChunk.js';
 export { PMREMGenerator } from './extras/PMREMGenerator.js';
 export { WebGLUtils } from './renderers/webgl/WebGLUtils.js';
+// WITH_GENESYS
+export { ProfilerService, profile, profileClass } from './profiler/ProfilerService.js';
+// !WITH_GENESYS
