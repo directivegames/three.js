@@ -1681,7 +1681,15 @@ class Renderer {
 		const renderList = this._renderLists.get( scene, camera );
 		renderList.begin();
 
+		// WITH_GENESYS
+		ProfilerService.begin( '_projectObject' );
+		// !WITH_GENESYS
+
 		this._projectObject( scene, camera, 0, renderList, renderContext.clippingContext );
+
+		// WITH_GENESYS
+		ProfilerService.end( '_projectObject' );
+		// !WITH_GENESYS
 
 		renderList.finish();
 
