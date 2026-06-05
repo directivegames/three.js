@@ -48,11 +48,12 @@ class ProfilerServiceClass {
 		this.cursors = new Map();
 		/** @type {Map<string, number>} */
 		this.counts = new Map();
-		/** @type {Map<string, number>} */
+		/** @type {Map<string, Array<{ startTime: number, startMark: string, traced: boolean }>>} */
 		this.marks = new Map();
-		/** @type {Array<{ name: string, ph: 'X', ts: number, dur: number, pid: 1, tid: 1, cat: 'gnsx' }>} */
+		/** @type {ChromeTraceEvent[]} */
 		this.traceEvents = [];
 		this.traceStartTime = 0;
+		this._markId = 0;
 
 		if ( this._enabled ) {
 
@@ -133,8 +134,32 @@ class ProfilerServiceClass {
 	 */
 	_beginImpl( label ) {
 
-		performance.mark( `gnsx:${label}:start` );
-		this.marks.set( label, performance.now() );
+		const startTime = performance.now();
+		const startMark = `gnsx:${label}:start:${++ this._markId}`;
+		let stack = this.marks.get( label );
+		if ( stack === undefined ) {
+
+			stack = [];
+			this.marks.set( label, stack );
+
+		}
+
+		const traced = this._profile === 'full' && this.traceEvents.length < MAX_TRACE_EVENTS;
+		if ( traced ) {
+
+			this.traceEvents.push( {
+				name: label,
+				ph: 'B',
+				ts: this._getTraceTimestamp( startTime ),
+				pid: 1,
+				tid: 1,
+				cat: 'gnsx',
+			} );
+
+		}
+
+		performance.mark( startMark );
+		stack.push( { startTime, startMark, traced } );
 
 	}
 
@@ -143,15 +168,18 @@ class ProfilerServiceClass {
 	 */
 	_endImpl( label ) {
 
-		const startTime = this.marks.get( label );
-		if ( startTime === undefined ) return;
-		this.marks.delete( label );
+		const stack = this.marks.get( label );
+		const mark = stack?.pop();
+		if ( mark === undefined ) return;
+		if ( stack.length === 0 ) this.marks.delete( label );
 
 		const now = performance.now();
+		const { startTime, startMark, traced } = mark;
 		const duration = now - startTime;
+		const endMark = `gnsx:${label}:end:${++ this._markId}`;
 
-		performance.mark( `gnsx:${label}:end` );
-		performance.measure( `gnsx:${label}`, `gnsx:${label}:start`, `gnsx:${label}:end` );
+		performance.mark( endMark );
+		performance.measure( `gnsx:${label}`, startMark, endMark );
 
 		let buffer = this.buffers.get( label );
 		if ( ! buffer ) {
@@ -168,13 +196,12 @@ class ProfilerServiceClass {
 		this.cursors.set( label, ( cursor + 1 ) % RING_SIZE );
 		this.counts.set( label, Math.min( ( this.counts.get( label ) + 1 ), RING_SIZE ) );
 
-		if ( this._profile === 'full' && this.traceEvents.length < MAX_TRACE_EVENTS ) {
+		if ( traced ) {
 
 			this.traceEvents.push( {
 				name: label,
-				ph: 'X',
-				ts: Math.round( ( startTime - this.traceStartTime ) * 1000 ),
-				dur: Math.max( 1, Math.round( duration * 1000 ) ),
+				ph: 'E',
+				ts: this._getTraceTimestamp( now ),
 				pid: 1,
 				tid: 1,
 				cat: 'gnsx',
@@ -264,7 +291,24 @@ class ProfilerServiceClass {
 	 */
 	exportChromeTrace() {
 
-		return { traceEvents: [ ...this.traceEvents ] };
+		return {
+			displayTimeUnit: 'ms',
+			traceEvents: [
+				{ name: 'process_name', ph: 'M', pid: 1, args: { name: 'Genesys Profiler' } },
+				{ name: 'thread_name', ph: 'M', pid: 1, tid: 1, args: { name: 'Main Thread' } },
+				...this.traceEvents,
+			],
+		};
+
+	}
+
+	/**
+	 * @param {number} time
+	 * @return {number}
+	 */
+	_getTraceTimestamp( time ) {
+
+		return ( time - this.traceStartTime ) * 1000;
 
 	}
 
@@ -323,6 +367,7 @@ class ProfilerServiceClass {
 		this.marks.clear();
 		this.traceEvents = [];
 		this.traceStartTime = performance.now();
+		this._markId = 0;
 
 	}
 
@@ -347,9 +392,28 @@ class ProfilerServiceClass {
  */
 
 /**
+ * @typedef {Object} ChromeTraceEvent
+ * @property {string} name
+ * @property {'B'|'E'} ph
+ * @property {number} ts
+ * @property {1} pid
+ * @property {1} tid
+ * @property {'gnsx'} cat
+ */
+
+/**
+ * @typedef {Object} ChromeTraceMetadataEvent
+ * @property {'process_name'|'thread_name'} name
+ * @property {'M'} ph
+ * @property {1} pid
+ * @property {1} [tid]
+ * @property {{ name: string }} args
+ */
+
+/**
  * @typedef {Object} ChromeTrace
- * @property {Array<{ name: string, ph: 'X', ts: number, dur: number, pid: 1, tid: 1, cat: 'gnsx' }>} traceEvents
- * @property {{ 'clock-offset-since-epoch-ns'?: number }|undefined} [metadata]
+ * @property {'ms'} displayTimeUnit
+ * @property {Array<ChromeTraceEvent|ChromeTraceMetadataEvent>} traceEvents
  */
 
 /**
@@ -367,15 +431,24 @@ function applyProfileToMethod( label, descriptor ) {
 	function profiled( ...args ) {
 
 		ProfilerService.begin( label );
-		const result = original.apply( this, args );
-		if ( result instanceof Promise ) {
+		try {
 
-			return result.finally( () => ProfilerService.end( label ) );
+			const result = original.apply( this, args );
+			if ( result instanceof Promise ) {
+
+				return result.finally( () => ProfilerService.end( label ) );
+
+			}
+
+			ProfilerService.end( label );
+			return result;
+
+		} catch ( error ) {
+
+			ProfilerService.end( label );
+			throw error;
 
 		}
-
-		ProfilerService.end( label );
-		return result;
 
 	}
 
