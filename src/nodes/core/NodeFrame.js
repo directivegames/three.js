@@ -1,5 +1,9 @@
 import { NodeUpdateType } from './constants.js';
 
+// WITH_GENESYS
+import { ProfilerService } from '../../profiler/ProfilerService.js';
+// !WITH_GENESYS
+
 /**
  * Management class for updating nodes. The module tracks metrics like
  * the elapsed time, delta time, the render and frame ID to correctly
@@ -146,6 +150,11 @@ class NodeFrame {
 	 */
 	updateBeforeNode( node ) {
 
+		// WITH_GENESYS
+		const label = `${node.type}.updateBefore`;
+		ProfilerService.begin( label );
+		// !WITH_GENESYS
+
 		const updateType = node.getUpdateBeforeType();
 		const reference = node.updateReference( this );
 
@@ -191,6 +200,10 @@ class NodeFrame {
 
 		}
 
+		// WITH_GENESYS
+		ProfilerService.end( label );
+		// !WITH_GENESYS
+
 	}
 
 	/**
@@ -202,6 +215,11 @@ class NodeFrame {
 	 * @param {Node} node - The node that should be updated.
 	 */
 	updateAfterNode( node ) {
+
+		// WITH_GENESYS
+		const label = `${node.type}.updateAfter`;
+		ProfilerService.begin( label );
+		// !WITH_GENESYS
 
 		const updateType = node.getUpdateAfterType();
 		const reference = node.updateReference( this );
@@ -239,6 +257,10 @@ class NodeFrame {
 			node.updateAfter( this );
 
 		}
+
+		// WITH_GENESYS
+		ProfilerService.end( label );
+		// !WITH_GENESYS
 
 	}
 

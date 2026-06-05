@@ -164,6 +164,11 @@ export { createCanvasElement, setConsoleFunction, getConsoleFunction, log, warn,
 export * from './constants.js';
 export * from './Three.Legacy.js';
 
+// WITH_GENESYS
+export { ProfilerService, profile, profileClass } from './profiler/ProfilerService.js';
+// !WITH_GENESYS
+
+
 if ( typeof __THREE_DEVTOOLS__ !== 'undefined' ) {
 
 	__THREE_DEVTOOLS__.dispatchEvent( new CustomEvent( 'register', { detail: {

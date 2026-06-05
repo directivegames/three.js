@@ -36,6 +36,7 @@ import { float, vec3, vec4, Fn } from '../../nodes/tsl/TSLCore.js';
 // WITH_GENESYS
 import { detachRendererReference } from '../../nodes/accessors/RendererReferenceNode.js';
 import { toneMappingExposure } from '../../nodes/display/ToneMappingNode.js';
+import { ProfilerService } from '../../profiler/ProfilerService.js';
 // !WITH_GENESYS
 import { reference } from '../../nodes/accessors/ReferenceNode.js';
 import { highpModelNormalViewMatrix, highpModelViewMatrix } from '../../nodes/accessors/ModelNode.js';
@@ -1214,6 +1215,10 @@ class Renderer {
 	 */
 	_renderBundle( bundle, sceneRef, lightsNode ) {
 
+		// WITH_GENESYS
+		ProfilerService.begin( 'renderBundle' );
+		// !WITH_GENESYS
+
 		const { bundleGroup, camera, renderList } = bundle;
 
 		const renderContext = this._currentRenderContext;
@@ -1280,6 +1285,10 @@ class Renderer {
 
 		this.backend.addBundle( renderContext, renderBundle );
 
+		// WITH_GENESYS
+		ProfilerService.end( 'renderBundle' );
+		// !WITH_GENESYS
+
 	}
 
 	/**
@@ -1299,6 +1308,10 @@ class Renderer {
 	 */
 	render( scene, camera ) {
 
+		// WITH_GENESYS
+		ProfilerService.begin( 'Renderer.render' );
+		// !WITH_GENESYS
+
 		if ( this._initialized === false ) {
 
 			throw new Error( 'Renderer: .render() called before the backend is initialized. Use "await renderer.init();" before rendering.' );
@@ -1306,6 +1319,10 @@ class Renderer {
 		}
 
 		this._renderScene( scene, camera );
+
+		// WITH_GENESYS
+		ProfilerService.end( 'Renderer.render' );
+		// !WITH_GENESYS
 
 	}
 
@@ -1425,6 +1442,10 @@ class Renderer {
 	_renderScene( scene, camera, useFrameBufferTarget = true ) {
 
 		if ( this._isDeviceLost === true ) return;
+
+		// WITH_GENESYS
+		ProfilerService.begin( 'Renderer._renderScene' );
+		// !WITH_GENESYS
 
 		//
 
@@ -1583,7 +1604,13 @@ class Renderer {
 
 		//
 
+		// WITH_GENESYS
+		ProfilerService.begin( 'scene.updateMatrixWorld' );
+		// !WITH_GENESYS
 		if ( scene.matrixWorldAutoUpdate === true ) scene.updateMatrixWorld();
+		// WITH_GENESYS
+		ProfilerService.end( 'scene.updateMatrixWorld' );
+		// !WITH_GENESYS
 
 		if ( camera.parent === null && camera.matrixWorldAutoUpdate === true ) camera.updateMatrixWorld();
 
@@ -1647,6 +1674,10 @@ class Renderer {
 
 		}
 
+		// WITH_GENESYS
+		ProfilerService.begin( 'buildRenderList' );
+		// !WITH_GENESYS
+
 		const renderList = this._renderLists.get( scene, camera );
 		renderList.begin();
 
@@ -1659,6 +1690,10 @@ class Renderer {
 			renderList.sort( this._opaqueSort, this._transparentSort );
 
 		}
+
+		// WITH_GENESYS
+		ProfilerService.end( 'buildRenderList' );
+		// !WITH_GENESYS
 
 		//
 
@@ -1765,6 +1800,10 @@ class Renderer {
 		this.inspector.finishRender( this.backend.getTimestampUID( renderContext ) );
 
 		//
+
+		// WITH_GENESYS
+		ProfilerService.end( 'Renderer._renderScene' );
+		// !WITH_GENESYS
 
 		return renderContext;
 
@@ -3248,6 +3287,10 @@ class Renderer {
 	 */
 	_renderTransparents( renderList, doublePassList, camera, scene, lightsNode ) {
 
+		// WITH_GENESYS
+		ProfilerService.begin( '_renderTransparents' );
+		// !WITH_GENESYS
+
 		if ( doublePassList.length > 0 ) {
 
 			// render back side
@@ -3284,6 +3327,10 @@ class Renderer {
 
 		}
 
+		// WITH_GENESYS
+		ProfilerService.end( '_renderTransparents' );
+		// !WITH_GENESYS
+
 	}
 
 	/**
@@ -3298,6 +3345,11 @@ class Renderer {
 	 */
 	_renderObjects( renderList, camera, scene, lightsNode, passId = null ) {
 
+		// WITH_GENESYS
+		const label = `${this._currentRenderObjectFunction?.name || 'renderObject'} (${renderList.length})`;
+		ProfilerService.begin( label );
+		// !WITH_GENESYS
+
 		for ( let i = 0, il = renderList.length; i < il; i ++ ) {
 
 			const { object, geometry, material, group, clippingContext } = renderList[ i ];
@@ -3305,6 +3357,10 @@ class Renderer {
 			this._currentRenderObjectFunction( object, scene, camera, geometry, material, group, lightsNode, clippingContext, passId );
 
 		}
+
+		// WITH_GENESYS
+		ProfilerService.end( label );
+		// !WITH_GENESYS
 
 	}
 

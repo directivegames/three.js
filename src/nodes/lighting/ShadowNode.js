@@ -24,6 +24,10 @@ import { uv } from '../accessors/UV.js';
 import { positionLocal } from '../accessors/Position.js';
 import { uniform } from '../core/UniformNode.js';
 
+// WITH_GENESYS
+import { ProfilerService } from '../../profiler/ProfilerService.js';
+// !WITH_GENESYS
+
 //
 
 const _shadowRenderObjectLibrary = /*@__PURE__*/ new ChainMap();
@@ -676,6 +680,10 @@ class ShadowNode extends ShadowBaseNode {
 	 */
 	renderShadow( frame ) {
 
+		// WITH_GENESYS
+		ProfilerService.begin( 'ShadowNode.renderShadow' );
+		// !WITH_GENESYS
+
 		const { shadow, shadowMap, light } = this;
 		const { renderer, scene } = frame;
 
@@ -690,6 +698,10 @@ class ShadowNode extends ShadowBaseNode {
 		renderer.render( scene, shadow.camera );
 
 		scene.name = currentSceneName;
+
+		// WITH_GENESYS
+		ProfilerService.end( 'ShadowNode.renderShadow' );
+		// !WITH_GENESYS
 
 	}
 
@@ -756,6 +768,10 @@ class ShadowNode extends ShadowBaseNode {
 	 */
 	vsmPass( renderer ) {
 
+		// WITH_GENESYS
+		ProfilerService.begin( 'ShadowNode.vsmPass' );
+		// !WITH_GENESYS
+
 		const { shadow } = this;
 
 		const depth = this.shadowMap.depth;
@@ -769,6 +785,10 @@ class ShadowNode extends ShadowBaseNode {
 		renderer.setRenderTarget( this.vsmShadowMapHorizontal );
 		_quadMesh.material = this.vsmMaterialHorizontal;
 		_quadMesh.render( renderer );
+
+		// WITH_GENESYS
+		ProfilerService.end( 'ShadowNode.vsmPass' );
+		// !WITH_GENESYS
 
 	}
 
