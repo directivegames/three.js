@@ -13,6 +13,9 @@ import { screenCoordinate } from '../display/ScreenNode.js';
 import { interleavedGradientNoise, vogelDiskSample } from '../utils/PostProcessingUtils.js';
 import { abs, normalize, cross } from '../math/MathNode.js';
 import { viewZToPerspectiveDepth, viewZToReversedPerspectiveDepth } from '../display/ViewportDepthNode.js';
+// WITH_GENESYS
+import { ProfilerService } from '../../profiler/ProfilerService.js';
+// !WITH_GENESYS
 
 const _clearColor = /*@__PURE__*/ new Color();
 const _projScreenMatrix = /*@__PURE__*/ new Matrix4();
@@ -261,11 +264,19 @@ class PointShadowNode extends ShadowNode {
 		// Render each cube face
 		for ( let face = 0; face < 6; face ++ ) {
 
+			// WITH_GENESYS
+			const faceLabel = `shadowMap.render.depthPass (face ${face})`;
+			// !WITH_GENESYS
+
 			// Set render target to the specific cube face
 			renderer.setRenderTarget( shadowMap, face );
 			renderer.clear();
 
 			// Update shadow camera matrices for this face
+
+			// WITH_GENESYS
+			ProfilerService.begin( 'shadowMap.render.updateMatrices' );
+			// !WITH_GENESYS
 
 			const far = light.distance || camera.far;
 
@@ -290,13 +301,23 @@ class PointShadowNode extends ShadowNode {
 			_projScreenMatrix.multiplyMatrices( camera.projectionMatrix, camera.matrixWorldInverse );
 			shadow._frustum.setFromProjectionMatrix( _projScreenMatrix, camera.coordinateSystem, camera.reversedDepth );
 
+			// WITH_GENESYS
+			ProfilerService.end( 'shadowMap.render.updateMatrices' );
+			// !WITH_GENESYS
+
 			//
 
 			const currentSceneName = scene.name;
 
 			scene.name = `Point Light Shadow [ ${ light.name || 'ID: ' + light.id } ] - Face ${ face + 1 }`;
 
+			// WITH_GENESYS
+			ProfilerService.begin( faceLabel );
+			// !WITH_GENESYS
 			renderer.render( scene, camera );
+			// WITH_GENESYS
+			ProfilerService.end( faceLabel );
+			// !WITH_GENESYS
 
 			scene.name = currentSceneName;
 

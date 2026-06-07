@@ -69243,6 +69243,8 @@ const vertex = "void main() {\n\tgl_Position = vec4( position, 1.0 );\n}";
 
 const fragment = "uniform sampler2D shadow_pass;\nuniform vec2 resolution;\nuniform float radius;\nvoid main() {\n\tconst float samples = float( VSM_SAMPLES );\n\tfloat mean = 0.0;\n\tfloat squared_mean = 0.0;\n\tfloat uvStride = samples <= 1.0 ? 0.0 : 2.0 / ( samples - 1.0 );\n\tfloat uvStart = samples <= 1.0 ? 0.0 : - 1.0;\n\tfor ( float i = 0.0; i < samples; i ++ ) {\n\t\tfloat uvOffset = uvStart + i * uvStride;\n\t\t#ifdef HORIZONTAL_PASS\n\t\t\tvec2 distribution = texture2D( shadow_pass, ( gl_FragCoord.xy + vec2( uvOffset, 0.0 ) * radius ) / resolution ).rg;\n\t\t\tmean += distribution.x;\n\t\t\tsquared_mean += distribution.y * distribution.y + distribution.x * distribution.x;\n\t\t#else\n\t\t\tfloat depth = texture2D( shadow_pass, ( gl_FragCoord.xy + vec2( 0.0, uvOffset ) * radius ) / resolution ).r;\n\t\t\tmean += depth;\n\t\t\tsquared_mean += depth * depth;\n\t\t#endif\n\t}\n\tmean = mean / samples;\n\tsquared_mean = squared_mean / samples;\n\tfloat std_dev = sqrt( max( 0.0, squared_mean - mean * mean ) );\n\tgl_FragColor = vec4( mean, std_dev, 0.0, 1.0 );\n}";
 
+// !WITH_GENESYS
+
 const _cubeDirections = [
 	/*@__PURE__*/ new Vector3( 1, 0, 0 ), /*@__PURE__*/ new Vector3( -1, 0, 0 ), /*@__PURE__*/ new Vector3( 0, 1, 0 ),
 	/*@__PURE__*/ new Vector3( 0, -1, 0 ), /*@__PURE__*/ new Vector3( 0, 0, 1 ), /*@__PURE__*/ new Vector3( 0, 0, -1 )
@@ -69358,6 +69360,10 @@ function WebGLShadowMap( renderer, objects, capabilities ) {
 		// (sampler2DShadow for PCF vs sampler2D for Basic)
 		if ( typeChanged ) {
 
+			// WITH_GENESYS
+			ProfilerService.begin( 'shadowMap.render.typeChangeMaterialUpdate' );
+			// !WITH_GENESYS
+
 			scene.traverse( function ( object ) {
 
 				if ( object.material ) {
@@ -69376,6 +69382,10 @@ function WebGLShadowMap( renderer, objects, capabilities ) {
 
 			} );
 
+			// WITH_GENESYS
+			ProfilerService.end( 'shadowMap.render.typeChangeMaterialUpdate' );
+			// !WITH_GENESYS
+
 		}
 
 		// render depth map
@@ -69385,14 +69395,29 @@ function WebGLShadowMap( renderer, objects, capabilities ) {
 			const light = lights[ i ];
 			const shadow = light.shadow;
 
+			// WITH_GENESYS
+			const lightLabel = `shadowMap.render.light (${light.name || light.type})`;
+			ProfilerService.begin( lightLabel );
+			// !WITH_GENESYS
+
 			if ( shadow === undefined ) {
 
 				warn( 'WebGLShadowMap:', light, 'has no shadow.' );
+				// WITH_GENESYS
+				ProfilerService.end( lightLabel );
+				// !WITH_GENESYS
 				continue;
 
 			}
 
-			if ( shadow.autoUpdate === false && shadow.needsUpdate === false ) continue;
+			if ( shadow.autoUpdate === false && shadow.needsUpdate === false ) {
+
+				// WITH_GENESYS
+				ProfilerService.end( lightLabel );
+				// !WITH_GENESYS
+				continue;
+
+			}
 
 			_shadowMapSize.copy( shadow.mapSize );
 
@@ -69427,6 +69452,10 @@ function WebGLShadowMap( renderer, objects, capabilities ) {
 
 			if ( shadow.map === null || typeChanged === true ) {
 
+				// WITH_GENESYS
+				ProfilerService.begin( 'shadowMap.render.setupMap' );
+				// !WITH_GENESYS
+
 				if ( shadow.map !== null ) {
 
 					if ( shadow.map.depthTexture !== null ) {
@@ -69445,6 +69474,10 @@ function WebGLShadowMap( renderer, objects, capabilities ) {
 					if ( light.isPointLight ) {
 
 						warn( 'WebGLShadowMap: VSM shadow maps are not supported for PointLights. Use PCF or BasicShadowMap instead.' );
+						// WITH_GENESYS
+						ProfilerService.end( 'shadowMap.render.setupMap' );
+						ProfilerService.end( lightLabel );
+						// !WITH_GENESYS
 						continue;
 
 					}
@@ -69501,12 +69534,20 @@ function WebGLShadowMap( renderer, objects, capabilities ) {
 
 				shadow.camera.updateProjectionMatrix();
 
+				// WITH_GENESYS
+				ProfilerService.end( 'shadowMap.render.setupMap' );
+				// !WITH_GENESYS
+
 			}
 
 			// For cube render targets (PointLights), render all 6 faces. Otherwise, render once.
 			const faceCount = shadow.map.isWebGLCubeRenderTarget ? 6 : 1;
 
 			for ( let face = 0; face < faceCount; face ++ ) {
+
+				// WITH_GENESYS
+				const faceLabel = faceCount > 1 ? `shadowMap.render.depthPass (face ${face})` : 'shadowMap.render.depthPass';
+				// !WITH_GENESYS
 
 				// For cube render targets, render to each face separately
 				if ( shadow.map.isWebGLCubeRenderTarget ) {
@@ -69536,6 +69577,10 @@ function WebGLShadowMap( renderer, objects, capabilities ) {
 					_state.viewport( _viewport );
 
 				}
+
+				// WITH_GENESYS
+				ProfilerService.begin( 'shadowMap.render.updateMatrices' );
+				// !WITH_GENESYS
 
 				if ( light.isPointLight ) {
 
@@ -69571,9 +69616,19 @@ function WebGLShadowMap( renderer, objects, capabilities ) {
 
 				}
 
+				// WITH_GENESYS
+				ProfilerService.end( 'shadowMap.render.updateMatrices' );
+				// !WITH_GENESYS
+
 				_frustum = shadow.getFrustum();
 
+				// WITH_GENESYS
+				ProfilerService.begin( faceLabel );
+				// !WITH_GENESYS
 				renderObject( scene, camera, shadow.camera, light, this.type );
+				// WITH_GENESYS
+				ProfilerService.end( faceLabel );
+				// !WITH_GENESYS
 
 			}
 
@@ -69581,11 +69636,21 @@ function WebGLShadowMap( renderer, objects, capabilities ) {
 
 			if ( shadow.isPointLightShadow !== true && this.type === VSMShadowMap ) {
 
+				// WITH_GENESYS
+				ProfilerService.begin( 'shadowMap.render.vsmPass' );
+				// !WITH_GENESYS
 				VSMPass( shadow, camera );
+				// WITH_GENESYS
+				ProfilerService.end( 'shadowMap.render.vsmPass' );
+				// !WITH_GENESYS
 
 			}
 
 			shadow.needsUpdate = false;
+
+			// WITH_GENESYS
+			ProfilerService.end( lightLabel );
+			// !WITH_GENESYS
 
 		}
 
@@ -69622,21 +69687,33 @@ function WebGLShadowMap( renderer, objects, capabilities ) {
 
 		// vertical pass - read from native depth texture
 
+		// WITH_GENESYS
+		ProfilerService.begin( 'shadowMap.vsmPass.vertical' );
+		// !WITH_GENESYS
 		shadowMaterialVertical.uniforms.shadow_pass.value = shadow.map.depthTexture;
 		shadowMaterialVertical.uniforms.resolution.value = shadow.mapSize;
 		shadowMaterialVertical.uniforms.radius.value = shadow.radius;
 		renderer.setRenderTarget( shadow.mapPass );
 		renderer.clear();
 		renderer.renderBufferDirect( camera, null, geometry, shadowMaterialVertical, fullScreenMesh, null );
+		// WITH_GENESYS
+		ProfilerService.end( 'shadowMap.vsmPass.vertical' );
+		// !WITH_GENESYS
 
 		// horizontal pass
 
+		// WITH_GENESYS
+		ProfilerService.begin( 'shadowMap.vsmPass.horizontal' );
+		// !WITH_GENESYS
 		shadowMaterialHorizontal.uniforms.shadow_pass.value = shadow.mapPass.texture;
 		shadowMaterialHorizontal.uniforms.resolution.value = shadow.mapSize;
 		shadowMaterialHorizontal.uniforms.radius.value = shadow.radius;
 		renderer.setRenderTarget( shadow.map );
 		renderer.clear();
 		renderer.renderBufferDirect( camera, null, geometry, shadowMaterialHorizontal, fullScreenMesh, null );
+		// WITH_GENESYS
+		ProfilerService.end( 'shadowMap.vsmPass.horizontal' );
+		// !WITH_GENESYS
 
 	}
 
@@ -76184,6 +76261,8 @@ function getDFGLUT() {
 
 }
 
+// !WITH_GENESYS
+
 /**
  * This renderer uses WebGL 2 to display scenes.
  *
@@ -77729,14 +77808,28 @@ class WebGLRenderer {
 		 */
 		this.render = function ( scene, camera ) {
 
+			// WITH_GENESYS
+			ProfilerService.begin( 'WebGLRenderer.render' );
+			// !WITH_GENESYS
+
 			if ( camera !== undefined && camera.isCamera !== true ) {
 
 				error( 'WebGLRenderer.render: camera is not an instance of THREE.Camera.' );
+				// WITH_GENESYS
+				ProfilerService.end( 'WebGLRenderer.render' );
+				// !WITH_GENESYS
 				return;
 
 			}
 
-			if ( _isContextLost === true ) return;
+			if ( _isContextLost === true ) {
+
+				// WITH_GENESYS
+				ProfilerService.end( 'WebGLRenderer.render' );
+				// !WITH_GENESYS
+				return;
+
+			}
 
 			// update node builder if available
 			if ( _nodesHandler !== null ) {
@@ -77753,7 +77846,13 @@ class WebGLRenderer {
 
 			// update scene graph
 
+			// WITH_GENESYS
+			ProfilerService.begin( 'scene.updateMatrixWorld' );
+			// !WITH_GENESYS
 			if ( scene.matrixWorldAutoUpdate === true ) scene.updateMatrixWorld();
+			// WITH_GENESYS
+			ProfilerService.end( 'scene.updateMatrixWorld' );
+			// !WITH_GENESYS
 
 			// update camera matrices and frustum
 
@@ -77787,6 +77886,10 @@ class WebGLRenderer {
 
 			renderListStack.push( currentRenderList );
 
+			// WITH_GENESYS
+			ProfilerService.begin( 'buildRenderList' );
+			// !WITH_GENESYS
+
 			if ( xr.enabled === true && xr.isPresenting === true ) {
 
 				const depthSensingMesh = _this.xr.getDepthSensingMesh();
@@ -77799,15 +77902,33 @@ class WebGLRenderer {
 
 			}
 
+			// WITH_GENESYS
+			ProfilerService.begin( 'projectObject' );
+			// !WITH_GENESYS
+
 			projectObject( scene, camera, 0, _this.sortObjects );
+
+			// WITH_GENESYS
+			ProfilerService.end( 'projectObject' );
+			// !WITH_GENESYS
 
 			currentRenderList.finish();
 
 			if ( _this.sortObjects === true ) {
 
+				// WITH_GENESYS
+				ProfilerService.begin( 'sortRenderList' );
+				// !WITH_GENESYS
 				currentRenderList.sort( _opaqueSort, _transparentSort );
+				// WITH_GENESYS
+				ProfilerService.end( 'sortRenderList' );
+				// !WITH_GENESYS
 
 			}
+
+			// WITH_GENESYS
+			ProfilerService.end( 'buildRenderList' );
+			// !WITH_GENESYS
 
 			_renderBackground = xr.enabled === false || xr.isPresenting === false || xr.hasDepthSensing() === false;
 			if ( _renderBackground ) {
@@ -77824,7 +77945,13 @@ class WebGLRenderer {
 
 			const shadowsArray = currentRenderState.state.shadowsArray;
 
+			// WITH_GENESYS
+			ProfilerService.begin( 'shadowMap.render' );
+			// !WITH_GENESYS
 			shadowMap.render( shadowsArray, scene, camera );
+			// WITH_GENESYS
+			ProfilerService.end( 'shadowMap.render' );
+			// !WITH_GENESYS
 
 			if ( _clippingEnabled === true ) clipping.endShadows();
 
@@ -77837,6 +77964,10 @@ class WebGLRenderer {
 			const skipSceneRender = useOutput && output.hasRenderPass();
 
 			if ( skipSceneRender === false ) {
+
+				// WITH_GENESYS
+				ProfilerService.begin( 'WebGLRenderer.renderScene' );
+				// !WITH_GENESYS
 
 				const opaqueObjects = currentRenderList.opaque;
 				const transmissiveObjects = currentRenderList.transmissive;
@@ -77879,6 +78010,10 @@ class WebGLRenderer {
 
 				}
 
+				// WITH_GENESYS
+				ProfilerService.end( 'WebGLRenderer.renderScene' );
+				// !WITH_GENESYS
+
 			}
 
 			//
@@ -77899,7 +78034,13 @@ class WebGLRenderer {
 
 			if ( useOutput ) {
 
+				// WITH_GENESYS
+				ProfilerService.begin( 'WebGLOutput.end' );
+				// !WITH_GENESYS
 				output.end( _this );
+				// WITH_GENESYS
+				ProfilerService.end( 'WebGLOutput.end' );
+				// !WITH_GENESYS
 
 			}
 
@@ -77946,6 +78087,10 @@ class WebGLRenderer {
 				_nodesHandler.renderEnd();
 
 			}
+
+			// WITH_GENESYS
+			ProfilerService.end( 'WebGLRenderer.render' );
+			// !WITH_GENESYS
 
 		};
 
@@ -78093,10 +78238,17 @@ class WebGLRenderer {
 
 		function renderTransmissionPass( opaqueObjects, transmissiveObjects, scene, camera ) {
 
+			// WITH_GENESYS
+			ProfilerService.begin( 'WebGLRenderer.renderTransmissionPass' );
+			// !WITH_GENESYS
+
 			const overrideMaterial = scene.isScene === true ? scene.overrideMaterial : null;
 
 			if ( overrideMaterial !== null ) {
 
+				// WITH_GENESYS
+				ProfilerService.end( 'WebGLRenderer.renderTransmissionPass' );
+				// !WITH_GENESYS
 				return;
 
 			}
@@ -78213,9 +78365,18 @@ class WebGLRenderer {
 
 			_this.toneMapping = currentToneMapping;
 
+			// WITH_GENESYS
+			ProfilerService.end( 'WebGLRenderer.renderTransmissionPass' );
+			// !WITH_GENESYS
+
 		}
 
 		function renderObjects( renderList, scene, camera ) {
+
+			// WITH_GENESYS
+			const renderObjectsLabel = `renderObjects (${renderList.length})`;
+			ProfilerService.begin( renderObjectsLabel );
+			// !WITH_GENESYS
 
 			const overrideMaterial = scene.isScene === true ? scene.overrideMaterial : null;
 
@@ -78239,6 +78400,10 @@ class WebGLRenderer {
 				}
 
 			}
+
+			// WITH_GENESYS
+			ProfilerService.end( renderObjectsLabel );
+			// !WITH_GENESYS
 
 		}
 

@@ -54,6 +54,9 @@ import { WebGLUniformsGroups } from './webgl/WebGLUniformsGroups.js';
 import { createCanvasElement, probeAsync, error, warn, log } from '../utils.js';
 import { ColorManagement } from '../math/ColorManagement.js';
 import { getDFGLUT } from './shaders/DFGLUTData.js';
+// WITH_GENESYS
+import { ProfilerService } from '../profiler/ProfilerService.js';
+// !WITH_GENESYS
 
 /**
  * This renderer uses WebGL 2 to display scenes.
@@ -1600,14 +1603,28 @@ class WebGLRenderer {
 		 */
 		this.render = function ( scene, camera ) {
 
+			// WITH_GENESYS
+			ProfilerService.begin( 'WebGLRenderer.render' );
+			// !WITH_GENESYS
+
 			if ( camera !== undefined && camera.isCamera !== true ) {
 
 				error( 'WebGLRenderer.render: camera is not an instance of THREE.Camera.' );
+				// WITH_GENESYS
+				ProfilerService.end( 'WebGLRenderer.render' );
+				// !WITH_GENESYS
 				return;
 
 			}
 
-			if ( _isContextLost === true ) return;
+			if ( _isContextLost === true ) {
+
+				// WITH_GENESYS
+				ProfilerService.end( 'WebGLRenderer.render' );
+				// !WITH_GENESYS
+				return;
+
+			}
 
 			// update node builder if available
 			if ( _nodesHandler !== null ) {
@@ -1624,7 +1641,13 @@ class WebGLRenderer {
 
 			// update scene graph
 
+			// WITH_GENESYS
+			ProfilerService.begin( 'scene.updateMatrixWorld' );
+			// !WITH_GENESYS
 			if ( scene.matrixWorldAutoUpdate === true ) scene.updateMatrixWorld();
+			// WITH_GENESYS
+			ProfilerService.end( 'scene.updateMatrixWorld' );
+			// !WITH_GENESYS
 
 			// update camera matrices and frustum
 
@@ -1658,6 +1681,10 @@ class WebGLRenderer {
 
 			renderListStack.push( currentRenderList );
 
+			// WITH_GENESYS
+			ProfilerService.begin( 'buildRenderList' );
+			// !WITH_GENESYS
+
 			if ( xr.enabled === true && xr.isPresenting === true ) {
 
 				const depthSensingMesh = _this.xr.getDepthSensingMesh();
@@ -1670,15 +1697,33 @@ class WebGLRenderer {
 
 			}
 
+			// WITH_GENESYS
+			ProfilerService.begin( 'projectObject' );
+			// !WITH_GENESYS
+
 			projectObject( scene, camera, 0, _this.sortObjects );
+
+			// WITH_GENESYS
+			ProfilerService.end( 'projectObject' );
+			// !WITH_GENESYS
 
 			currentRenderList.finish();
 
 			if ( _this.sortObjects === true ) {
 
+				// WITH_GENESYS
+				ProfilerService.begin( 'sortRenderList' );
+				// !WITH_GENESYS
 				currentRenderList.sort( _opaqueSort, _transparentSort );
+				// WITH_GENESYS
+				ProfilerService.end( 'sortRenderList' );
+				// !WITH_GENESYS
 
 			}
+
+			// WITH_GENESYS
+			ProfilerService.end( 'buildRenderList' );
+			// !WITH_GENESYS
 
 			_renderBackground = xr.enabled === false || xr.isPresenting === false || xr.hasDepthSensing() === false;
 			if ( _renderBackground ) {
@@ -1695,7 +1740,13 @@ class WebGLRenderer {
 
 			const shadowsArray = currentRenderState.state.shadowsArray;
 
+			// WITH_GENESYS
+			ProfilerService.begin( 'shadowMap.render' );
+			// !WITH_GENESYS
 			shadowMap.render( shadowsArray, scene, camera );
+			// WITH_GENESYS
+			ProfilerService.end( 'shadowMap.render' );
+			// !WITH_GENESYS
 
 			if ( _clippingEnabled === true ) clipping.endShadows();
 
@@ -1708,6 +1759,10 @@ class WebGLRenderer {
 			const skipSceneRender = useOutput && output.hasRenderPass();
 
 			if ( skipSceneRender === false ) {
+
+				// WITH_GENESYS
+				ProfilerService.begin( 'WebGLRenderer.renderScene' );
+				// !WITH_GENESYS
 
 				const opaqueObjects = currentRenderList.opaque;
 				const transmissiveObjects = currentRenderList.transmissive;
@@ -1750,6 +1805,10 @@ class WebGLRenderer {
 
 				}
 
+				// WITH_GENESYS
+				ProfilerService.end( 'WebGLRenderer.renderScene' );
+				// !WITH_GENESYS
+
 			}
 
 			//
@@ -1770,7 +1829,13 @@ class WebGLRenderer {
 
 			if ( useOutput ) {
 
+				// WITH_GENESYS
+				ProfilerService.begin( 'WebGLOutput.end' );
+				// !WITH_GENESYS
 				output.end( _this );
+				// WITH_GENESYS
+				ProfilerService.end( 'WebGLOutput.end' );
+				// !WITH_GENESYS
 
 			}
 
@@ -1817,6 +1882,10 @@ class WebGLRenderer {
 				_nodesHandler.renderEnd();
 
 			}
+
+			// WITH_GENESYS
+			ProfilerService.end( 'WebGLRenderer.render' );
+			// !WITH_GENESYS
 
 		};
 
@@ -1964,10 +2033,17 @@ class WebGLRenderer {
 
 		function renderTransmissionPass( opaqueObjects, transmissiveObjects, scene, camera ) {
 
+			// WITH_GENESYS
+			ProfilerService.begin( 'WebGLRenderer.renderTransmissionPass' );
+			// !WITH_GENESYS
+
 			const overrideMaterial = scene.isScene === true ? scene.overrideMaterial : null;
 
 			if ( overrideMaterial !== null ) {
 
+				// WITH_GENESYS
+				ProfilerService.end( 'WebGLRenderer.renderTransmissionPass' );
+				// !WITH_GENESYS
 				return;
 
 			}
@@ -2084,9 +2160,18 @@ class WebGLRenderer {
 
 			_this.toneMapping = currentToneMapping;
 
+			// WITH_GENESYS
+			ProfilerService.end( 'WebGLRenderer.renderTransmissionPass' );
+			// !WITH_GENESYS
+
 		}
 
 		function renderObjects( renderList, scene, camera ) {
+
+			// WITH_GENESYS
+			const renderObjectsLabel = `renderObjects (${renderList.length})`;
+			ProfilerService.begin( renderObjectsLabel );
+			// !WITH_GENESYS
 
 			const overrideMaterial = scene.isScene === true ? scene.overrideMaterial : null;
 
@@ -2110,6 +2195,10 @@ class WebGLRenderer {
 				}
 
 			}
+
+			// WITH_GENESYS
+			ProfilerService.end( renderObjectsLabel );
+			// !WITH_GENESYS
 
 		}
 
