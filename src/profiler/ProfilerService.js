@@ -2,10 +2,6 @@
 /**
  * ProfilerService — per-label CPU timing with ring-buffer aggregation and DevTools integration.
  *
- * Activate via environment variable:
- *   PROFILING=1       stats + trace (full profile)
- *   PROFILING=stats   stats only, no trace accumulation (lower overhead)
- *
  * Quick start (browser console):
  *   __gnsx_profiler.enable()
  *   // play for a few seconds
@@ -21,26 +17,12 @@ const FRAME_BUDGET_MS = 1000 / 60;
 const MAX_TRACE_EVENTS = 50_000;
 const NOOP = () => {};
 
-function _readProfilingEnv() {
-
-	const raw =
-		( typeof process !== 'undefined' ? process.env?.[ 'PROFILING' ] : undefined ) ??
-		( typeof globalThis !== 'undefined' ? globalThis[ '__gnsx_env__' ]?.[ 'PROFILING' ] : undefined ) ??
-		( typeof globalThis !== 'undefined' ? globalThis[ '__GNSX_PROFILING__' ] : undefined );
-
-	if ( ! raw || raw === '0' || raw === 'false' ) return false;
-	if ( raw === 'stats' ) return 'stats';
-	return 'full';
-
-}
-
 class ProfilerServiceClass {
 
 	constructor() {
 
-		const envProfile = _readProfilingEnv();
-		this._profile = envProfile !== false ? envProfile : 'full';
-		this._enabled = envProfile !== false;
+		this._profile = 'full';
+		this._enabled = false;
 
 		/** @type {Map<string, Float64Array>} */
 		this.buffers = new Map();
@@ -423,8 +405,6 @@ class ProfilerServiceClass {
 const ProfilerService = new ProfilerServiceClass();
 
 function applyProfileToMethod( label, descriptor ) {
-
-	if ( _readProfilingEnv() === false ) return descriptor;
 
 	const original = descriptor.value;
 
