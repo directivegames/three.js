@@ -20,7 +20,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/directivegames/three.js"
+    "url": "https://github.com/mrdoob/three.js"
   },
   "sideEffects": [
     "./src/nodes/**/*"
@@ -91,7 +91,7 @@
   ],
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/directivegames/three.js/issues"
+    "url": "https://github.com/mrdoob/three.js/issues"
   },
   "homepage": "https://threejs.org/",
   "devDependencies": {
