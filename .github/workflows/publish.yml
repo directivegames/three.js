@@ -24,6 +24,7 @@ jobs:
           node-version: 24
           cache: 'npm'
           registry-url: 'https://registry.npmjs.org/'
+          provenance: false
 
       - name: Configure Git
         run: |
@@ -50,7 +51,7 @@ jobs:
         run: npm test
 
       - name: Publish package
-        run: npm publish --access public
+        run: npm publish --access public --provenance=false
 
       - name: Commit and push version bump
         run: |
