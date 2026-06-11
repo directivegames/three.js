@@ -60243,13 +60243,13 @@ class Renderer {
 		renderList.begin();
 
 		// WITH_GENESYS
-		ProfilerService.begin( '_projectObject' );
+		ProfilerService.begin( 'projectObject' );
 		// !WITH_GENESYS
 
 		this._projectObject( scene, camera, 0, renderList, renderContext.clippingContext );
 
 		// WITH_GENESYS
-		ProfilerService.end( '_projectObject' );
+		ProfilerService.end( 'projectObject' );
 		// !WITH_GENESYS
 
 		renderList.finish();
@@ -61703,7 +61703,7 @@ class Renderer {
 
 		const visible = object.layers.test( camera.layers );
 
-		if ( visible ) {
+		if ( visible && ! object.selfHidden /* WITH_GENESYS */ ) {
 
 			if ( object.isGroup ) {
 

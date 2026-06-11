@@ -1166,6 +1166,9 @@ class ObjectLoader extends Loader {
 		}
 
 		if ( data.visible !== undefined ) object.visible = data.visible;
+		// WITH_GENESYS
+		if ( data.selfHidden !== undefined ) object.selfHidden = data.selfHidden;
+		// !WITH_GENESYS
 		if ( data.frustumCulled !== undefined ) object.frustumCulled = data.frustumCulled;
 		if ( data.renderOrder !== undefined ) object.renderOrder = data.renderOrder;
 		if ( data.static !== undefined ) object.static = data.static;

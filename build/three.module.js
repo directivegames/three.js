@@ -17911,7 +17911,7 @@ class WebGLRenderer {
 
 			const visible = object.layers.test( camera.layers );
 
-			if ( visible ) {
+			if ( visible && ! object.selfHidden /* WITH_GENESYS */ ) {
 
 				if ( object.isGroup ) {
 

@@ -290,6 +290,17 @@ class Object3D extends EventDispatcher {
 		 */
 		this.visible = true;
 
+		// WITH_GENESYS
+		/**
+		 * When set to `true`, this object itself is hidden.
+		 * Doesn't affect the visibility of the children.
+		 *
+		 * @type {boolean}
+		 * @default false
+		 */
+		this.selfHidden = false;
+		// !WITH_GENESYS
+
 		/**
 		 * When set to `true`, the 3D object gets rendered into shadow maps.
 		 *
@@ -1303,6 +1314,9 @@ class Object3D extends EventDispatcher {
 		if ( this.castShadow === true ) object.castShadow = true;
 		if ( this.receiveShadow === true ) object.receiveShadow = true;
 		if ( this.visible === false ) object.visible = false;
+		// WITH_GENESYS
+		if ( this.selfHidden === true ) object.selfHidden = true;
+		// !WITH_GENESYS
 		if ( this.frustumCulled === false ) object.frustumCulled = false;
 		if ( this.renderOrder !== 0 ) object.renderOrder = this.renderOrder;
 		if ( this.static !== false ) object.static = this.static;
@@ -1604,6 +1618,9 @@ class Object3D extends EventDispatcher {
 
 		this.layers.mask = source.layers.mask;
 		this.visible = source.visible;
+		// WITH_GENESYS
+		this.selfHidden = source.selfHidden;
+		// !WITH_GENESYS
 
 		this.castShadow = source.castShadow;
 		this.receiveShadow = source.receiveShadow;
