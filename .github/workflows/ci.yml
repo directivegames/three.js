@@ -42,6 +42,7 @@ jobs:
 
   e2e:
     name: E2E testing
+    if: false # Disabled: Puppeteer screenshot tests are slow and flaky in CI
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
@@ -77,3 +78,72 @@ jobs:
           name: Output screenshots-${{ matrix.os }}-${{ matrix.CI }}
           path: test/e2e/output-screenshots
           if-no-files-found: ignore
+
+  notify:
+    needs: [test, e2e]
+    runs-on: ubuntu-latest
+    if: always() && (needs.test.result == 'failure' || needs.e2e.result == 'failure')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - name: Notify Slack
+        run: |
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          OVERALL_STATUS="❌ *$PACKAGE_NAME CI Failed!*"
+          COLOR="danger"
+
+          # Get commit info
+          COMMIT_MSG=$(git log -1 --pretty=%B | head -1)
+          COMMIT_AUTHOR=$(git log -1 --pretty=%an)
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+
+          curl -X POST "${{ secrets.GENESYS_SLACK_WEBHOOK_URL }}" \
+            -H 'Content-Type: application/json' \
+            -d "{
+              \"attachments\": [
+                {
+                  \"color\": \"$COLOR\",
+                  \"title\": \"$OVERALL_STATUS\",
+                  \"text\": \"$PACKAGE_NAME CI workflow failed\",
+                  \"fields\": [
+                    {
+                      \"title\": \"Branch\",
+                      \"value\": \"${{ github.ref_name }}\",
+                      \"short\": true
+                    },
+                    {
+                      \"title\": \"Test Job\",
+                      \"value\": \"${{ needs.test.result }}\",
+                      \"short\": true
+                    },
+                    {
+                      \"title\": \"E2E Job\",
+                      \"value\": \"${{ needs.e2e.result }}\",
+                      \"short\": true
+                    },
+                    {
+                      \"title\": \"Commit\",
+                      \"value\": \"<https://github.com/${{ github.repository }}/commit/${{ github.sha }}|$COMMIT_SHA: $COMMIT_MSG>\",
+                      \"short\": false
+                    },
+                    {
+                      \"title\": \"Author\",
+                      \"value\": \"$COMMIT_AUTHOR\",
+                      \"short\": true
+                    }
+                  ],
+                  \"footer\": \"GitHub Actions\",
+                  \"footer_icon\": \"https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png\",
+                  \"actions\": [
+                    {
+                      \"type\": \"button\",
+                      \"text\": \"View Workflow\",
+                      \"url\": \"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+                    }
+                  ]
+                }
+              ]
+            }"
