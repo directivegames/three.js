@@ -24,7 +24,7 @@ class ProfilerServiceClass {
 		this._profile = 'full';
 		this._enabled = false;
 
-		/** @type {Map<string, Float64Array>} */
+		/** @type {Map<string, Float64Array>} Inclusive time ring buffers (one per label). */
 		this.buffers = new Map();
 		/** @type {Map<string, number>} */
 		this.cursors = new Map();
@@ -36,6 +36,20 @@ class ProfilerServiceClass {
 		this.traceEvents = [];
 		this.traceStartTime = 0;
 		this._markId = 0;
+
+		/** @type {Map<string, Float64Array>} Exclusive (self) time ring buffers (one per label). */
+		this.selfBuffers = new Map();
+		/** @type {Map<string, number>} */
+		this.selfCursors = new Map();
+		/** @type {Map<string, number>} */
+		this.selfCounts = new Map();
+		/**
+		 * Global call stack tracking nesting across all labels for exclusive-time computation.
+		 * @type {Array<{ label: string, childTime: number }>}
+		 */
+		this.callStack = [];
+		/** @type {Map<string, number>} Total (uncapped) invocation count since last reset, for calls-per-frame. */
+		this.invocations = new Map();
 
 		if ( this._enabled ) {
 
@@ -143,6 +157,9 @@ class ProfilerServiceClass {
 		performance.mark( startMark );
 		stack.push( { startTime, startMark, traced } );
 
+		// Push onto the global call stack for exclusive-time tracking.
+		this.callStack.push( { label, childTime: 0 } );
+
 	}
 
 	/**
@@ -177,6 +194,42 @@ class ProfilerServiceClass {
 		buffer[ cursor ] = duration;
 		this.cursors.set( label, ( cursor + 1 ) % RING_SIZE );
 		this.counts.set( label, Math.min( ( this.counts.get( label ) + 1 ), RING_SIZE ) );
+
+		// Track total invocations (uncapped) for calls-per-frame computation.
+		this.invocations.set( label, ( this.invocations.get( label ) ?? 0 ) + 1 );
+
+		// Exclusive (self) time via the global call stack.
+		const top = this.callStack.length > 0 ? this.callStack[ this.callStack.length - 1 ] : undefined;
+		if ( top !== undefined && top.label === label ) {
+
+			this.callStack.pop();
+			const selfTime = Math.max( 0, duration - top.childTime );
+
+			let selfBuffer = this.selfBuffers.get( label );
+			if ( ! selfBuffer ) {
+
+				selfBuffer = new Float64Array( RING_SIZE );
+				this.selfBuffers.set( label, selfBuffer );
+				this.selfCursors.set( label, 0 );
+				this.selfCounts.set( label, 0 );
+
+			}
+
+			const selfCursor = this.selfCursors.get( label );
+			selfBuffer[ selfCursor ] = selfTime;
+			this.selfCursors.set( label, ( selfCursor + 1 ) % RING_SIZE );
+			this.selfCounts.set( label, Math.min( ( this.selfCounts.get( label ) + 1 ), RING_SIZE ) );
+
+			// Propagate inclusive duration to the parent scope's child accumulator.
+			const parent = this.callStack.length > 0 ? this.callStack[ this.callStack.length - 1 ] : undefined;
+			if ( parent !== undefined ) parent.childTime += duration;
+
+		} else {
+
+			// Label mismatch — likely async interleaving. Reset to avoid corruption.
+			this.callStack.length = 0;
+
+		}
 
 		if ( traced ) {
 
@@ -220,6 +273,23 @@ class ProfilerServiceClass {
 		const sorted = [ ...samples ].sort( ( a, b ) => a - b );
 		const avg = sorted.reduce( ( a, b ) => a + b, 0 ) / sorted.length;
 
+		// Exclusive (self) time stats.
+		const selfCount = this.selfCounts.get( label ) ?? 0;
+		let selfAvg, selfMin, selfMax, selfP95, selfFrameBudget;
+		if ( selfCount > 0 ) {
+
+			const selfBuffer = this.selfBuffers.get( label );
+			const selfSamples = [ ...( selfCount < RING_SIZE
+				? selfBuffer.subarray( 0, selfCount )
+				: selfBuffer ) ].sort( ( a, b ) => a - b );
+			selfAvg = selfSamples.reduce( ( a, b ) => a + b, 0 ) / selfSamples.length;
+			selfMin = selfSamples[ 0 ];
+			selfMax = selfSamples[ selfSamples.length - 1 ];
+			selfP95 = selfSamples[ Math.floor( selfSamples.length * 0.95 ) ];
+			selfFrameBudget = ( selfAvg / FRAME_BUDGET_MS ) * 100;
+
+		}
+
 		return {
 			label,
 			samples: samples.length,
@@ -228,6 +298,12 @@ class ProfilerServiceClass {
 			max: sorted[ sorted.length - 1 ],
 			p95: sorted[ Math.floor( sorted.length * 0.95 ) ],
 			frameBudget: ( avg / FRAME_BUDGET_MS ) * 100,
+			totalInvocations: this.invocations.get( label ) ?? 0,
+			selfAvg,
+			selfMin,
+			selfMax,
+			selfP95,
+			selfFrameBudget,
 		};
 
 	}
@@ -350,6 +426,11 @@ class ProfilerServiceClass {
 		this.traceEvents = [];
 		this.traceStartTime = performance.now();
 		this._markId = 0;
+		this.selfBuffers.clear();
+		this.selfCursors.clear();
+		this.selfCounts.clear();
+		this.callStack.length = 0;
+		this.invocations.clear();
 
 	}
 
@@ -371,6 +452,12 @@ class ProfilerServiceClass {
  * @property {number} max
  * @property {number} p95
  * @property {number} frameBudget Percentage of a 60 fps frame budget (16.67 ms)
+ * @property {number} totalInvocations Total (uncapped) call count since last reset, for calls-per-frame computation.
+ * @property {number|undefined} selfAvg Exclusive (self) avg ms — inclusive time minus child scope time.
+ * @property {number|undefined} selfMin
+ * @property {number|undefined} selfMax
+ * @property {number|undefined} selfP95
+ * @property {number|undefined} selfFrameBudget Exclusive time as percentage of a 60 fps frame budget.
  */
 
 /**
