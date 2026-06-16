@@ -1,6 +1,6 @@
 {
   "name": "@gnsx/three",
-  "version": "0.184.18",
+  "version": "0.184.19",
   "description": "JavaScript 3D library",
   "type": "module",
   "main": "./build/three.cjs",
