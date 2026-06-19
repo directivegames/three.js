@@ -253,7 +253,7 @@ class ProfilerServiceClass {
 		if ( top !== undefined && top.label === label ) {
 
 			this.callStack.pop();
-			const selfTime = Math.max( 0, duration - top.childTime );
+			const selfTime = Math.max( 0, durationMs - top.childTime );
 
 			let selfBuffer = this.selfBuffers.get( label );
 			if ( ! selfBuffer ) {
@@ -272,7 +272,7 @@ class ProfilerServiceClass {
 
 			// Propagate inclusive duration to the parent scope's child accumulator.
 			const parent = this.callStack.length > 0 ? this.callStack[ this.callStack.length - 1 ] : undefined;
-			if ( parent !== undefined ) parent.childTime += duration;
+			if ( parent !== undefined ) parent.childTime += durationMs;
 
 		} else {
 
