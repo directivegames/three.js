@@ -246,7 +246,6 @@ class ProfilerServiceClass {
 		this.cursors.set( label, ( cursor + 1 ) % RING_SIZE );
 		this.counts.set( label, Math.min( ( this.counts.get( label ) + 1 ), RING_SIZE ) );
 
-<<<<<<< Updated upstream
 		// Track total invocations (uncapped) for calls-per-frame computation.
 		this.invocations.set( label, ( this.invocations.get( label ) ?? 0 ) + 1 );
 
@@ -283,10 +282,7 @@ class ProfilerServiceClass {
 
 		}
 
-		if ( traced ) {
-=======
-		if ( this._profile === 'full' && this.traceEvents.length < MAX_TRACE_EVENTS ) {
->>>>>>> Stashed changes
+		if ( traceTid ) {
 
 			const traceName = traceTid === TRACE_TID_ASYNC ? `${label} (promise)` : label;
 			this.traceEvents.push( {
