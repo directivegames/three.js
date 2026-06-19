@@ -17,11 +17,10 @@
 
 const RING_SIZE = 120;
 const FRAME_BUDGET_MS = 1000 / 60;
-/** Max events in the trace log (~50s at 60fps with 8 labels). */
-const MAX_TRACE_EVENTS = 50_000;
 const TRACE_TID_MAIN = 1;
 const TRACE_TID_ASYNC = 2;
 const NOOP = () => {};
+
 const DUMMY_SPAN = Object.freeze( { label: '', t0: 0, _seq: 0 } );
 const NOOP_BEGIN_SPAN = () => DUMMY_SPAN;
 const NOOP_END_SPAN = () => {};
