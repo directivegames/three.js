@@ -1,5 +1,5 @@
 import OutputStructNode from './OutputStructNode.js';
-import { nodeProxy, vec4 } from '../tsl/TSLBase.js';
+import { nodeProxy } from '../tsl/TSLBase.js';
 import { MaterialBlending, NoBlending } from '../../constants.js';
 import BlendMode from '../../renderers/common/BlendMode.js';
 
@@ -171,7 +171,12 @@ class MRTNode extends OutputStructNode {
 
 			const index = getTextureIndex( textures, name );
 
-			members[ index ] = vec4( outputNodes[ name ] );
+			// Ignore if the output exists in the MRT but has never been used.
+			if ( index === - 1 ) continue;
+
+			const type = builder.getOutputType( index );
+
+			members[ index ] = outputNodes[ name ].convert( type );
 
 		}
 

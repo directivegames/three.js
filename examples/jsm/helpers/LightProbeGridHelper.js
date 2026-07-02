@@ -159,7 +159,7 @@ function createShaderMaterial() {
 
 /**
  * Visualizes an {@link LightProbeGrid} by rendering a sphere at each
- * probe position, shaded with the probe's L1 spherical harmonics.
+ * probe position, shaded with the probe's L2 spherical harmonics.
  *
  * Uses a single `InstancedMesh` draw call for all probes.
  *
