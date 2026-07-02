@@ -1718,6 +1718,7 @@ class WebGLRenderer {
 			currentRenderList.finish();
 
 			if ( _this.sortObjects === true ) {
+
 				// WITH_GENESYS
 				ProfilerService.begin( 'sortRenderList' );
 				// !WITH_GENESYS
