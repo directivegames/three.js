@@ -102,11 +102,11 @@ const ATLAS_PADDING = 1;
  * Atlas layout (nz = resolution.z, PADDING = 1):
  * ```
  *   slice   0              : padding  (copy of sub-volume 0, data slice 0)
- *   slices  1 â€? nz         : sub-volume 0 data
+ *   slices  1 to nz        : sub-volume 0 data
  *   slice   nz + 1         : padding  (copy of sub-volume 0, data slice nz-1)
  *   slice   nz + 2         : padding  (copy of sub-volume 1, data slice 0)
- *   slices  nz+3 â€? 2*nz+2  : sub-volume 1 data
- *   â€?
+ *   slices  nz+3 to 2*nz+2 : sub-volume 1 data
+ *   ...
  * ```
  * Total atlas depth = `7 * ( nz + 2 )`.
  *
@@ -279,7 +279,7 @@ class LightProbeGrid extends Object3D {
 	/**
 	 * Bakes all probes by rendering cubemaps at each probe position
 	 * and projecting to L2 SH. Optionally iterates additional passes to
-	 * capture indirect bounces â€? each extra pass samples the previous pass's
+	 * capture indirect bounces - each extra pass samples the previous pass's
 	 * atlas as indirect light, so a grid added to the scene before baking
 	 * accumulates one bounce per extra pass.
 	 *
@@ -328,7 +328,7 @@ class LightProbeGrid extends Object3D {
 		renderer.getScissor( _currentScissor );
 		const currentScissorTest = renderer.getScissorTest();
 
-		// Scene is static across the bake â€? update once and disable per-render auto updates.
+		// Scene is static across the bake - update once and disable per-render auto updates.
 		const currentMatrixWorldAutoUpdate = scene.matrixWorldAutoUpdate;
 		if ( currentMatrixWorldAutoUpdate === true ) {
 
@@ -337,7 +337,7 @@ class LightProbeGrid extends Object3D {
 
 		}
 
-		// Disable shadow map auto-update across all passes â€? lights don't move.
+		// Disable shadow map auto-update across all passes - lights don't move.
 		// Force a single shadow update on the first render so maps are initialized.
 		const currentShadowAutoUpdate = renderer.shadowMap.autoUpdate;
 		renderer.shadowMap.autoUpdate = false;
@@ -351,7 +351,7 @@ class LightProbeGrid extends Object3D {
 		// const t0 = performance.now();
 
 		// Pass 0 captures direct light only (grid hidden, so probesSH is not sampled
-		// â€? the atlas at this point may be uninitialized or hold a prior bake).
+		// the atlas at this point may be uninitialized or hold a prior bake).
 		// Each subsequent pass keeps the grid visible so the cube cameras read the
 		// previous pass's atlas as indirect light, accumulating one bounce per pass.
 		// Phase 1 writes to the batch target and Phase 2 only swaps it into the atlas
@@ -439,11 +439,11 @@ class LightProbeGrid extends Object3D {
 
 		}
 
-		// Phase 2: Repack SH data from batch target into the atlas 3D texture (GPU-to-GPU).
+		// Phase 2: Repack SH data from batch target into the atlas 3D texture on the GPU.
 		//
 		// For each of the 7 packed sub-volumes (texture index t) we write:
 		//   - A leading padding slice  (copy of data slice iz = 0)
-		//   - All nz data slices       (iz = 0 â€? nz-1)
+		//   - All nz data slices       (iz = 0 to nz-1)
 		//   - A trailing padding slice (copy of data slice iz = nz-1)
 		//
 		// In the atlas the slices for sub-volume t occupy the range:
@@ -675,7 +675,7 @@ class LightProbeGrid extends Object3D {
 
 		renderer.shadowMap.autoUpdate = savedShadowAutoUpdate;
 
-		// Padding slices (GPU-to-GPU copy of nearest edge data slices).
+		// Padding slices copy the nearest edge data slices on the GPU.
 		const atlas = this.texture;
 
 		for ( let textureIndex = 0; textureIndex < 7; textureIndex ++ ) {
@@ -1142,7 +1142,7 @@ function _ensureWebGPUComputeResources( cubemapSize, envMapTexture, atlasTexture
 				totalWeight.addAssign( weight );
 
 				const dir = coord.normalize();
-				// Pass explicit direction â€? omitting UV would default to reflectVector (needs camera).
+				// Pass explicit direction; omitting UV would default to reflectVector (needs camera).
 				const cw = cubeTexture( envMapTexture, coord ).rgb.mul( weight );
 
 				accum0.addAssign( cw.mul( 0.282095 ) );
