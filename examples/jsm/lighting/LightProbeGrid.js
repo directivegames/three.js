@@ -33,6 +33,7 @@ import {
 	storageTexture,
 	textureStore,
 	uniform,
+	uint,
 	uvec3,
 	vec3,
 	vec4
@@ -675,31 +676,6 @@ class LightProbeGrid extends Object3D {
 
 		renderer.shadowMap.autoUpdate = savedShadowAutoUpdate;
 
-		// Padding slices copy the nearest edge data slices on the GPU.
-		const atlas = this.texture;
-
-		for ( let textureIndex = 0; textureIndex < 7; textureIndex ++ ) {
-
-			const baseSlice = textureIndex * paddedSlices;
-			const dataSlice = baseSlice + ATLAS_PADDING;
-			const trailingSlice = dataSlice + nz;
-
-			renderer.copyTextureToTexture(
-				atlas,
-				atlas,
-				new Box3( new Vector3( 0, 0, dataSlice ), new Vector3( nx, ny, dataSlice + 1 ) ),
-				new Vector3( 0, 0, baseSlice )
-			);
-
-			renderer.copyTextureToTexture(
-				atlas,
-				atlas,
-				new Box3( new Vector3( 0, 0, dataSlice + nz - 1 ), new Vector3( nx, ny, dataSlice + nz ) ),
-				new Vector3( 0, 0, trailingSlice )
-			);
-
-		}
-
 		await renderer.backend.device.queue.onSubmittedWorkDone();
 
 	}
@@ -1172,35 +1148,56 @@ function _ensureWebGPUComputeResources( cubemapSize, envMapTexture, atlasTexture
 
 		Loop( { end: 7, name: 't', type: 'int' }, ( { t } ) => {
 
-			const atlasZ = paddedSlices.mul( t ).add( 1 ).add( probeIz );
+			const baseSlice = paddedSlices.mul( t );
+			const atlasZ = baseSlice.add( 1 ).add( probeIz );
+			const trailingSlice = baseSlice.add( paddedSlices ).sub( 1 );
+			const lastDataSlice = paddedSlices.sub( 3 );
+			const storeProbeValue = ( value ) => {
+
+				textureStore( atlas, uvec3( probeIx, probeIy, atlasZ ), value ).toWriteOnly();
+
+				// Write padding during the compute pass; WebGPU validation rejects atlas-to-itself copies.
+				If( probeIz.equal( uint( 0 ) ), () => {
+
+					textureStore( atlas, uvec3( probeIx, probeIy, baseSlice ), value ).toWriteOnly();
+
+				} );
+
+				If( probeIz.equal( lastDataSlice ), () => {
+
+					textureStore( atlas, uvec3( probeIx, probeIy, trailingSlice ), value ).toWriteOnly();
+
+				} );
+
+			};
 
 			If( t.equal( int( 0 ) ), () => {
 
-				textureStore( atlas, uvec3( probeIx, probeIy, atlasZ ), vec4( c0.x, c0.y, c0.z, c1.x ) ).toWriteOnly();
+				storeProbeValue( vec4( c0.x, c0.y, c0.z, c1.x ) );
 
 			} ).ElseIf( t.equal( int( 1 ) ), () => {
 
-				textureStore( atlas, uvec3( probeIx, probeIy, atlasZ ), vec4( c1.y, c1.z, c2.x, c2.y ) ).toWriteOnly();
+				storeProbeValue( vec4( c1.y, c1.z, c2.x, c2.y ) );
 
 			} ).ElseIf( t.equal( int( 2 ) ), () => {
 
-				textureStore( atlas, uvec3( probeIx, probeIy, atlasZ ), vec4( c2.z, c3.x, c3.y, c3.z ) ).toWriteOnly();
+				storeProbeValue( vec4( c2.z, c3.x, c3.y, c3.z ) );
 
 			} ).ElseIf( t.equal( int( 3 ) ), () => {
 
-				textureStore( atlas, uvec3( probeIx, probeIy, atlasZ ), vec4( c4.x, c4.y, c4.z, c5.x ) ).toWriteOnly();
+				storeProbeValue( vec4( c4.x, c4.y, c4.z, c5.x ) );
 
 			} ).ElseIf( t.equal( int( 4 ) ), () => {
 
-				textureStore( atlas, uvec3( probeIx, probeIy, atlasZ ), vec4( c5.y, c5.z, c6.x, c6.y ) ).toWriteOnly();
+				storeProbeValue( vec4( c5.y, c5.z, c6.x, c6.y ) );
 
 			} ).ElseIf( t.equal( int( 5 ) ), () => {
 
-				textureStore( atlas, uvec3( probeIx, probeIy, atlasZ ), vec4( c6.z, c7.x, c7.y, c7.z ) ).toWriteOnly();
+				storeProbeValue( vec4( c6.z, c7.x, c7.y, c7.z ) );
 
 			} ).Else( () => {
 
-				textureStore( atlas, uvec3( probeIx, probeIy, atlasZ ), vec4( c8.x, c8.y, c8.z, float( 0 ) ) ).toWriteOnly();
+				storeProbeValue( vec4( c8.x, c8.y, c8.z, float( 0 ) ) );
 
 			} );
 
