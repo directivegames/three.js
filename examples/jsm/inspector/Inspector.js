@@ -539,6 +539,14 @@ class Inspector extends RendererInspector {
 
 function getItem( id ) {
 
+	// WITH_GENESYS
+	if ( globalThis.localStorage === undefined ) {
+
+		return {};
+
+	}
+	// !WITH_GENESYS
+
 	const data = JSON.parse( localStorage.getItem( 'threejs-inspector' ) || '{}' );
 
 	if ( data.version !== REVISION ||
@@ -555,6 +563,14 @@ function getItem( id ) {
 }
 
 function setItem( id, state ) {
+
+	// WITH_GENESYS
+	if ( globalThis.localStorage === undefined ) {
+
+		return;
+
+	}
+	// !WITH_GENESYS
 
 	const data = JSON.parse( localStorage.getItem( 'threejs-inspector' ) || '{}' );
 
