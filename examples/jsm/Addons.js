@@ -104,7 +104,12 @@ export * from './loaders/LUT3dlLoader.js';
 export * from './loaders/LUTCubeLoader.js';
 export * from './loaders/LUTImageLoader.js';
 export * from './loaders/LWOLoader.js';
-export * from './loaders/LottieLoader.js';
+// WITH_GENESYS
+// LottieLoader is excluded from the Addons barrel because it imports lottie-web from a CDN URL
+// (https://cdn.jsdelivr.net/npm/lottie-web@5.13.0/+esm), which Node.js/TSX cannot resolve in test
+// environments. The loader is also deprecated in r185 and scheduled for removal in r186.
+// export * from './loaders/LottieLoader.js';
+// !WITH_GENESYS
 export * from './loaders/MD2Loader.js';
 export * from './loaders/MDDLoader.js';
 export * from './loaders/MTLLoader.js';
