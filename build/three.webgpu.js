@@ -77408,6 +77408,16 @@ class WebGPUTextureUtils {
 		if ( bindingData.sampler !== undefined ) {
 
 			const samplerData = this._samplerCache.get( bindingData.samplerKey );
+			// WITH_GENESYS
+			// Binding disposal can be reached more than once during renderer teardown; tolerate stale sampler cache data.
+			if ( samplerData === undefined ) {
+
+				bindingData.sampler = undefined;
+				bindingData.samplerKey = undefined;
+				return;
+
+			}
+			// !WITH_GENESYS
 			samplerData.usedTimes --;
 
 			if ( samplerData.usedTimes === 0 ) {
@@ -86882,6 +86892,11 @@ class WebGPUBackend extends Backend {
 		const timestampQueryPool = this.timestampQueryPool[ type ];
 
 		const baseOffset = timestampQueryPool.allocateQueriesForContext( uid );
+
+		// WITH_GENESYS
+		// If query allocation fails, leave timestampWrites unset so WebGPU doesn't receive a null querySet.
+		if ( baseOffset === null || timestampQueryPool.querySet === null ) return;
+		// !WITH_GENESYS
 
 		_renderPassTimestampWrites.querySet = timestampQueryPool.querySet;
 		_renderPassTimestampWrites.beginningOfPassWriteIndex = baseOffset;

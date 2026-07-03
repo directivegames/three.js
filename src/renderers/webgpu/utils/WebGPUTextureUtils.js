@@ -250,6 +250,16 @@ class WebGPUTextureUtils {
 		if ( bindingData.sampler !== undefined ) {
 
 			const samplerData = this._samplerCache.get( bindingData.samplerKey );
+			// WITH_GENESYS
+			// Binding disposal can be reached more than once during renderer teardown; tolerate stale sampler cache data.
+			if ( samplerData === undefined ) {
+
+				bindingData.sampler = undefined;
+				bindingData.samplerKey = undefined;
+				return;
+
+			}
+			// !WITH_GENESYS
 			samplerData.usedTimes --;
 
 			if ( samplerData.usedTimes === 0 ) {

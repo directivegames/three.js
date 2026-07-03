@@ -2267,6 +2267,11 @@ class WebGPUBackend extends Backend {
 
 		const baseOffset = timestampQueryPool.allocateQueriesForContext( uid );
 
+		// WITH_GENESYS
+		// If query allocation fails, leave timestampWrites unset so WebGPU doesn't receive a null querySet.
+		if ( baseOffset === null || timestampQueryPool.querySet === null ) return;
+		// !WITH_GENESYS
+
 		_renderPassTimestampWrites.querySet = timestampQueryPool.querySet;
 		_renderPassTimestampWrites.beginningOfPassWriteIndex = baseOffset;
 		_renderPassTimestampWrites.endOfPassWriteIndex = baseOffset + 1;
