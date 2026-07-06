@@ -79,7 +79,12 @@ function _saveState() {
 
 }
 
-_loadState();
+// WITH_GENESYS
+// Defer state load until Settings is instantiated. Calling `_loadState()` at
+// module evaluation time triggers `Inspector.getItem()`, which reads `REVISION`
+// (imported from `three/webgpu`) while `Inspector.js` is still mid-evaluation (TDZ).
+// _loadState();
+// !WITH_GENESYS
 
 //
 
@@ -276,10 +281,11 @@ Shares the same state across any page within the current origin.` );
 
 		extension.active = true;
 
-		const extUrl = new URL( extension.url, import.meta.url ).href;
-
 		// WITH_GENESYS
-		const module = await import( /* @vite-ignore */ /* webpackIgnore: true */ extUrl );
+		// `new URL( extension.url, import.meta.url )` fails with webpack 5 because the
+		// first argument is dynamic ("Can't resolve <dynamic>"). With @vite-ignore and
+		// webpackIgnore, the browser resolves the relative `extension.url` at runtime.
+		const module = await import( /* @vite-ignore */ /* webpackIgnore: true */ extension.url );
 		// !WITH_GENESYS
 
 		const keys = Object.keys( module );
