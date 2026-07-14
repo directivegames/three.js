@@ -1,17 +1,53 @@
 import Node from '../core/Node.js';
-import { nodeObject, property, vec3 } from '../tsl/TSLBase.js';
+import { property, vec3 } from '../tsl/TSLBase.js';
 import { hashArray } from '../core/NodeUtils.js';
 import { warn } from '../../utils.js';
 // WITH_GENESYS
 import LightProbeGridNode from './LightProbeGridNode.js';
 // !WITH_GENESYS
 
+/**
+ * A node representing the total diffuse light.
+ *
+ * @type {Node<vec3>}
+ */
+const totalDiffuse = property( 'vec3', 'totalDiffuse' );
+
+/**
+ * A node representing the total specular light.
+ *
+ * @type {Node<vec3>}
+ */
+const totalSpecular = property( 'vec3', 'totalSpecular' );
+
+/**
+ * A node representing the outgoing light.
+ *
+ * @type {Node<vec3>}
+ */
+const outgoingLight = property( 'vec3', 'outgoingLight' );
+
+/**
+ * Sorts an array of lights in ascending order by their IDs.
+ *
+ * @private
+ * @param {Array<Light>} lights - The array of lights to sort.
+ * @return {Array<Light>} The sorted array of lights.
+ */
 const sortLights = ( lights ) => {
 
 	return lights.sort( ( a, b ) => a.id - b.id );
 
 };
 
+/**
+ * Finds and returns a lighting node associated with a specific light ID.
+ *
+ * @private
+ * @param {number} id - The ID of the light to search for.
+ * @param {Array<LightingNode>} lightNodes - The array of lighting nodes to search within.
+ * @return {?LightingNode} The matching lighting node, or null if not found.
+ */
 const getLightNodeById = ( id, lightNodes ) => {
 
 	for ( const lightNode of lightNodes ) {
@@ -28,7 +64,20 @@ const getLightNodeById = ( id, lightNodes ) => {
 
 };
 
+/**
+ * WeakMap cache mapping light objects to their corresponding lighting node instances.
+ *
+ * @private
+ * @type {WeakMap<Light, LightingNode>}
+ */
 const _lightsNodeRef = /*@__PURE__*/ new WeakMap();
+
+/**
+ * Array used to temporarily store light IDs and shadow casting states for hashing.
+ *
+ * @private
+ * @type {Array<number>}
+ */
 const _hashData = [];
 
 /**
@@ -58,21 +107,21 @@ class LightsNode extends Node {
 		 *
 		 * @type {Node<vec3>}
 		 */
-		this.totalDiffuseNode = property( 'vec3', 'totalDiffuse' );
+		this.totalDiffuseNode = totalDiffuse;
 
 		/**
 		 * A node representing the total specular light.
 		 *
 		 * @type {Node<vec3>}
 		 */
-		this.totalSpecularNode = property( 'vec3', 'totalSpecular' );
+		this.totalSpecularNode = totalSpecular;
 
 		/**
 		 * A node representing the outgoing light.
 		 *
 		 * @type {Node<vec3>}
 		 */
-		this.outgoingLightNode = property( 'vec3', 'outgoingLight' );
+		this.outgoingLightNode = outgoingLight;
 
 		/**
 		 * An array representing the lights in the scene.
@@ -91,6 +140,7 @@ class LightsNode extends Node {
 		 */
 		this._lightProbeGrids = [];
 
+
 		/**
 		 * Cached light probe grid node reused across {@link LightsNode#setupLightsNode} calls.
 		 *
@@ -100,25 +150,6 @@ class LightsNode extends Node {
 		 */
 		this._lightProbeGridNode = null;
 		// !WITH_GENESYS
-
-		/**
-		 * For each light in the scene, this node will create a
-		 * corresponding light node.
-		 *
-		 * @private
-		 * @type {?Array<LightingNode>}
-		 * @default null
-		 */
-		this._lightNodes = null;
-
-		/**
-		 * A hash for identifying the current light nodes setup.
-		 *
-		 * @private
-		 * @type {?string}
-		 * @default null
-		 */
-		this._lightNodesHash = null;
 
 		/**
 		 * `LightsNode` sets this property to `true` by default.
@@ -186,26 +217,36 @@ class LightsNode extends Node {
 	 */
 	getHash( builder ) {
 
-		if ( this._lightNodesHash === null ) {
+		const nodeData = builder.getDataFromNode( this );
 
-			if ( this._lightNodes === null ) this.setupLightsNode( builder );
+		if ( nodeData.lightNodesHash === undefined ) {
+
+			const lightNodes = this.setupLightsNode( builder );
+
+			nodeData.lightNodes = lightNodes;
 
 			const hash = [];
 
-			for ( const lightNode of this._lightNodes ) {
+			for ( const lightNode of lightNodes ) {
 
 				hash.push( lightNode.getHash() );
 
 			}
 
-			this._lightNodesHash = 'lights-' + hash.join( ',' );
+			nodeData.lightNodesHash = 'lights-' + hash.join( ',' );
 
 		}
 
-		return this._lightNodesHash;
+		return nodeData.lightNodesHash;
 
 	}
 
+	/**
+	 * Analyzes the node's dependencies by building all nested light nodes
+	 * and the output node.
+	 *
+	 * @param {NodeBuilder} builder - A reference to the current node builder.
+	 */
 	analyze( builder ) {
 
 		const properties = builder.getNodeProperties( this );
@@ -225,21 +266,24 @@ class LightsNode extends Node {
 	 * process lights in the node system.
 	 *
 	 * @param {NodeBuilder} builder - A reference to the current node builder.
+	 * @return {Array<LightingNode>} The array of lighting nodes.
 	 */
 	setupLightsNode( builder ) {
 
+		const nodeData = builder.getDataFromNode( this );
 		const lightNodes = [];
 
-		const previousLightNodes = this._lightNodes;
+		const previousLightNodes = nodeData.lightNodes || null;
+		const materialLightings = builder.context.materialLightings;
 
-		const lights = sortLights( this._lights );
+		const lights = sortLights( [ ...materialLightings, ...this._lights ] );
 		const nodeLibrary = builder.renderer.library;
 
 		for ( const light of lights ) {
 
 			if ( light.isNode ) {
 
-				lightNodes.push( nodeObject( light ) );
+				lightNodes.push( light );
 
 			} else {
 
@@ -278,11 +322,12 @@ class LightsNode extends Node {
 
 		}
 
+
 		// WITH_GENESYS
 		this._appendLightProbeGridNode( lightNodes );
 		// !WITH_GENESYS
 
-		this._lightNodes = lightNodes;
+		return lightNodes;
 
 	}
 
@@ -335,6 +380,13 @@ class LightsNode extends Node {
 
 	}
 
+	/**
+	 * Sets up a direct rect area light in the lighting model.
+	 *
+	 * @param {Object} builder - The builder object containing the context and stack.
+	 * @param {Object} lightNode - The light node.
+	 * @param {Object} lightData - The light object containing color and area light properties.
+	 */
 	setupDirectRectAreaLight( builder, lightNode, lightData ) {
 
 		const { lightingModel, reflectedLight } = builder.context;
@@ -366,9 +418,15 @@ class LightsNode extends Node {
 
 	getLightNodes( builder ) {
 
-		if ( this._lightNodes === null ) this.setupLightsNode( builder );
+		const nodeData = builder.getDataFromNode( this );
 
-		return this._lightNodes;
+		if ( nodeData.lightNodes === undefined ) {
+
+			nodeData.lightNodes = this.setupLightsNode( builder );
+
+		}
+
+		return nodeData.lightNodes;
 
 	}
 
@@ -454,9 +512,6 @@ class LightsNode extends Node {
 	setLights( lights ) {
 
 		this._lights = lights;
-
-		this._lightNodes = null;
-		this._lightNodesHash = null;
 
 		return this;
 

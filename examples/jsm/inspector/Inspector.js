@@ -79,6 +79,11 @@ class Inspector extends RendererInspector {
 				needsUpdate: false,
 				duration: .02,
 				time: 0
+			},
+			toggleGraph: {
+				needsUpdate: false,
+				duration: .02,
+				time: 0
 			}
 		};
 
@@ -251,9 +256,28 @@ class Inspector extends RendererInspector {
 
 		//
 
-		if ( renderer.inspector.domElement.parentElement === null && renderer.domElement.parentElement !== null ) {
+		if ( renderer.inspector.domElement.parentElement === null ) {
 
-			renderer.domElement.parentElement.appendChild( renderer.inspector.domElement );
+			if ( renderer.domElement.parentElement !== null ) {
+
+				renderer.domElement.parentElement.appendChild( renderer.inspector.domElement );
+
+			} else {
+
+				const observer = new MutationObserver( () => {
+
+					if ( renderer.domElement.parentElement !== null ) {
+
+						renderer.domElement.parentElement.appendChild( renderer.inspector.domElement );
+						observer.disconnect();
+
+					}
+
+				} );
+
+				observer.observe( document.body || document.documentElement, { childList: true, subtree: true } );
+
+			}
 
 		}
 
@@ -463,13 +487,25 @@ class Inspector extends RendererInspector {
 
 		this.updateCycle( this.displayCycle.text );
 		this.updateCycle( this.displayCycle.graph );
+		this.updateCycle( this.displayCycle.toggleGraph );
 
 		if ( this.displayCycle.text.needsUpdate ) {
 
-			setText( 'fps-counter', this.fps.toFixed() );
+			setText( this.profiler.toggleButton.querySelector( '.fps-counter' ), this.fps.toFixed() );
 
 			this.performance.updateText( this, frame );
 			this.memory.updateText( this );
+
+		}
+
+		if ( this.displayCycle.toggleGraph.needsUpdate ) {
+
+			if ( this.profiler.toggleGraph ) {
+
+				this.profiler.toggleGraph.addPoint( 'fps', this.fps );
+				this.profiler.toggleGraph.update();
+
+			}
 
 		}
 
@@ -482,6 +518,7 @@ class Inspector extends RendererInspector {
 
 		this.displayCycle.text.needsUpdate = false;
 		this.displayCycle.graph.needsUpdate = false;
+		this.displayCycle.toggleGraph.needsUpdate = false;
 
 	}
 
@@ -498,90 +535,62 @@ class Inspector extends RendererInspector {
 
 	}
 
-	static getItem( id ) {
-
-		console.warn( 'Inspector.getItem is deprecated. Use getItem directly instead.' );
-		return getItem( id );
-
-	}
-
-	static setItem( id, state ) {
-
-		console.warn( 'Inspector.setItem is deprecated. Use setItem directly instead.' );
-		setItem( id, state );
-
-	}
-
-}
-
-// WITH_GENESYS
-const STORAGE_KEY_THREE_INSPECTOR = 'threejs-inspector';
-
-function getStorageOrNull() {
-
-	try {
-
-		const storage = globalThis.localStorage;
-		if ( storage === undefined || storage === null ) return null;
-		if ( typeof storage.getItem !== 'function' || typeof storage.setItem !== 'function' ) return null;
-		return storage;
-
-	} catch {
-
-		return null;
-
-	}
-
 }
 
 function getItem( id ) {
 
-	const storage = getStorageOrNull();
-	if ( storage === null ) return {};
+	// WITH_GENESYS
+	if ( globalThis.localStorage === undefined ) {
 
-	try {
+		return {};
 
-		const raw = storage.getItem( STORAGE_KEY_THREE_INSPECTOR );
-		const data = JSON.parse( raw || '{}' );
-		return data[ id ] || {};
+	}
+	// !WITH_GENESYS
 
-	} catch {
+	const data = JSON.parse( localStorage.getItem( 'threejs-inspector' ) || '{}' );
+
+	if ( data.version !== REVISION ||
+		 data.settings && ( data.settings.storage === 'url' && data.settings.url !== location.href ) ) {
+
+		localStorage.removeItem( 'threejs-inspector' );
 
 		return {};
 
 	}
 
+	return data[ id ] || {};
+
 }
 
 function setItem( id, state ) {
 
-	const storage = getStorageOrNull();
-	if ( storage === null ) return;
+	// WITH_GENESYS
+	if ( globalThis.localStorage === undefined ) {
 
-	try {
+		return;
 
-		const raw = storage.getItem( STORAGE_KEY_THREE_INSPECTOR );
-		const data = JSON.parse( raw || '{}' );
+	}
+	// !WITH_GENESYS
 
-		if ( state === null ) {
+	const data = JSON.parse( localStorage.getItem( 'threejs-inspector' ) || '{}' );
 
-			delete data[ id ];
+	if ( state === null ) {
 
-		} else {
+		delete data[ id ];
 
-			data[ id ] = state;
+	} else {
 
-		}
-
-		storage.setItem( STORAGE_KEY_THREE_INSPECTOR, JSON.stringify( data ) );
-
-	} catch {
-
-		// Headless / private mode / blocked storage: skip persistence
+		data[ id ] = state;
 
 	}
 
+	data.settings = data.settings || {};
+	data.settings.url = data.settings.url || location.href;
+	data.settings.storage = data.settings.storage || 'url';
+	data.version = REVISION;
+
+	localStorage.setItem( 'threejs-inspector', JSON.stringify( data ) );
+
 }
-// !WITH_GENESYS
 
 export { Inspector, getItem, setItem };

@@ -248,7 +248,7 @@ class DynamicLightsNode extends LightsNode {
 		this._appendLightProbeGridNode( lightNodes );
 		// !WITH_GENESYS
 
-		this._lightNodes = lightNodes;
+		return lightNodes;
 
 	}
 

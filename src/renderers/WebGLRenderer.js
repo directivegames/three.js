@@ -298,6 +298,10 @@ class WebGLRenderer {
 		let _isContextLost = false;
 		let _nodesHandler = null;
 
+		let _scratchFramebuffer = null;
+		let _srcFramebuffer = null;
+		let _dstFramebuffer = null;
+
 		// internal state cache
 
 		this._outputColorSpace = SRGBColorSpace;
@@ -397,11 +401,11 @@ class WebGLRenderer {
 
 					if ( getContext( contextName ) ) {
 
-						throw new Error( 'Error creating WebGL context with your selected attributes.' );
+						throw new Error( 'THREE.WebGLRenderer: Error creating WebGL context with your selected attributes.' );
 
 					} else {
 
-						throw new Error( 'Error creating WebGL context.' );
+						throw new Error( 'THREE.WebGLRenderer: Error creating WebGL context.' );
 
 					}
 
@@ -440,6 +444,10 @@ class WebGLRenderer {
 				state.buffers.depth.setReversed( true );
 
 			}
+
+			_scratchFramebuffer = _gl.createFramebuffer();
+			_srcFramebuffer = _gl.createFramebuffer();
+			_dstFramebuffer = _gl.createFramebuffer();
 
 			info = new WebGLInfo( _gl );
 			properties = new WebGLProperties();
@@ -547,7 +555,7 @@ class WebGLRenderer {
 
 		if ( _outputBufferType !== UnsignedByteType ) {
 
-			output = new WebGLOutput( _outputBufferType, canvas.width, canvas.height, depth, stencil );
+			output = new WebGLOutput( _outputBufferType, canvas.width, canvas.height, antialias, depth, stencil );
 
 		}
 
@@ -731,7 +739,7 @@ class WebGLRenderer {
 
 			if ( _outputBufferType === UnsignedByteType ) {
 
-				error( 'THREE.WebGLRenderer: setEffects() requires outputBufferType set to HalfFloatType or FloatType.' );
+				error( 'WebGLRenderer: setEffects() requires outputBufferType set to HalfFloatType or FloatType.' );
 				return;
 
 			}
@@ -742,7 +750,7 @@ class WebGLRenderer {
 
 					if ( effects[ i ].isOutputPass === true ) {
 
-						warn( 'THREE.WebGLRenderer: OutputPass is not needed in setEffects(). Tone mapping and color space conversion are applied automatically.' );
+						warn( 'WebGLRenderer: OutputPass is not needed in setEffects(). Tone mapping and color space conversion are applied automatically.' );
 						break;
 
 					}
@@ -1180,7 +1188,7 @@ class WebGLRenderer {
 
 			if ( scene === null ) scene = _emptyScene; // renderBufferDirect second parameter used to be fog (could be null)
 
-			const frontFaceCW = ( object.isMesh && object.matrixWorld.determinant() < 0 );
+			const frontFaceCW = ( object.isMesh && object.matrixWorld.determinantAffine() < 0 );
 
 			const program = setProgram( camera, scene, geometry, material, object );
 
@@ -1714,7 +1722,9 @@ class WebGLRenderer {
 				// WITH_GENESYS
 				ProfilerService.begin( 'sortRenderList' );
 				// !WITH_GENESYS
-				currentRenderList.sort( _opaqueSort, _transparentSort );
+
+				currentRenderList.sort( _opaqueSort, _transparentSort, camera.reversedDepth );
+
 				// WITH_GENESYS
 				ProfilerService.end( 'sortRenderList' );
 				// !WITH_GENESYS
@@ -1736,6 +1746,8 @@ class WebGLRenderer {
 
 			this.info.render.frame ++;
 
+			if ( this.info.autoReset === true ) this.info.reset();
+
 			if ( _clippingEnabled === true ) clipping.beginShadows();
 
 			const shadowsArray = currentRenderState.state.shadowsArray;
@@ -1751,8 +1763,6 @@ class WebGLRenderer {
 			if ( _clippingEnabled === true ) clipping.endShadows();
 
 			//
-
-			if ( this.info.autoReset === true ) this.info.reset();
 
 			// render scene (skip if first effect is a render pass - it will render the scene itself)
 
@@ -2959,8 +2969,6 @@ class WebGLRenderer {
 
 		};
 
-		const _scratchFrameBuffer = _gl.createFramebuffer();
-
 		/**
 		 * Sets the active rendertarget.
 		 *
@@ -3024,7 +3032,7 @@ class WebGLRenderer {
 							( renderTarget.width !== depthTexture.image.width || renderTarget.height !== depthTexture.image.height )
 						) {
 
-							throw new Error( 'WebGLRenderTarget: Attached DepthTexture is initialized to the incorrect size.' );
+							throw new Error( 'THREE.WebGLRenderer: Attached DepthTexture is initialized to the incorrect size.' );
 
 						}
 
@@ -3093,7 +3101,7 @@ class WebGLRenderer {
 			// being bound that are different sizes.
 			if ( activeMipmapLevel !== 0 ) {
 
-				framebuffer = _scratchFrameBuffer;
+				framebuffer = _scratchFramebuffer;
 
 			}
 
@@ -3336,8 +3344,6 @@ class WebGLRenderer {
 
 		};
 
-		const _srcFramebuffer = _gl.createFramebuffer();
-		const _dstFramebuffer = _gl.createFramebuffer();
 
 		/**
 		 * Copies data of the given source texture into a destination texture.

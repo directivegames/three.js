@@ -600,6 +600,17 @@ class Renderer {
 		this.onDeviceLost = this._onDeviceLost;
 
 		/**
+		 * A callback function that defines what should happen when an uncaptured
+		 * backend error is reported (e.g. a WebGPU validation/out-of-memory/internal
+		 * error raised outside an error scope). Applications can override this to
+		 * surface errors in their own UI without letting them escalate to a device
+		 * loss. The default implementation logs to the console.
+		 *
+		 * @type {Function}
+		 */
+		this.onError = this._onError;
+
+		/**
 		 * Defines the type of output buffers. The default `HalfFloatType` is recommend for
 		 * best quality. To save memory and bandwidth, `UnsignedByteType` might be used.
 		 * This will reduce rendering quality though.
@@ -654,6 +665,16 @@ class Renderer {
 		 * @default null
 		 */
 		this._compilationPromises = null;
+
+		/**
+		 * When an override material is in use, this property points to the current
+		 * source material during the rendering of a render object.
+		 *
+		 * @private
+		 * @type {?Material}
+		 * @default null
+		 */
+		this._currentSourceMaterial = null;
 
 		/**
 		 * Whether the renderer should render transparent render objects or not.
@@ -721,10 +742,13 @@ class Renderer {
 			onShaderError: null,
 			getShaderAsync: async ( scene, camera, object ) => {
 
-				await this.compileAsync( scene, camera );
+				await this.compileAsync( object, camera, scene );
+
+				const useFrameBufferTarget = this.needsFrameBufferTarget && this._renderTarget === null;
+				const renderTarget = useFrameBufferTarget ? this._getFrameBufferTarget() : ( this._renderTarget || this._outputRenderTarget );
 
 				const renderList = this._renderLists.get( scene, camera );
-				const renderContext = this._renderContexts.get( this._renderTarget, this._mrt );
+				const renderContext = this._renderContexts.get( renderTarget, this._mrt );
 
 				const material = scene.overrideMaterial || object.material;
 
@@ -917,9 +941,28 @@ class Renderer {
 
 		//
 
+		if ( scene.matrixWorldAutoUpdate === true ) scene.updateMatrixWorld();
+
+		camera = this._updateCamera( camera );
+
+		//
+
 		sceneRef.onBeforeRender( this, scene, camera, renderTarget );
 
 		//
+
+		const frustum = camera.isArrayCamera ? _frustumArray : _frustum;
+
+		if ( camera.isArrayCamera ) {
+
+			frustum.setFromArrayCamera( camera );
+
+		} else {
+
+			_projScreenMatrix.multiplyMatrices( camera.projectionMatrix, camera.matrixWorldInverse );
+			frustum.setFromProjectionMatrix( _projScreenMatrix, camera.coordinateSystem, camera.reversedDepth );
+
+		}
 
 		// Use sceneRef for render list to ensure lightsNode matches between compileAsync and render
 		const renderList = this._renderLists.get( sceneRef, camera );
@@ -1006,12 +1049,11 @@ class Renderer {
 			renderObject.drawRange = item.object.geometry.drawRange;
 			renderObject.group = item.group;
 
-			this._geometries.updateForRender( renderObject );
-
 			// Use async node building to yield to main thread
 			await this._nodes.getForRenderAsync( renderObject );
 
 			this._nodes.updateBefore( renderObject );
+			this._geometries.updateForRender( renderObject );
 			this._nodes.updateForRender( renderObject );
 			this._bindings.updateForRender( renderObject );
 
@@ -1206,6 +1248,41 @@ class Renderer {
 	}
 
 	/**
+	 * Default implementation of the uncaptured backend error callback.
+	 *
+	 * @private
+	 * @param {Object} info - Information about the uncaptured error.
+	 */
+	_onError( info ) {
+
+		let errorMessage = `WebGPURenderer: Uncaptured ${ info.api } ${ info.type }`;
+
+		if ( info.message ) {
+
+			errorMessage += `: ${ info.message }`;
+
+		}
+
+		error( errorMessage );
+
+	}
+
+	/**
+	 * Returns `true` if the cached GPU render bundle for the given bundle group is
+	 * out-of-date and must be recorded again.
+	 *
+	 * @private
+	 * @param {BundleGroup} bundleGroup - The bundle group.
+	 * @param {Object} renderBundleData - The backend data of the render bundle.
+	 * @return {boolean} Whether the cached render bundle needs an update.
+	 */
+	_bundleNeedsUpdate( bundleGroup, renderBundleData ) {
+
+		return renderBundleData.bundleGPU === undefined || bundleGroup.version !== renderBundleData.version;
+
+	}
+
+	/**
 	 * Renders the given render bundle.
 	 *
 	 * @private
@@ -1227,19 +1304,11 @@ class Renderer {
 
 		const renderBundle = this._bundles.get( bundleGroup, camera, renderContext );
 		const renderBundleData = this.backend.get( renderBundle );
-
-		const needsUpdate = bundleGroup.version !== renderBundleData.version;
-		const renderBundleNeedsUpdate = needsUpdate || renderBundleData.bundleGPU === undefined;
+		const renderBundleNeedsUpdate = this._bundleNeedsUpdate( bundleGroup, renderBundleData );
 
 		if ( renderBundleNeedsUpdate ) {
 
 			this.backend.beginBundle( renderContext );
-
-			if ( renderBundleData.renderObjects === undefined || needsUpdate ) {
-
-				renderBundleData.renderObjects = [];
-
-			}
 
 			this._currentRenderBundle = renderBundle;
 
@@ -1272,6 +1341,7 @@ class Renderer {
 
 					this._nodes.updateBefore( renderObject );
 
+					this._geometries.updateForRender( renderObject );
 					this._nodes.updateForRender( renderObject );
 					this._bindings.updateForRender( renderObject );
 
@@ -1314,7 +1384,7 @@ class Renderer {
 
 		if ( this._initialized === false ) {
 
-			throw new Error( 'Renderer: .render() called before the backend is initialized. Use "await renderer.init();" before rendering.' );
+			throw new Error( 'THREE.Renderer: .render() called before the backend is initialized. Use "await renderer.init();" before rendering.' );
 
 		}
 
@@ -1335,6 +1405,37 @@ class Renderer {
 	get initialized() {
 
 		return this._initialized;
+
+	}
+
+	_renderOutputLayers( quad, renderTarget ) {
+
+		if ( renderTarget.texture.isArrayTexture !== true || renderTarget.texture.image.depth <= 1 ) {
+
+			this._renderScene( quad, quad.camera, false );
+			return;
+
+		}
+
+		const currentActiveCubeFace = this._activeCubeFace;
+
+		try {
+
+			for ( let layer = 0; layer < renderTarget.texture.image.depth; layer ++ ) {
+
+				this._nodes.setOutputLayerIndex( layer );
+				this._activeCubeFace = layer;
+
+				this._renderScene( quad, quad.camera, false );
+
+			}
+
+		} finally {
+
+			this._nodes.setOutputLayerIndex( 0 );
+			this._activeCubeFace = currentActiveCubeFace;
+
+		}
 
 	}
 
@@ -1423,6 +1524,7 @@ class Renderer {
 		frameBufferTarget.scissor.multiplyScalar( pixelRatio );
 		frameBufferTarget.scissorTest = scissorTest;
 		frameBufferTarget.multiview = outputRenderTarget !== null ? outputRenderTarget.multiview : false;
+		frameBufferTarget.useArrayDepthTexture = outputRenderTarget !== null ? outputRenderTarget.useArrayDepthTexture : false;
 		frameBufferTarget.resolveDepthBuffer = outputRenderTarget !== null ? outputRenderTarget.resolveDepthBuffer : true;
 		frameBufferTarget._autoAllocateDepthBuffer = outputRenderTarget !== null ? outputRenderTarget._autoAllocateDepthBuffer : false;
 
@@ -1459,6 +1561,8 @@ class Renderer {
 		const previousRenderContext = this._currentRenderContext;
 		const previousRenderObjectFunction = this._currentRenderObjectFunction;
 		const previousHandleObjectFunction = this._handleObjectFunction;
+
+		this.lighting.beginRender( scene );
 
 		//
 
@@ -1533,77 +1637,6 @@ class Renderer {
 
 		//
 
-
-		const xr = this.xr;
-
-		if ( xr.isPresenting === false ) {
-
-			let projectionMatrixNeedsUpdate = false;
-
-			// reversed depth
-
-			if ( this.reversedDepthBuffer === true && camera.reversedDepth !== true ) {
-
-				camera._reversedDepth = true;
-
-				if ( camera.isArrayCamera ) {
-
-					for ( const subCamera of camera.cameras ) {
-
-						subCamera._reversedDepth = true;
-
-					}
-
-				}
-
-				projectionMatrixNeedsUpdate = true;
-
-			}
-
-			// WebGPU/WebGL coordinate system
-
-			const coordinateSystem = this.coordinateSystem;
-
-			if ( camera.coordinateSystem !== coordinateSystem ) {
-
-				camera.coordinateSystem = coordinateSystem;
-
-				if ( camera.isArrayCamera ) {
-
-					for ( const subCamera of camera.cameras ) {
-
-						subCamera.coordinateSystem = coordinateSystem;
-
-					}
-
-				}
-
-				projectionMatrixNeedsUpdate = true;
-
-			}
-
-			// camera update
-
-			if ( projectionMatrixNeedsUpdate === true ) {
-
-				camera.updateProjectionMatrix();
-
-				if ( camera.isArrayCamera ) {
-
-					for ( const subCamera of camera.cameras ) {
-
-						subCamera.updateProjectionMatrix();
-
-					}
-
-				}
-
-			}
-
-		}
-
-		//
-
 		// WITH_GENESYS
 		ProfilerService.begin( 'scene.updateMatrixWorld' );
 		// !WITH_GENESYS
@@ -1612,14 +1645,7 @@ class Renderer {
 		ProfilerService.end( 'scene.updateMatrixWorld' );
 		// !WITH_GENESYS
 
-		if ( camera.parent === null && camera.matrixWorldAutoUpdate === true ) camera.updateMatrixWorld();
-
-		if ( xr.enabled === true && xr.isPresenting === true ) {
-
-			if ( xr.cameraAutoUpdate === true ) xr.updateCamera( camera );
-			camera = xr.getCamera(); // use XR camera for rendering
-
-		}
+		camera = this._updateCamera( camera );
 
 		//
 
@@ -1667,7 +1693,11 @@ class Renderer {
 
 		const frustum = camera.isArrayCamera ? _frustumArray : _frustum;
 
-		if ( ! camera.isArrayCamera ) {
+		if ( camera.isArrayCamera ) {
+
+			frustum.setFromArrayCamera( camera );
+
+		} else {
 
 			_projScreenMatrix.multiplyMatrices( camera.projectionMatrix, camera.matrixWorldInverse );
 			frustum.setFromProjectionMatrix( _projScreenMatrix, camera.coordinateSystem, camera.reversedDepth );
@@ -1695,7 +1725,7 @@ class Renderer {
 
 		if ( this.sortObjects === true ) {
 
-			renderList.sort( this._opaqueSort, this._transparentSort );
+			renderList.sort( this._opaqueSort, this._transparentSort, camera.reversedDepth );
 
 		}
 
@@ -1782,10 +1812,11 @@ class Renderer {
 		// restore render tree
 
 		nodeFrame.renderId = previousRenderId;
-
 		this._currentRenderContext = previousRenderContext;
 		this._currentRenderObjectFunction = previousRenderObjectFunction;
 		this._handleObjectFunction = previousHandleObjectFunction;
+
+		this.lighting.finishRender( scene );
 
 		//
 
@@ -1892,8 +1923,7 @@ class Renderer {
 
 		this.autoClear = false;
 		this.xr.enabled = false;
-
-		this._renderScene( quad, quad.camera, false );
+		this._renderOutputLayers( quad, renderTarget );
 
 		this.autoClear = currentAutoClear;
 		this.xr.enabled = currentXR;
@@ -2324,7 +2354,7 @@ class Renderer {
 
 		if ( this._initialized === false ) {
 
-			throw new Error( 'Renderer: .clear() called before the backend is initialized. Use "await renderer.init();" before before using this method.' );
+			throw new Error( 'THREE.Renderer: .clear() called before the backend is initialized. Use "await renderer.init();" before using this method.' );
 
 		}
 
@@ -2586,7 +2616,7 @@ class Renderer {
 
 			// WITH_GENESYS
 			// Drop the strong reference to the active `RenderContext` so module-level
-			// `WeakMap<RenderContext, â€¦>` caches can release entries once
+			// `WeakMap<RenderContext, â€?>` caches can release entries once
 			// `_renderContexts.dispose()` has cleared its dictionary.
 			this._currentRenderContext = null;
 			// !WITH_GENESYS
@@ -2931,7 +2961,7 @@ class Renderer {
 
 		if ( this._initialized === false ) {
 
-			throw new Error( 'Renderer: .hasFeature() called before the backend is initialized. Use "await renderer.init();" before before using this method.' );
+			throw new Error( 'THREE.Renderer: .hasFeature() called before the backend is initialized. Use "await renderer.init();" before using this method.' );
 
 		}
 
@@ -2981,7 +3011,7 @@ class Renderer {
 
 		if ( this._initialized === false ) {
 
-			throw new Error( 'Renderer: .initTexture() called before the backend is initialized. Use "await renderer.init();" before before using this method.' );
+			throw new Error( 'THREE.Renderer: .initTexture() called before the backend is initialized. Use "await renderer.init();" before using this method.' );
 
 		}
 
@@ -2998,7 +3028,7 @@ class Renderer {
 
 		if ( this._initialized === false ) {
 
-			throw new Error( 'Renderer: .initRenderTarget() called before the backend is initialized. Use "await renderer.init();" before before using this method.' );
+			throw new Error( 'THREE.Renderer: .initRenderTarget() called before the backend is initialized. Use "await renderer.init();" before using this method.' );
 
 		}
 
@@ -3166,7 +3196,7 @@ class Renderer {
 
 				const frustum = camera.isArrayCamera ? _frustumArray : _frustum;
 
-				if ( ! object.frustumCulled || frustum.intersectsSprite( object, camera ) ) {
+				if ( ! object.frustumCulled || frustum.intersectsSprite( object ) ) {
 
 					if ( this.sortObjects === true ) {
 
@@ -3192,7 +3222,7 @@ class Renderer {
 
 				const frustum = camera.isArrayCamera ? _frustumArray : _frustum;
 
-				if ( ! object.frustumCulled || frustum.intersectsObject( object, camera ) ) {
+				if ( ! object.frustumCulled || frustum.intersectsObject( object ) ) {
 
 					const { geometry, material } = object;
 
@@ -3241,9 +3271,40 @@ class Renderer {
 			const baseRenderList = renderList;
 
 			// replace render list
+
 			renderList = this._renderLists.get( object, camera );
 
-			renderList.begin();
+			const renderBundle = this._bundles.get( object, camera, this._currentRenderContext );
+			const renderBundleData = this.backend.get( renderBundle );
+			const renderBundleNeedsUpdate = this._bundleNeedsUpdate( object, renderBundleData );
+
+			if ( renderBundleNeedsUpdate ) {
+
+				// update render list if necessary
+
+				renderList.begin();
+
+				if ( renderBundleData.renderObjects === undefined ) {
+
+					renderBundleData.renderObjects = [];
+
+				} else {
+
+					renderBundleData.renderObjects.length = 0;
+
+				}
+
+				const children = object.children;
+
+				for ( let i = 0, l = children.length; i < l; i ++ ) {
+
+					this._projectObject( children[ i ], camera, groupOrder, renderList, clippingContext );
+
+				}
+
+				renderList.finish();
+
+			}
 
 			baseRenderList.pushBundle( {
 				bundleGroup: object,
@@ -3251,9 +3312,11 @@ class Renderer {
 				renderList,
 			} );
 
-			renderList.finish();
+			return;
 
 		}
+
+		//
 
 		const children = object.children;
 
@@ -3388,7 +3451,7 @@ class Renderer {
 
 		if ( cache === undefined || cache.version !== version ) {
 
-			const hasMap = material.map !== null;
+			const hasMap = material.map && material.map.isTexture;
 			const hasColorNode = material.colorNode && material.colorNode.isNode;
 			const hasCastShadowNode = material.castShadowNode && material.castShadowNode.isNode;
 			const hasMaskNode = ( material.maskShadowNode && material.maskShadowNode.isNode ) || ( material.maskNode && material.maskNode.isNode );
@@ -3482,6 +3545,98 @@ class Renderer {
 	}
 
 	/**
+	 * Updates the camera so it's prepared for rendering operations.
+	 *
+	 * @private
+	 * @param {Camera} camera - The camera to update.
+	 * @return {Camera} The returned camera might be different depending on whether XR is used or not.
+	 */
+	_updateCamera( camera ) {
+
+		const xr = this.xr;
+
+		if ( xr.isPresenting === false ) {
+
+			let projectionMatrixNeedsUpdate = false;
+
+			// reversed depth
+
+			if ( this.reversedDepthBuffer === true && camera.reversedDepth !== true ) {
+
+				camera._reversedDepth = true;
+
+				if ( camera.isArrayCamera ) {
+
+					for ( const subCamera of camera.cameras ) {
+
+						subCamera._reversedDepth = true;
+
+					}
+
+				}
+
+				projectionMatrixNeedsUpdate = true;
+
+			}
+
+			// WebGPU/WebGL coordinate system
+
+			const coordinateSystem = this.coordinateSystem;
+
+			if ( camera.coordinateSystem !== coordinateSystem ) {
+
+				camera.coordinateSystem = coordinateSystem;
+
+				if ( camera.isArrayCamera ) {
+
+					for ( const subCamera of camera.cameras ) {
+
+						subCamera.coordinateSystem = coordinateSystem;
+
+					}
+
+				}
+
+				projectionMatrixNeedsUpdate = true;
+
+			}
+
+			// camera update
+
+			if ( projectionMatrixNeedsUpdate === true ) {
+
+				camera.updateProjectionMatrix();
+
+				if ( camera.isArrayCamera ) {
+
+					for ( const subCamera of camera.cameras ) {
+
+						subCamera.updateProjectionMatrix();
+
+					}
+
+				}
+
+			}
+
+		}
+
+		if ( camera.parent === null && camera.matrixWorldAutoUpdate === true ) camera.updateMatrixWorld();
+
+		// handle XR
+
+		if ( xr.enabled === true && xr.isPresenting === true ) {
+
+			if ( xr.cameraAutoUpdate === true ) xr.updateCamera( camera );
+			camera = xr.getCamera(); // use XR camera for rendering
+
+		}
+
+		return camera;
+
+	}
+
+	/**
 	 * This method represents the default render object function that manages the render lifecycle
 	 * of the object.
 	 *
@@ -3502,6 +3657,11 @@ class Renderer {
 		let materialDepthNode;
 		let materialPositionNode;
 		let materialSide;
+		let materialDisplacementMap;
+		let materialDisplacementScale;
+		let materialDisplacementBias;
+
+		const previousSourceMaterial = this._currentSourceMaterial;
 
 		//
 
@@ -3510,6 +3670,8 @@ class Renderer {
 		//
 
 		if ( material.allowOverride === true && scene.overrideMaterial !== null ) {
+
+			this._currentSourceMaterial = material;
 
 			const overrideMaterial = scene.overrideMaterial;
 
@@ -3520,6 +3682,9 @@ class Renderer {
 			materialDepthNode = ( overrideMaterial.isNodeMaterial ) ? overrideMaterial.depthNode : null;
 			materialPositionNode = ( overrideMaterial.isNodeMaterial ) ? overrideMaterial.positionNode : null;
 			materialSide = scene.overrideMaterial.side;
+			materialDisplacementMap = overrideMaterial.displacementMap;
+			materialDisplacementScale = overrideMaterial.displacementScale;
+			materialDisplacementBias = overrideMaterial.displacementBias;
 
 			if ( material.positionNode && material.positionNode.isNode ) {
 
@@ -3529,6 +3694,9 @@ class Renderer {
 
 			overrideMaterial.alphaTest = material.alphaTest;
 			overrideMaterial.alphaMap = material.alphaMap;
+			overrideMaterial.displacementMap = material.displacementMap;
+			overrideMaterial.displacementScale = material.displacementScale;
+			overrideMaterial.displacementBias = material.displacementBias;
 			overrideMaterial.transparent = material.transparent || material.transmission > 0 ||
 				( material.transmissionNode && material.transmissionNode.isNode ) ||
 				( material.backdropNode && material.backdropNode.isNode );
@@ -3583,8 +3751,13 @@ class Renderer {
 			scene.overrideMaterial.depthNode = materialDepthNode;
 			scene.overrideMaterial.positionNode = materialPositionNode;
 			scene.overrideMaterial.side = materialSide;
+			scene.overrideMaterial.displacementMap = materialDisplacementMap;
+			scene.overrideMaterial.displacementScale = materialDisplacementScale;
+			scene.overrideMaterial.displacementBias = materialDisplacementBias;
 
 		}
+
+		this._currentSourceMaterial = previousSourceMaterial;
 
 		//
 
@@ -3602,7 +3775,7 @@ class Renderer {
 
 		if ( this._initialized === false ) {
 
-			throw new Error( 'Renderer: .hasCompatibility() called before the backend is initialized. Use "await renderer.init();" before using this method.' );
+			throw new Error( 'THREE.Renderer: .hasCompatibility() called before the backend is initialized. Use "await renderer.init();" before using this method.' );
 
 		}
 

@@ -46,6 +46,7 @@ export * from './exporters/USDZExporter.js';
 export * from './geometries/BoxLineGeometry.js';
 export * from './geometries/ConvexGeometry.js';
 export * from './geometries/DecalGeometry.js';
+export * from './geometries/LoftGeometry.js';
 export * from './geometries/ParametricFunctions.js';
 export * from './geometries/ParametricGeometry.js';
 export * from './geometries/RoundedBoxGeometry.js';
@@ -103,7 +104,12 @@ export * from './loaders/LUT3dlLoader.js';
 export * from './loaders/LUTCubeLoader.js';
 export * from './loaders/LUTImageLoader.js';
 export * from './loaders/LWOLoader.js';
-export * from './loaders/LottieLoader.js';
+// WITH_GENESYS
+// LottieLoader is excluded from the Addons barrel because it imports lottie-web from a CDN URL
+// (https://cdn.jsdelivr.net/npm/lottie-web@5.13.0/+esm), which Node.js/TSX cannot resolve in test
+// environments. The loader is also deprecated in r185 and scheduled for removal in r186.
+// export * from './loaders/LottieLoader.js';
+// !WITH_GENESYS
 export * from './loaders/MD2Loader.js';
 export * from './loaders/MDDLoader.js';
 export * from './loaders/MTLLoader.js';
@@ -149,6 +155,7 @@ export * from './misc/MorphAnimMesh.js';
 export * from './misc/MorphBlendMesh.js';
 export * from './misc/ProgressiveLightMap.js';
 export * from './misc/RollerCoaster.js';
+export * from './misc/TileCreasedNormalsPlugin.js';
 export * from './misc/TubePainter.js';
 export * from './misc/Volume.js';
 export * from './misc/VolumeSlice.js';
@@ -284,6 +291,7 @@ export * from './webxr/OculusHandModel.js';
 export * from './webxr/OculusHandPointerModel.js';
 export * from './webxr/Text2D.js';
 export * from './webxr/VRButton.js';
+export * from './webxr/WebGLXRFallback.js';
 export * from './webxr/XRButton.js';
 export * from './webxr/XRControllerModelFactory.js';
 export * from './webxr/XREstimatedLight.js';
