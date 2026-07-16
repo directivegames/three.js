@@ -836,7 +836,10 @@ class WebGPUBackend extends Backend {
 
 		}
 
-		this.initTimestampQuery( TimestampQuery.RENDER, this.getTimestampUID( renderContext ), descriptor );
+		// WITH_GENESYS
+		this.initTimestampQuery( TimestampQuery.RENDER, this.getTimestampUID( renderContext ), descriptor, renderContext.gpuProfilerLabel );
+		// !WITH_GENESYS
+		// this.initTimestampQuery( TimestampQuery.RENDER, this.getTimestampUID( renderContext ), descriptor );
 
 		descriptor.occlusionQuerySet = occlusionQuerySet;
 
@@ -2252,7 +2255,11 @@ class WebGPUBackend extends Backend {
 	 * @param {number} uid - Unique id for the context (e.g. render context id).
 	 * @param {Object} descriptor - The query descriptor.
 	 */
-	initTimestampQuery( type, uid, descriptor ) {
+	// WITH_GENESYS
+	initTimestampQuery( type, uid, descriptor, label = null ) {
+
+		// !WITH_GENESYS
+		// initTimestampQuery( type, uid, descriptor ) {
 
 		if ( ! this.trackTimestamp ) return;
 
@@ -2277,6 +2284,10 @@ class WebGPUBackend extends Backend {
 		_renderPassTimestampWrites.endOfPassWriteIndex = baseOffset + 1;
 
 		descriptor.timestampWrites = _renderPassTimestampWrites;
+
+		// WITH_GENESYS
+		this.notifyTimestampQuery( type, uid, label );
+		// !WITH_GENESYS
 
 	}
 

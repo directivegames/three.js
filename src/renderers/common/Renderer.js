@@ -1617,6 +1617,10 @@ class Renderer {
 
 		const renderContext = this._renderContexts.get( renderTarget, this._mrt, this._callDepth );
 
+		// WITH_GENESYS
+		renderContext.gpuProfilerLabel = scene.isQuadMesh === true && scene.name !== '' ? scene.name : null;
+		// !WITH_GENESYS
+
 		this._currentRenderContext = renderContext;
 		this._currentRenderObjectFunction = this._renderObjectFunction || this.renderObject;
 		this._handleObjectFunction = this._renderObjectDirect;
@@ -2616,7 +2620,7 @@ class Renderer {
 
 			// WITH_GENESYS
 			// Drop the strong reference to the active `RenderContext` so module-level
-			// `WeakMap<RenderContext, â€?>` caches can release entries once
+			// `WeakMap<RenderContext, ?>` caches can release entries once
 			// `_renderContexts.dispose()` has cleared its dictionary.
 			this._currentRenderContext = null;
 			// !WITH_GENESYS

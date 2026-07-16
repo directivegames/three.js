@@ -407,7 +407,11 @@ class WebGLBackend extends Backend {
 	 * @param {string} type - The type of the timestamp query.
 	 * @param {string} uid - A unique identifier for the timestamp query.
 	 */
-	initTimestampQuery( type, uid ) {
+	// WITH_GENESYS
+	initTimestampQuery( type, uid, label = null ) {
+
+		// !WITH_GENESYS
+		// initTimestampQuery( type, uid ) {
 
 		if ( ! this.disjoint || ! this.trackTimestamp ) return;
 
@@ -424,7 +428,11 @@ class WebGLBackend extends Backend {
 
 		if ( baseOffset !== null ) {
 
-			timestampQueryPool.beginQuery( uid );
+			const started = timestampQueryPool.beginQuery( uid );
+
+			// WITH_GENESYS
+			if ( started ) this.notifyTimestampQuery( type, uid, label );
+			// !WITH_GENESYS
 
 		}
 
@@ -497,7 +505,10 @@ class WebGLBackend extends Backend {
 
 		//
 
-		this.initTimestampQuery( TimestampQuery.RENDER, this.getTimestampUID( renderContext ) );
+		// WITH_GENESYS
+		this.initTimestampQuery( TimestampQuery.RENDER, this.getTimestampUID( renderContext ), renderContext.gpuProfilerLabel );
+		// !WITH_GENESYS
+		// this.initTimestampQuery( TimestampQuery.RENDER, this.getTimestampUID( renderContext ) );
 
 		renderContextData.previousContext = this._currentContext;
 		this._currentContext = renderContext;

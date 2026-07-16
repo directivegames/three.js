@@ -230,6 +230,16 @@ class RenderContext {
 		 */
 		this.camera = null;
 
+		// WITH_GENESYS
+		/**
+		 * An optional label used to identify this render pass in GPU profiler output.
+		 *
+		 * @type {?string}
+		 * @default null
+		 */
+		this.gpuProfilerLabel = null;
+		// !WITH_GENESYS
+
 		/**
 		 * This flag can be used for type testing.
 		 *

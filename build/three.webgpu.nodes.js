@@ -33990,6 +33990,16 @@ class RenderContext {
 		 */
 		this.camera = null;
 
+		// WITH_GENESYS
+		/**
+		 * An optional label used to identify this render pass in GPU profiler output.
+		 *
+		 * @type {?string}
+		 * @default null
+		 */
+		this.gpuProfilerLabel = null;
+		// !WITH_GENESYS
+
 		/**
 		 * This flag can be used for type testing.
 		 *
@@ -61592,6 +61602,10 @@ class Renderer {
 
 		const renderContext = this._renderContexts.get( renderTarget, this._mrt, this._callDepth );
 
+		// WITH_GENESYS
+		renderContext.gpuProfilerLabel = scene.isQuadMesh === true && scene.name !== '' ? scene.name : null;
+		// !WITH_GENESYS
+
 		this._currentRenderContext = renderContext;
 		this._currentRenderObjectFunction = this._renderObjectFunction || this.renderObject;
 		this._handleObjectFunction = this._renderObjectDirect;
@@ -67058,6 +67072,15 @@ class Backend {
 			[ TimestampQuery.COMPUTE ]: null
 		};
 
+		// WITH_GENESYS
+		/**
+		 * Listeners notified after a timestamp query is successfully allocated.
+		 *
+		 * @type {Set<function(string, string, ?string): void>}
+		 */
+		this.timestampQueryListeners = new Set();
+		// !WITH_GENESYS
+
 		/**
 		 * Whether to track timestamps with a Timestamp Query API or not.
 		 *
@@ -67495,6 +67518,41 @@ class Backend {
 		return this.get( abstractRenderContext ).timestampUID;
 
 	}
+
+	// WITH_GENESYS
+	/**
+	 * @param {function(string, string, ?string): void} listener
+	 */
+	addTimestampQueryListener( listener ) {
+
+		this.timestampQueryListeners.add( listener );
+
+	}
+
+	/**
+	 * @param {function(string, string, ?string): void} listener
+	 */
+	removeTimestampQueryListener( listener ) {
+
+		this.timestampQueryListeners.delete( listener );
+
+	}
+
+	/**
+	 * @param {string} type
+	 * @param {string} uid
+	 * @param {?string} [label=null]
+	 */
+	notifyTimestampQuery( type, uid, label = null ) {
+
+		for ( const listener of this.timestampQueryListeners ) {
+
+			listener( type, uid, label );
+
+		}
+
+	}
+	// !WITH_GENESYS
 
 	/**
 	 * Returns all timestamp frames for the given type.
@@ -71689,33 +71747,34 @@ class WebGLTimestampQueryPool extends TimestampQueryPool {
 	 * Begins a timestamp query for the specified render context.
 	 *
 	 * @param {string} uid - A unique identifier for the render context.
+	 * @return {boolean} Whether the query was started.
 	 */
 	beginQuery( uid ) {
 
 		if ( ! this.trackTimestamp || this.isDisposed ) {
 
-			return;
+			return false;
 
 		}
 
 		const baseOffset = this.queryOffsets.get( uid );
 		if ( baseOffset == null ) {
 
-			return;
+			return false;
 
 		}
 
 		// Don't start a new query if there's an active one
 		if ( this.activeQuery !== null ) {
 
-			return;
+			return false;
 
 		}
 
 		const query = this.queries[ baseOffset ];
 		if ( ! query ) {
 
-			return;
+			return false;
 
 		}
 
@@ -71727,6 +71786,7 @@ class WebGLTimestampQueryPool extends TimestampQueryPool {
 				this.gl.beginQuery( this.ext.TIME_ELAPSED_EXT, query );
 				this.activeQuery = baseOffset;
 				this.queryStates.set( baseOffset, 'started' );
+				return true;
 
 			}
 
@@ -71737,6 +71797,8 @@ class WebGLTimestampQueryPool extends TimestampQueryPool {
 			this.queryStates.set( baseOffset, 'inactive' );
 
 		}
+
+		return false;
 
 	}
 
@@ -72393,7 +72455,11 @@ class WebGLBackend extends Backend {
 	 * @param {string} type - The type of the timestamp query.
 	 * @param {string} uid - A unique identifier for the timestamp query.
 	 */
-	initTimestampQuery( type, uid ) {
+	// WITH_GENESYS
+	initTimestampQuery( type, uid, label = null ) {
+
+		// !WITH_GENESYS
+		// initTimestampQuery( type, uid ) {
 
 		if ( ! this.disjoint || ! this.trackTimestamp ) return;
 
@@ -72410,7 +72476,11 @@ class WebGLBackend extends Backend {
 
 		if ( baseOffset !== null ) {
 
-			timestampQueryPool.beginQuery( uid );
+			const started = timestampQueryPool.beginQuery( uid );
+
+			// WITH_GENESYS
+			if ( started ) this.notifyTimestampQuery( type, uid, label );
+			// !WITH_GENESYS
 
 		}
 
@@ -72483,7 +72553,10 @@ class WebGLBackend extends Backend {
 
 		//
 
-		this.initTimestampQuery( TimestampQuery.RENDER, this.getTimestampUID( renderContext ) );
+		// WITH_GENESYS
+		this.initTimestampQuery( TimestampQuery.RENDER, this.getTimestampUID( renderContext ), renderContext.gpuProfilerLabel );
+		// !WITH_GENESYS
+		// this.initTimestampQuery( TimestampQuery.RENDER, this.getTimestampUID( renderContext ) );
 
 		renderContextData.previousContext = this._currentContext;
 		this._currentContext = renderContext;
@@ -85463,7 +85536,10 @@ class WebGPUBackend extends Backend {
 
 		}
 
-		this.initTimestampQuery( TimestampQuery.RENDER, this.getTimestampUID( renderContext ), descriptor );
+		// WITH_GENESYS
+		this.initTimestampQuery( TimestampQuery.RENDER, this.getTimestampUID( renderContext ), descriptor, renderContext.gpuProfilerLabel );
+		// !WITH_GENESYS
+		// this.initTimestampQuery( TimestampQuery.RENDER, this.getTimestampUID( renderContext ), descriptor );
 
 		descriptor.occlusionQuerySet = occlusionQuerySet;
 
@@ -86879,7 +86955,11 @@ class WebGPUBackend extends Backend {
 	 * @param {number} uid - Unique id for the context (e.g. render context id).
 	 * @param {Object} descriptor - The query descriptor.
 	 */
-	initTimestampQuery( type, uid, descriptor ) {
+	// WITH_GENESYS
+	initTimestampQuery( type, uid, descriptor, label = null ) {
+
+		// !WITH_GENESYS
+		// initTimestampQuery( type, uid, descriptor ) {
 
 		if ( ! this.trackTimestamp ) return;
 
@@ -86904,6 +86984,10 @@ class WebGPUBackend extends Backend {
 		_renderPassTimestampWrites.endOfPassWriteIndex = baseOffset + 1;
 
 		descriptor.timestampWrites = _renderPassTimestampWrites;
+
+		// WITH_GENESYS
+		this.notifyTimestampQuery( type, uid, label );
+		// !WITH_GENESYS
 
 	}
 

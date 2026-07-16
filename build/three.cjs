@@ -59983,6 +59983,7 @@ class TextureUtils {
 }
 
 // WITH_GENESYS
+
 /**
  * ProfilerService — per-label CPU timing with ring-buffer aggregation and DevTools integration.
  *
@@ -60003,11 +60004,15 @@ const RING_SIZE = 120;
 const FRAME_BUDGET_MS = 1000 / 60;
 const TRACE_TID_MAIN = 1;
 const TRACE_TID_ASYNC = 2;
+const TRACE_TID_GPU = 3;
 const NOOP = () => {};
 
 const DUMMY_SPAN = Object.freeze( { label: '', t0: 0, _seq: 0 } );
+const DUMMY_GPU_SPAN = Object.freeze( { label: '', renderer: null, t0: 0, _seq: 0, _generation: 0 } );
 const NOOP_BEGIN_SPAN = () => DUMMY_SPAN;
 const NOOP_END_SPAN = () => {};
+
+const NOOP_BEGIN_GPU_SPAN = () => DUMMY_GPU_SPAN;
 
 class ProfilerServiceClass {
 
@@ -60043,6 +60048,18 @@ class ProfilerServiceClass {
 		/** @type {Map<string, number>} Total (uncapped) invocation count since last reset, for calls-per-frame. */
 		this.invocations = new Map();
 
+		/** @type {Map<string, Float64Array>} GPU time ring buffers (one per label). */
+		this.gpuBuffers = new Map();
+		/** @type {Map<string, number>} */
+		this.gpuCursors = new Map();
+		/** @type {Map<string, number>} */
+		this.gpuCounts = new Map();
+		/** @type {Map<string, number>} */
+		this.gpuInvocations = new Map();
+		/** @type {Map<Object, import('./ProfilerService.js').GpuRendererState>} */
+		this.gpuRendererStates = new Map();
+		this._gpuGeneration = 1;
+
 		if ( this._enabled ) {
 
 			this.traceStartTime = performance.now();
@@ -60050,6 +60067,8 @@ class ProfilerServiceClass {
 			this.end = this._endImpl.bind( this );
 			this.beginSpan = this._beginSpanImpl.bind( this );
 			this.endSpan = this._endSpanImpl.bind( this );
+			this.beginGpu = this._beginGpuImpl.bind( this );
+			this.endGpu = this._endGpuImpl.bind( this );
 			this._exposeGlobal();
 			console.log( `[ProfilerService] auto-started from env (profile: ${this._profile})` );
 
@@ -60059,6 +60078,8 @@ class ProfilerServiceClass {
 			this.end = NOOP;
 			this.beginSpan = NOOP_BEGIN_SPAN;
 			this.endSpan = NOOP_END_SPAN;
+			this.beginGpu = NOOP_BEGIN_GPU_SPAN;
+			this.endGpu = NOOP_END_SPAN;
 
 		}
 
@@ -60092,6 +60113,8 @@ class ProfilerServiceClass {
 		this.end = this._endImpl.bind( this );
 		this.beginSpan = this._beginSpanImpl.bind( this );
 		this.endSpan = this._endSpanImpl.bind( this );
+		this.beginGpu = this._beginGpuImpl.bind( this );
+		this.endGpu = this._endGpuImpl.bind( this );
 		this._exposeGlobal();
 		console.log( `[ProfilerService] enabled (profile: ${this._profile}) — call __gnsx_profiler.report() or downloadTrace() from the console` );
 
@@ -60105,6 +60128,9 @@ class ProfilerServiceClass {
 		this.end = NOOP;
 		this.beginSpan = NOOP_BEGIN_SPAN;
 		this.endSpan = NOOP_END_SPAN;
+		this.beginGpu = NOOP_BEGIN_GPU_SPAN;
+		this.endGpu = NOOP_END_SPAN;
+		this._detachGpuRenderers();
 		console.log( '[ProfilerService] disabled' );
 
 	}
@@ -60122,6 +60148,400 @@ class ProfilerServiceClass {
 			window.__gnsx_profiler = this;
 
 		}
+
+	}
+
+	/**
+	 * Enables GPU timestamp collection for a renderer.
+	 *
+	 * @param {Object} renderer
+	 * @return {Promise<boolean>} Whether GPU timestamps are available.
+	 */
+	async attachGpuRenderer( renderer ) {
+
+		if ( this._enabled === false || renderer === null || renderer === undefined ) return false;
+
+		const existingState = this.gpuRendererStates.get( renderer );
+		if ( existingState !== undefined ) return existingState.available;
+
+		if ( renderer.isWebGLRenderer === true ) {
+
+			const gl = renderer.getContext();
+			const extension = gl.getExtension( 'EXT_disjoint_timer_query_webgl2' );
+			const state = {
+				kind: 'legacy-webgl',
+				available: extension !== null,
+				renderer,
+				gl,
+				extension,
+				activeSpan: null,
+				pendingSpans: [],
+				flushPromise: null,
+				flushScheduled: false,
+			};
+			this.gpuRendererStates.set( renderer, state );
+
+			if ( extension === null ) {
+
+				warnOnce( 'ProfilerService: EXT_disjoint_timer_query_webgl2 is unavailable; GPU profiling is disabled for this WebGLRenderer.' );
+
+			}
+
+			return state.available;
+
+		}
+
+		if ( renderer.isRenderer === true && renderer.backend !== undefined ) {
+
+			await renderer.init();
+			const previousTrackTimestamp = renderer.backend.trackTimestamp;
+			renderer.backend.trackTimestamp = true;
+
+			const available = renderer.backend.hasTimestamp === true && renderer.hasFeature( 'timestamp-query' ) === true;
+			const listener = ( type, uid, label ) => this._captureGpuTimestampQuery( renderer, type, uid, label );
+			const state = {
+				kind: 'common',
+				available,
+				renderer,
+				listener,
+				previousTrackTimestamp,
+				activeSpans: [],
+				pendingSpans: [],
+				flushPromise: null,
+				flushScheduled: false,
+			};
+			this.gpuRendererStates.set( renderer, state );
+
+			if ( available ) {
+
+				renderer.backend.addTimestampQueryListener( listener );
+
+			} else {
+
+				warnOnce( 'ProfilerService: Timestamp queries are unavailable; GPU profiling is disabled for this renderer.' );
+
+			}
+
+			return available;
+
+		}
+
+		warnOnce( 'ProfilerService: Unsupported renderer; expected Renderer or WebGLRenderer.' );
+		return false;
+
+	}
+
+	/**
+	 * @param {string} label
+	 * @param {Object} renderer
+	 * @return {import('./ProfilerService.js').GpuSpanHandle}
+	 */
+	_beginGpuImpl( label, renderer ) {
+
+		const state = this.gpuRendererStates.get( renderer );
+		if ( state === undefined || state.available === false ) return DUMMY_GPU_SPAN;
+
+		const handle = {
+			label,
+			renderer,
+			t0: performance.now(),
+			_seq: ++ this._markId,
+			_generation: this._gpuGeneration,
+		};
+
+		if ( state.kind === 'common' ) {
+
+			handle._queries = {
+				[ TimestampQuery.RENDER ]: new Set(),
+				[ TimestampQuery.COMPUTE ]: new Set(),
+			};
+			state.activeSpans.push( handle );
+			return handle;
+
+		}
+
+		if ( state.activeSpan !== null ) {
+
+			warnOnce( 'ProfilerService: Nested GPU spans are unsupported by legacy WebGLRenderer.' );
+			return DUMMY_GPU_SPAN;
+
+		}
+
+		const query = state.gl.createQuery();
+		if ( query === null ) return DUMMY_GPU_SPAN;
+
+		try {
+
+			state.gl.beginQuery( state.extension.TIME_ELAPSED_EXT, query );
+			handle._query = query;
+			state.activeSpan = handle;
+			return handle;
+
+		} catch ( error ) {
+
+			state.gl.deleteQuery( query );
+			warnOnce( `ProfilerService: Unable to begin a WebGL GPU span (${error.message}).` );
+			return DUMMY_GPU_SPAN;
+
+		}
+
+	}
+
+	/**
+	 * @param {import('./ProfilerService.js').GpuSpanHandle} handle
+	 */
+	_endGpuImpl( handle ) {
+
+		if ( handle._seq === 0 || handle._generation !== this._gpuGeneration ) return;
+
+		const state = this.gpuRendererStates.get( handle.renderer );
+		if ( state === undefined || state.available === false ) return;
+
+		handle._endTime = performance.now();
+
+		if ( state.kind === 'common' ) {
+
+			const index = state.activeSpans.indexOf( handle );
+			if ( index === -1 ) return;
+
+			state.activeSpans.splice( index, 1 );
+			if ( handle._queries.render.size > 0 || handle._queries.compute.size > 0 ) {
+
+				state.pendingSpans.push( handle );
+				this._scheduleGpuFlush( state );
+
+			}
+
+			return;
+
+		}
+
+		if ( state.activeSpan !== handle ) return;
+
+		try {
+
+			state.gl.endQuery( state.extension.TIME_ELAPSED_EXT );
+			state.activeSpan = null;
+			state.pendingSpans.push( handle );
+			this._scheduleGpuFlush( state );
+
+		} catch ( error ) {
+
+			state.activeSpan = null;
+			state.gl.deleteQuery( handle._query );
+			warnOnce( `ProfilerService: Unable to end a WebGL GPU span (${error.message}).` );
+
+		}
+
+	}
+
+	/**
+	 * Resolves pending GPU timestamp queries for a renderer.
+	 *
+	 * @param {Object} renderer
+	 * @return {Promise<void>}
+	 */
+	async flushGpu( renderer ) {
+
+		const state = this.gpuRendererStates.get( renderer );
+		if ( state === undefined || state.available === false ) return;
+		if ( state.flushPromise !== null ) return state.flushPromise;
+
+		state.flushPromise = state.kind === 'common'
+			? this._flushCommonGpuState( state )
+			: this._flushLegacyWebGLState( state );
+
+		try {
+
+			await state.flushPromise;
+
+		} finally {
+
+			state.flushPromise = null;
+			if ( state.pendingSpans.length > 0 ) this._scheduleGpuFlush( state );
+
+		}
+
+	}
+
+	/**
+	 * @param {Object} renderer
+	 * @param {'render'|'compute'} type
+	 * @param {string} uid
+	 * @param {?string} [label=null]
+	 */
+	_captureGpuTimestampQuery( renderer, type, uid, label = null ) {
+
+		const state = this.gpuRendererStates.get( renderer );
+		if ( state === undefined || state.kind !== 'common' ) return;
+
+		for ( const span of state.activeSpans ) {
+
+			span._queries[ type ].add( uid );
+
+		}
+
+		if ( label !== null && label !== undefined && label !== '' ) {
+
+			const passSpan = {
+				label: `GPU pass: ${label}`,
+				renderer,
+				t0: performance.now(),
+				_seq: ++ this._markId,
+				_generation: this._gpuGeneration,
+				_queries: {
+					[ TimestampQuery.RENDER ]: new Set(),
+					[ TimestampQuery.COMPUTE ]: new Set(),
+				},
+			};
+			passSpan._queries[ type ].add( uid );
+			state.pendingSpans.push( passSpan );
+			this._scheduleGpuFlush( state );
+
+		}
+
+	}
+
+	/**
+	 * @param {import('./ProfilerService.js').GpuRendererState} state
+	 */
+	_scheduleGpuFlush( state ) {
+
+		if ( state.flushScheduled ) return;
+		state.flushScheduled = true;
+
+		const callback = () => {
+
+			state.flushScheduled = false;
+			if ( this.gpuRendererStates.get( state.renderer ) === state ) {
+
+				this.flushGpu( state.renderer ).catch( error => {
+
+					warnOnce( `ProfilerService: Unable to resolve GPU timestamps (${error.message}).` );
+
+				} );
+
+			}
+
+		};
+
+		if ( typeof requestAnimationFrame === 'function' ) {
+
+			requestAnimationFrame( callback );
+
+		} else {
+
+			setTimeout( callback, 0 );
+
+		}
+
+	}
+
+	/**
+	 * @param {import('./ProfilerService.js').CommonGpuRendererState} state
+	 */
+	async _flushCommonGpuState( state ) {
+
+		const spans = state.pendingSpans.splice( 0 );
+		if ( spans.length === 0 ) return;
+
+		const hasRenderQueries = spans.some( span => span._queries.render.size > 0 );
+		const hasComputeQueries = spans.some( span => span._queries.compute.size > 0 );
+		const resolutions = [];
+
+		if ( hasRenderQueries ) resolutions.push( state.renderer.resolveTimestampsAsync( TimestampQuery.RENDER ) );
+		if ( hasComputeQueries ) resolutions.push( state.renderer.resolveTimestampsAsync( TimestampQuery.COMPUTE ) );
+		await Promise.all( resolutions );
+
+		if ( this._enabled === false ) return;
+
+		for ( const span of spans ) {
+
+			if ( span._generation !== this._gpuGeneration ) continue;
+
+			let duration = 0;
+			let resolvedQueries = 0;
+			for ( const type of [ TimestampQuery.RENDER, TimestampQuery.COMPUTE ] ) {
+
+				for ( const uid of span._queries[ type ] ) {
+
+					if ( state.renderer.backend.hasTimestampQuery( uid ) ) {
+
+						duration += state.renderer.backend.getTimestamp( uid );
+						resolvedQueries ++;
+
+					}
+
+				}
+
+			}
+
+			if ( resolvedQueries > 0 ) this._commitGpuDurationSample( span.label, span.t0, duration );
+
+		}
+
+	}
+
+	/**
+	 * @param {import('./ProfilerService.js').LegacyWebGLGpuRendererState} state
+	 */
+	async _flushLegacyWebGLState( state ) {
+
+		const spans = state.pendingSpans.splice( 0 );
+
+		for ( const span of spans ) {
+
+			const duration = await this._resolveLegacyWebGLQuery( state, span._query );
+			if ( duration !== null && span._generation === this._gpuGeneration && this._enabled ) {
+
+				this._commitGpuDurationSample( span.label, span.t0, duration );
+
+			}
+
+		}
+
+	}
+
+	/**
+	 * @param {import('./ProfilerService.js').LegacyWebGLGpuRendererState} state
+	 * @param {WebGLQuery} query
+	 * @return {Promise<?number>}
+	 */
+	_resolveLegacyWebGLQuery( state, query ) {
+
+		return new Promise( resolve => {
+
+			const poll = () => {
+
+				if ( state.gl.isContextLost() ) {
+
+					state.gl.deleteQuery( query );
+					resolve( null );
+					return;
+
+				}
+
+				const disjoint = state.gl.getParameter( state.extension.GPU_DISJOINT_EXT );
+				const available = state.gl.getQueryParameter( query, state.gl.QUERY_RESULT_AVAILABLE );
+
+				if ( available === false ) {
+
+					setTimeout( poll, 1 );
+					return;
+
+				}
+
+				const result = disjoint
+					? null
+					: Number( state.gl.getQueryParameter( query, state.gl.QUERY_RESULT ) ) / 1e6;
+				state.gl.deleteQuery( query );
+				resolve( result );
+
+			};
+
+			poll();
+
+		} );
 
 	}
 
@@ -60284,6 +60704,45 @@ class ProfilerServiceClass {
 
 	/**
 	 * @param {string} label
+	 * @param {number} startTime
+	 * @param {number} durationMs
+	 */
+	_commitGpuDurationSample( label, startTime, durationMs ) {
+
+		let buffer = this.gpuBuffers.get( label );
+		if ( buffer === undefined ) {
+
+			buffer = new Float64Array( RING_SIZE );
+			this.gpuBuffers.set( label, buffer );
+			this.gpuCursors.set( label, 0 );
+			this.gpuCounts.set( label, 0 );
+
+		}
+
+		const cursor = this.gpuCursors.get( label );
+		buffer[ cursor ] = durationMs;
+		this.gpuCursors.set( label, ( cursor + 1 ) % RING_SIZE );
+		this.gpuCounts.set( label, Math.min( this.gpuCounts.get( label ) + 1, RING_SIZE ) );
+		this.gpuInvocations.set( label, ( this.gpuInvocations.get( label ) ?? 0 ) + 1 );
+
+		if ( this._profile === 'full' ) {
+
+			this.traceEvents.push( {
+				name: label,
+				ph: 'X',
+				ts: Math.round( this._getTraceTimestamp( startTime ) ),
+				dur: Math.max( 1, Math.round( durationMs * 1000 ) ),
+				pid: 1,
+				tid: TRACE_TID_GPU,
+				cat: 'gnsx-gpu',
+			} );
+
+		}
+
+	}
+
+	/**
+	 * @param {string} label
 	 * @return {number[]}
 	 */
 	getValidSamples( label ) {
@@ -60291,6 +60750,21 @@ class ProfilerServiceClass {
 		const buffer = this.buffers.get( label );
 		const count = this.counts.get( label ) ?? 0;
 		if ( ! buffer || count === 0 ) return [];
+		return count < RING_SIZE
+			? Array.from( buffer.subarray( 0, count ) )
+			: Array.from( buffer );
+
+	}
+
+	/**
+	 * @param {string} label
+	 * @return {number[]}
+	 */
+	getValidGpuSamples( label ) {
+
+		const buffer = this.gpuBuffers.get( label );
+		const count = this.gpuCounts.get( label ) ?? 0;
+		if ( buffer === undefined || count === 0 ) return [];
 		return count < RING_SIZE
 			? Array.from( buffer.subarray( 0, count ) )
 			: Array.from( buffer );
@@ -60345,6 +60819,31 @@ class ProfilerServiceClass {
 	}
 
 	/**
+	 * @param {string} label
+	 * @return {import('./ProfilerService.js').GpuProfilerStats|null}
+	 */
+	getGpuStats( label ) {
+
+		const samples = this.getValidGpuSamples( label );
+		if ( samples.length === 0 ) return null;
+
+		const sorted = [ ...samples ].sort( ( a, b ) => a - b );
+		const avg = sorted.reduce( ( a, b ) => a + b, 0 ) / sorted.length;
+
+		return {
+			label,
+			samples: samples.length,
+			avg,
+			min: sorted[ 0 ],
+			max: sorted[ sorted.length - 1 ],
+			p95: sorted[ Math.floor( sorted.length * 0.95 ) ],
+			frameBudget: ( avg / FRAME_BUDGET_MS ) * 100,
+			totalInvocations: this.gpuInvocations.get( label ) ?? 0,
+		};
+
+	}
+
+	/**
 	 * @return {import('./ProfilerService.js').ProfilerStats[]}
 	 */
 	getAllStats() {
@@ -60355,10 +60854,22 @@ class ProfilerServiceClass {
 
 	}
 
+	/**
+	 * @return {import('./ProfilerService.js').GpuProfilerStats[]}
+	 */
+	getAllGpuStats() {
+
+		return [ ...this.gpuBuffers.keys() ]
+			.map( label => this.getGpuStats( label ) )
+			.filter( stats => stats !== null );
+
+	}
+
 	report() {
 
 		const stats = this.getAllStats();
-		if ( stats.length === 0 ) {
+		const gpuStats = this.getAllGpuStats();
+		if ( stats.length === 0 && gpuStats.length === 0 ) {
 
 			console.log( '[ProfilerService] No data. Enable profiling first and wait a few frames.' );
 			return;
@@ -60378,6 +60889,24 @@ class ProfilerServiceClass {
 			} ) )
 		);
 
+		if ( gpuStats.length > 0 ) {
+
+			gpuStats.sort( ( a, b ) => b.avg - a.avg );
+			console.log( '[ProfilerService] GPU timings' );
+			console.table(
+				gpuStats.map( stats => ( {
+					label: stats.label,
+					'avg ms': stats.avg.toFixed( 3 ),
+					'min ms': stats.min.toFixed( 3 ),
+					'max ms': stats.max.toFixed( 3 ),
+					'p95 ms': stats.p95.toFixed( 3 ),
+					'budget %': stats.frameBudget.toFixed( 1 ) + '%',
+					samples: stats.samples,
+				} ) )
+			);
+
+		}
+
 	}
 
 	/**
@@ -60394,6 +60923,7 @@ class ProfilerServiceClass {
 
 		} );
 		const hasAsync = slices.some( e => e.tid === TRACE_TID_ASYNC );
+		const hasGpu = slices.some( e => e.tid === TRACE_TID_GPU );
 		/** @type {import('./ProfilerService.js').ChromeTraceMetadataEvent[]} */
 		const prefix = [
 			{
@@ -60425,6 +60955,20 @@ class ProfilerServiceClass {
 				tid: TRACE_TID_ASYNC,
 				ts: 0,
 				args: { name: 'Async (promise lifetime)' },
+			} );
+
+		}
+
+		if ( hasGpu ) {
+
+			prefix.push( {
+				cat: '__metadata',
+				name: 'thread_name',
+				ph: 'M',
+				pid: 1,
+				tid: TRACE_TID_GPU,
+				ts: 0,
+				args: { name: 'GPU (submission-aligned)' },
 			} );
 
 		}
@@ -60493,7 +61037,23 @@ class ProfilerServiceClass {
 
 	}
 
+	/**
+	 * @return {import('./ProfilerService.js').GpuProfilerStats[]}
+	 */
+	exportGpuJSON() {
+
+		return this.getAllGpuStats();
+
+	}
+
 	_clearState() {
+
+		this._gpuGeneration ++;
+		for ( const state of this.gpuRendererStates.values() ) {
+
+			this._clearGpuRendererState( state );
+
+		}
 
 		this.buffers.clear();
 		this.cursors.clear();
@@ -60507,6 +61067,76 @@ class ProfilerServiceClass {
 		this.selfCounts.clear();
 		this.callStack.length = 0;
 		this.invocations.clear();
+		this.gpuBuffers.clear();
+		this.gpuCursors.clear();
+		this.gpuCounts.clear();
+		this.gpuInvocations.clear();
+
+	}
+
+	/**
+	 * @param {import('./ProfilerService.js').GpuRendererState} state
+	 */
+	_clearGpuRendererState( state ) {
+
+		if ( state.kind === 'common' ) {
+
+			state.activeSpans.length = 0;
+			state.pendingSpans.length = 0;
+			return;
+
+		}
+
+		if ( state.activeSpan !== null ) {
+
+			try {
+
+				state.gl.endQuery( state.extension.TIME_ELAPSED_EXT );
+
+			} catch {
+
+				// The context may have been lost while the query was active.
+
+			}
+
+			state.gl.deleteQuery( state.activeSpan._query );
+			state.activeSpan = null;
+
+		}
+
+		if ( state.flushPromise === null ) {
+
+			for ( const span of state.pendingSpans ) {
+
+				state.gl.deleteQuery( span._query );
+
+			}
+
+		}
+
+		state.pendingSpans.length = 0;
+
+	}
+
+	_detachGpuRenderers() {
+
+		for ( const state of this.gpuRendererStates.values() ) {
+
+			if ( state.kind === 'common' && state.available ) {
+
+				state.renderer.backend.removeTimestampQueryListener( state.listener );
+
+			}
+
+			if ( state.kind === 'common' ) {
+
+				state.renderer.backend.trackTimestamp = state.previousTrackTimestamp;
+
+			}
+
+		}
+
+		this.gpuRendererStates.clear();
 
 	}
 
@@ -60537,11 +61167,65 @@ class ProfilerServiceClass {
  */
 
 /**
+ * @typedef {Object} GpuProfilerStats
+ * @property {string} label
+ * @property {number} samples
+ * @property {number} avg
+ * @property {number} min
+ * @property {number} max
+ * @property {number} p95
+ * @property {number} frameBudget Percentage of a 60 fps frame budget (16.67 ms)
+ * @property {number} totalInvocations
+ */
+
+/**
  * @typedef {Object} SpanHandle
  * @property {string} label
  * @property {number} t0
  * @property {number} _seq
  * @property {string} _startMark
+ */
+
+/**
+ * @typedef {Object} GpuSpanHandle
+ * @property {string} label
+ * @property {?Object} renderer
+ * @property {number} t0
+ * @property {number} _seq
+ * @property {number} _generation
+ * @property {{render: Set<string>, compute: Set<string>}} [_queries]
+ * @property {WebGLQuery} [_query]
+ * @property {number} [_endTime]
+ */
+
+/**
+ * @typedef {Object} CommonGpuRendererState
+ * @property {'common'} kind
+ * @property {boolean} available
+ * @property {Object} renderer
+ * @property {function('render'|'compute', string, ?string): void} listener
+ * @property {boolean} previousTrackTimestamp
+ * @property {GpuSpanHandle[]} activeSpans
+ * @property {GpuSpanHandle[]} pendingSpans
+ * @property {?Promise<void>} flushPromise
+ * @property {boolean} flushScheduled
+ */
+
+/**
+ * @typedef {Object} LegacyWebGLGpuRendererState
+ * @property {'legacy-webgl'} kind
+ * @property {boolean} available
+ * @property {Object} renderer
+ * @property {WebGL2RenderingContext} gl
+ * @property {?EXT_disjoint_timer_query_webgl2} extension
+ * @property {?GpuSpanHandle} activeSpan
+ * @property {GpuSpanHandle[]} pendingSpans
+ * @property {?Promise<void>} flushPromise
+ * @property {boolean} flushScheduled
+ */
+
+/**
+ * @typedef {CommonGpuRendererState|LegacyWebGLGpuRendererState} GpuRendererState
  */
 
 /**
@@ -60557,7 +61241,7 @@ class ProfilerServiceClass {
  * @property {number} dur
  * @property {1} pid
  * @property {number} tid
- * @property {'gnsx'} cat
+ * @property {'gnsx'|'gnsx-gpu'} cat
  */
 
 /**

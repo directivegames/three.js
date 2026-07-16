@@ -67,6 +67,15 @@ class Backend {
 			[ TimestampQuery.COMPUTE ]: null
 		};
 
+		// WITH_GENESYS
+		/**
+		 * Listeners notified after a timestamp query is successfully allocated.
+		 *
+		 * @type {Set<function(string, string, ?string): void>}
+		 */
+		this.timestampQueryListeners = new Set();
+		// !WITH_GENESYS
+
 		/**
 		 * Whether to track timestamps with a Timestamp Query API or not.
 		 *
@@ -504,6 +513,41 @@ class Backend {
 		return this.get( abstractRenderContext ).timestampUID;
 
 	}
+
+	// WITH_GENESYS
+	/**
+	 * @param {function(string, string, ?string): void} listener
+	 */
+	addTimestampQueryListener( listener ) {
+
+		this.timestampQueryListeners.add( listener );
+
+	}
+
+	/**
+	 * @param {function(string, string, ?string): void} listener
+	 */
+	removeTimestampQueryListener( listener ) {
+
+		this.timestampQueryListeners.delete( listener );
+
+	}
+
+	/**
+	 * @param {string} type
+	 * @param {string} uid
+	 * @param {?string} [label=null]
+	 */
+	notifyTimestampQuery( type, uid, label = null ) {
+
+		for ( const listener of this.timestampQueryListeners ) {
+
+			listener( type, uid, label );
+
+		}
+
+	}
+	// !WITH_GENESYS
 
 	/**
 	 * Returns all timestamp frames for the given type.

@@ -81,33 +81,34 @@ class WebGLTimestampQueryPool extends TimestampQueryPool {
 	 * Begins a timestamp query for the specified render context.
 	 *
 	 * @param {string} uid - A unique identifier for the render context.
+	 * @return {boolean} Whether the query was started.
 	 */
 	beginQuery( uid ) {
 
 		if ( ! this.trackTimestamp || this.isDisposed ) {
 
-			return;
+			return false;
 
 		}
 
 		const baseOffset = this.queryOffsets.get( uid );
 		if ( baseOffset == null ) {
 
-			return;
+			return false;
 
 		}
 
 		// Don't start a new query if there's an active one
 		if ( this.activeQuery !== null ) {
 
-			return;
+			return false;
 
 		}
 
 		const query = this.queries[ baseOffset ];
 		if ( ! query ) {
 
-			return;
+			return false;
 
 		}
 
@@ -119,6 +120,7 @@ class WebGLTimestampQueryPool extends TimestampQueryPool {
 				this.gl.beginQuery( this.ext.TIME_ELAPSED_EXT, query );
 				this.activeQuery = baseOffset;
 				this.queryStates.set( baseOffset, 'started' );
+				return true;
 
 			}
 
@@ -129,6 +131,8 @@ class WebGLTimestampQueryPool extends TimestampQueryPool {
 			this.queryStates.set( baseOffset, 'inactive' );
 
 		}
+
+		return false;
 
 	}
 

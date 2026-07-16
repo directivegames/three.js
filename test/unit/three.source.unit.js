@@ -230,6 +230,12 @@ import './src/objects/SkinnedMesh.tests.js';
 import './src/objects/Sprite.tests.js';
 
 
+// WITH_GENESYS
+//src/profiler
+import './src/profiler/ProfilerService.tests.js';
+// !WITH_GENESYS
+
+
 //src/renderers
 import './src/renderers/WebGL3DRenderTarget.tests.js';
 import './src/renderers/WebGLArrayRenderTarget.tests.js';
