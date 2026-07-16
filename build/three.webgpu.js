@@ -77417,6 +77417,7 @@ class WebGPUTextureUtils {
 				return;
 
 			}
+
 			// !WITH_GENESYS
 			samplerData.usedTimes --;
 
