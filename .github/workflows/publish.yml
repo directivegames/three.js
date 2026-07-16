@@ -2,6 +2,12 @@ name: Publish
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'npm dist-tag (leave empty for latest)'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   id-token: write
@@ -38,6 +44,16 @@ jobs:
           echo "new_version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
           echo "package_name=$(node -p "require('./package.json').name")" >> $GITHUB_OUTPUT
 
+      - name: Resolve npm dist-tag
+        id: dist-tag
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          if [ -n "$TAG" ]; then
+            echo "tag=--tag $TAG" >> $GITHUB_OUTPUT
+          else
+            echo "tag=" >> $GITHUB_OUTPUT
+          fi
+
       - name: Update npm to latest
         run: npm install -g npm@latest
 
@@ -63,7 +79,7 @@ jobs:
           tar -xzf "$TARBALL" -C "$STAGING_DIR"
 
           node utils/publish/rewrite-addon-imports.js "$STAGING_DIR/package"
-          npm publish "$STAGING_DIR/package" --access public --provenance=false
+          npm publish "$STAGING_DIR/package" --access public --provenance=false ${{ steps.dist-tag.outputs.tag }}
       # !WITH_GENESYS
 
       - name: Commit and push version bump
@@ -85,10 +101,17 @@ jobs:
           cd "$TEMP_DIR"
           npm init -y
 
-          # Retry npm install until the version is available (registry propagation can lag)
-          echo "Waiting for $PACKAGE_NAME@$PACKAGE_VERSION to be available on npm registry..."
+          # Retry npm install until the package is available (registry propagation can lag).
+          # Install by tag when provided, otherwise by exact version.
+          TAG="${{ github.event.inputs.tag }}"
+          if [ -n "$TAG" ]; then
+            INSTALL_SPEC="$PACKAGE_NAME@$TAG"
+          else
+            INSTALL_SPEC="$PACKAGE_NAME@$PACKAGE_VERSION"
+          fi
+          echo "Waiting for $INSTALL_SPEC to be available on npm registry..."
           for i in {1..100}; do
-            if npm install "$PACKAGE_NAME@$PACKAGE_VERSION" 2>/dev/null; then
+            if npm install "$INSTALL_SPEC" 2>/dev/null; then
               echo "Package available and installed on attempt $i"
               break
             fi
