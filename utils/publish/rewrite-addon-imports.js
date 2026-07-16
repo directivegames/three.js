@@ -1,13 +1,16 @@
 // WITH_GENESYS
-// Ensures published addons resolve this package's own Three.js version instead of
-// a package-manager-hoisted `three` alias from another engine version.
+// Ensures published entry points and addons resolve this package's own Three.js
+// version instead of a package-manager-hoisted `three` alias from another engine version.
 
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 
 const packageRoot = path.resolve( process.argv[ 2 ] ?? process.cwd() );
-const addonsRoot = path.join( packageRoot, 'examples', 'jsm' );
+const sourceRoots = [
+	path.join( packageRoot, 'build' ),
+	path.join( packageRoot, 'examples', 'jsm' )
+];
 const packageJson = JSON.parse( await readFile( path.join( packageRoot, 'package.json' ), 'utf8' ) );
 const packageName = packageJson.name;
 
@@ -23,27 +26,31 @@ const sideEffectImportPattern = /^(\s*import\s*)(['"])three(?=\/|\2)([^'"]*)\2/g
 let changedFileCount = 0;
 let rewrittenImportCount = 0;
 
-for ( const filePath of await collectJavaScriptFiles( addonsRoot ) ) {
+for ( const sourceRoot of sourceRoots ) {
 
-	const source = await readFile( filePath, 'utf8' );
-	let fileRewriteCount = 0;
-	const rewriteSpecifier = ( match, prefix, quote, suffix ) => {
+	for ( const filePath of await collectJavaScriptFiles( sourceRoot ) ) {
 
-		fileRewriteCount ++;
+		const source = await readFile( filePath, 'utf8' );
+		let fileRewriteCount = 0;
+		const rewriteSpecifier = ( match, prefix, quote, suffix ) => {
 
-		return `${ prefix }${ quote }${ packageName }${ suffix }${ quote }`;
+			fileRewriteCount ++;
 
-	};
+			return `${ prefix }${ quote }${ packageName }${ suffix }${ quote }`;
 
-	const transformed = source
-		.replace( importFromPattern, rewriteSpecifier )
-		.replace( sideEffectImportPattern, rewriteSpecifier );
+		};
 
-	if ( fileRewriteCount > 0 ) {
+		const transformed = source
+			.replace( importFromPattern, rewriteSpecifier )
+			.replace( sideEffectImportPattern, rewriteSpecifier );
 
-		await writeFile( filePath, transformed );
-		changedFileCount ++;
-		rewrittenImportCount += fileRewriteCount;
+		if ( fileRewriteCount > 0 ) {
+
+			await writeFile( filePath, transformed );
+			changedFileCount ++;
+			rewrittenImportCount += fileRewriteCount;
+
+		}
 
 	}
 
@@ -51,11 +58,11 @@ for ( const filePath of await collectJavaScriptFiles( addonsRoot ) ) {
 
 if ( rewrittenImportCount === 0 ) {
 
-	throw new Error( `No addon imports were rewritten under ${ addonsRoot }.` );
+	throw new Error( `No Three.js package imports were rewritten under ${ packageRoot }.` );
 
 }
 
-console.log( `Rewrote ${ rewrittenImportCount } Three.js addon imports across ${ changedFileCount } files.` );
+console.log( `Rewrote ${ rewrittenImportCount } Three.js package imports across ${ changedFileCount } files.` );
 
 async function collectJavaScriptFiles( directory ) {
 
