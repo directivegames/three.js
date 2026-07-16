@@ -50,8 +50,21 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Publish package
-        run: npm publish --access public --provenance=false
+      # WITH_GENESYS
+      # Publish from a staging directory so addon self-import rewrites never dirty the checkout.
+      - name: Prepare and publish package
+        run: |
+          STAGING_DIR="$RUNNER_TEMP/three-publish"
+          rm -rf "$STAGING_DIR"
+          mkdir -p "$STAGING_DIR"
+
+          npm pack --pack-destination "$STAGING_DIR"
+          TARBALL=$(printf '%s\n' "$STAGING_DIR"/*.tgz)
+          tar -xzf "$TARBALL" -C "$STAGING_DIR"
+
+          node utils/publish/rewrite-addon-imports.js "$STAGING_DIR/package"
+          npm publish "$STAGING_DIR/package" --access public --provenance=false
+      # !WITH_GENESYS
 
       - name: Commit and push version bump
         run: |
@@ -101,6 +114,22 @@ jobs:
             echo "❌ Package was not installed correctly"
             exit 1
           fi
+
+          # WITH_GENESYS
+          # Install a competing bare `three` alias to reproduce a multi-version consumer.
+          # An untransformed addon would resolve this older package instead of its own release.
+          npm install "three@npm:@gnsx/three@0.184.20"
+
+          # Verify the addon still inherits from the scoped package's exact module instance.
+          PACKAGE_NAME="$PACKAGE_NAME" node --input-type=module <<'NODE'
+          const THREE = await import(process.env.PACKAGE_NAME);
+          const { GLTFLoader } = await import(`${process.env.PACKAGE_NAME}/addons/loaders/GLTFLoader.js`);
+
+          if (!(new GLTFLoader() instanceof THREE.Loader)) {
+            throw new Error('Published addon resolved a different Three.js module instance.');
+          }
+          NODE
+          # !WITH_GENESYS
 
           # Cleanup
           cd -
