@@ -85,6 +85,15 @@ class TimestampQueryPool {
 		 */
 		this.timestamps = new Map();
 
+		// WITH_GENESYS
+		/**
+		 * Stores raw GPU timestamp ranges for each render context when supported.
+		 *
+		 * @type {Map<string, {start: bigint, end: bigint}>}
+		 */
+		this.timestampRanges = new Map();
+		// !WITH_GENESYS
+
 	}
 
 	/**
@@ -119,6 +128,20 @@ class TimestampQueryPool {
 		return timestamp;
 
 	}
+
+	// WITH_GENESYS
+	/**
+	 * Returns the raw GPU timestamp range for a render context.
+	 *
+	 * @param {string} uid - A unique identifier for the render context.
+	 * @return {?{start: bigint, end: bigint}} The raw timestamp range, or null when unsupported.
+	 */
+	getTimestampRange( uid ) {
+
+		return this.timestampRanges.get( uid ) ?? null;
+
+	}
+	// !WITH_GENESYS
 
 	/**
 	 * Returns whether a timestamp is available for a given render context.

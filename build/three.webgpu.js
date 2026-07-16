@@ -67597,6 +67597,22 @@ class Backend {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Returns the raw GPU timestamp range for the given uid when supported.
+	 *
+	 * @param {string} uid - The unique identifier.
+	 * @return {?{start: bigint, end: bigint}} The raw timestamp range.
+	 */
+	getTimestampRange( uid ) {
+
+		const queryPool = this._getQueryPool( uid );
+
+		return queryPool.getTimestampRange( uid );
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * Whether the backend supports query timestamps or not.
 	 *
@@ -71592,6 +71608,15 @@ class TimestampQueryPool {
 		 */
 		this.timestamps = new Map();
 
+		// WITH_GENESYS
+		/**
+		 * Stores raw GPU timestamp ranges for each render context when supported.
+		 *
+		 * @type {Map<string, {start: bigint, end: bigint}>}
+		 */
+		this.timestampRanges = new Map();
+		// !WITH_GENESYS
+
 	}
 
 	/**
@@ -71626,6 +71651,20 @@ class TimestampQueryPool {
 		return timestamp;
 
 	}
+
+	// WITH_GENESYS
+	/**
+	 * Returns the raw GPU timestamp range for a render context.
+	 *
+	 * @param {string} uid - A unique identifier for the render context.
+	 * @return {?{start: bigint, end: bigint}} The raw timestamp range, or null when unsupported.
+	 */
+	getTimestampRange( uid ) {
+
+		return this.timestampRanges.get( uid ) ?? null;
+
+	}
+	// !WITH_GENESYS
 
 	/**
 	 * Returns whether a timestamp is available for a given render context.
@@ -84439,6 +84478,9 @@ class WebGPUTimestampQueryPool extends TimestampQueryPool {
 				const duration = Number( endTime - startTime ) / 1e6;
 
 				this.timestamps.set( uid, duration );
+				// WITH_GENESYS
+				this.timestampRanges.set( uid, { start: startTime, end: endTime } );
+				// !WITH_GENESYS
 
 				framesDuration[ frame ] += duration;
 
@@ -84537,6 +84579,9 @@ class WebGPUTimestampQueryPool extends TimestampQueryPool {
 		}
 
 		this.queryOffsets.clear();
+		// WITH_GENESYS
+		this.timestampRanges.clear();
+		// !WITH_GENESYS
 		this.pendingResolve = null;
 
 	}

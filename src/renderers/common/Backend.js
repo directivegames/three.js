@@ -592,6 +592,22 @@ class Backend {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Returns the raw GPU timestamp range for the given uid when supported.
+	 *
+	 * @param {string} uid - The unique identifier.
+	 * @return {?{start: bigint, end: bigint}} The raw timestamp range.
+	 */
+	getTimestampRange( uid ) {
+
+		const queryPool = this._getQueryPool( uid );
+
+		return queryPool.getTimestampRange( uid );
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * Whether the backend supports query timestamps or not.
 	 *

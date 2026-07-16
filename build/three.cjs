@@ -60207,6 +60207,9 @@ class ProfilerServiceClass {
 				previousTrackTimestamp,
 				activeSpans: [],
 				pendingSpans: [],
+				queryCpuTimes: new Map(),
+				gpuTimestampOrigin: null,
+				gpuTraceOrigin: null,
 				flushPromise: null,
 				flushScheduled: false,
 			};
@@ -60375,6 +60378,9 @@ class ProfilerServiceClass {
 		const state = this.gpuRendererStates.get( renderer );
 		if ( state === undefined || state.kind !== 'common' ) return;
 
+		const cpuTime = performance.now();
+		state.queryCpuTimes.set( uid, cpuTime );
+
 		for ( const span of state.activeSpans ) {
 
 			span._queries[ type ].add( uid );
@@ -60386,7 +60392,7 @@ class ProfilerServiceClass {
 			const passSpan = {
 				label: `GPU pass: ${label}`,
 				renderer,
-				t0: performance.now(),
+				t0: cpuTime,
 				_seq: ++ this._markId,
 				_generation: this._gpuGeneration,
 				_queries: {
@@ -60455,12 +60461,49 @@ class ProfilerServiceClass {
 
 		if ( this._enabled === false ) return;
 
+		if ( state.gpuTimestampOrigin === null ) {
+
+			let earliestRange = null;
+			let earliestUid = null;
+			for ( const span of spans ) {
+
+				for ( const type of [ TimestampQuery.RENDER, TimestampQuery.COMPUTE ] ) {
+
+					for ( const uid of span._queries[ type ] ) {
+
+						const range = state.renderer.backend.getTimestampRange( uid );
+						if ( range !== null && ( earliestRange === null || range.start < earliestRange.start ) ) {
+
+							earliestRange = range;
+							earliestUid = uid;
+
+						}
+
+					}
+
+				}
+
+			}
+
+			if ( earliestRange !== null ) {
+
+				state.gpuTimestampOrigin = earliestRange.start;
+				state.gpuTraceOrigin = state.queryCpuTimes.get( earliestUid ) ?? spans[ 0 ].t0;
+
+			}
+
+		}
+
+		const resolvedUids = new Set();
 		for ( const span of spans ) {
 
 			if ( span._generation !== this._gpuGeneration ) continue;
 
 			let duration = 0;
 			let resolvedQueries = 0;
+			let rangedQueries = 0;
+			let gpuStart = null;
+			let gpuEnd = null;
 			for ( const type of [ TimestampQuery.RENDER, TimestampQuery.COMPUTE ] ) {
 
 				for ( const uid of span._queries[ type ] ) {
@@ -60469,6 +60512,16 @@ class ProfilerServiceClass {
 
 						duration += state.renderer.backend.getTimestamp( uid );
 						resolvedQueries ++;
+						resolvedUids.add( uid );
+
+						const range = state.renderer.backend.getTimestampRange( uid );
+						if ( range !== null ) {
+
+							rangedQueries ++;
+							if ( gpuStart === null || range.start < gpuStart ) gpuStart = range.start;
+							if ( gpuEnd === null || range.end > gpuEnd ) gpuEnd = range.end;
+
+						}
 
 					}
 
@@ -60476,9 +60529,23 @@ class ProfilerServiceClass {
 
 			}
 
-			if ( resolvedQueries > 0 ) this._commitGpuDurationSample( span.label, span.t0, duration );
+			if ( resolvedQueries > 0 ) {
+
+				let startTime = span.t0;
+				if ( rangedQueries === resolvedQueries && gpuStart !== null && gpuEnd !== null && state.gpuTimestampOrigin !== null ) {
+
+					duration = Number( gpuEnd - gpuStart ) / 1e6;
+					startTime = state.gpuTraceOrigin + Number( gpuStart - state.gpuTimestampOrigin ) / 1e6;
+
+				}
+
+				this._commitGpuDurationSample( span.label, startTime, duration );
+
+			}
 
 		}
+
+		for ( const uid of resolvedUids ) state.queryCpuTimes.delete( uid );
 
 	}
 
@@ -60968,7 +61035,7 @@ class ProfilerServiceClass {
 				pid: 1,
 				tid: TRACE_TID_GPU,
 				ts: 0,
-				args: { name: 'GPU (submission-aligned)' },
+				args: { name: 'GPU (device timestamps)' },
 			} );
 
 		}
@@ -61083,6 +61150,9 @@ class ProfilerServiceClass {
 
 			state.activeSpans.length = 0;
 			state.pendingSpans.length = 0;
+			state.queryCpuTimes.clear();
+			state.gpuTimestampOrigin = null;
+			state.gpuTraceOrigin = null;
 			return;
 
 		}
@@ -61207,6 +61277,9 @@ class ProfilerServiceClass {
  * @property {boolean} previousTrackTimestamp
  * @property {GpuSpanHandle[]} activeSpans
  * @property {GpuSpanHandle[]} pendingSpans
+ * @property {Map<string, number>} queryCpuTimes
+ * @property {?bigint} gpuTimestampOrigin
+ * @property {?number} gpuTraceOrigin
  * @property {?Promise<void>} flushPromise
  * @property {boolean} flushScheduled
  */

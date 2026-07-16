@@ -218,6 +218,9 @@ class WebGPUTimestampQueryPool extends TimestampQueryPool {
 				const duration = Number( endTime - startTime ) / 1e6;
 
 				this.timestamps.set( uid, duration );
+				// WITH_GENESYS
+				this.timestampRanges.set( uid, { start: startTime, end: endTime } );
+				// !WITH_GENESYS
 
 				framesDuration[ frame ] += duration;
 
@@ -316,6 +319,9 @@ class WebGPUTimestampQueryPool extends TimestampQueryPool {
 		}
 
 		this.queryOffsets.clear();
+		// WITH_GENESYS
+		this.timestampRanges.clear();
+		// !WITH_GENESYS
 		this.pendingResolve = null;
 
 	}

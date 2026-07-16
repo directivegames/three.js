@@ -6,6 +6,8 @@ function createCommonRenderer() {
 	const listeners = new Set();
 	const pending = new Map();
 	const resolved = new Map();
+	const resolvedRanges = new Map();
+	let gpuTime = 0n;
 
 	const backend = {
 		hasTimestamp: true,
@@ -30,9 +32,17 @@ function createCommonRenderer() {
 			return resolved.get( uid );
 
 		},
-		emit( type, uid, duration, label = null ) {
+		getTimestampRange( uid ) {
 
-			pending.set( uid, { type, duration } );
+			return resolvedRanges.get( uid ) ?? null;
+
+		},
+		emit( type, uid, duration, label = null, gpuStartMs = null ) {
+
+			const start = gpuStartMs === null ? gpuTime : BigInt( gpuStartMs * 1e6 );
+			const end = start + BigInt( duration * 1e6 );
+			gpuTime = end;
+			pending.set( uid, { type, duration, range: { start, end } } );
 			for ( const listener of listeners ) listener( type, uid, label );
 
 		},
@@ -43,6 +53,7 @@ function createCommonRenderer() {
 				if ( entry.type === type ) {
 
 					resolved.set( uid, entry.duration );
+					resolvedRanges.set( uid, entry.range );
 					pending.delete( uid );
 
 				}
@@ -180,6 +191,27 @@ export default QUnit.module( 'Profiler', hooks => {
 		const stats = ProfilerService.getGpuStats( 'GPU pass: Bloom [ High Pass ]' );
 		assert.strictEqual( stats.samples, 1, 'one pass sample committed' );
 		assert.strictEqual( stats.avg, 2, 'pass duration is preserved' );
+
+	} );
+
+	QUnit.test( 'uses raw GPU start and end timestamps in traces', async assert => {
+
+		const renderer = createCommonRenderer();
+		await ProfilerService.attachGpuRenderer( renderer );
+
+		const parent = ProfilerService.beginGpu( 'gpu-frame', renderer );
+		renderer.backend.emit( 'render', 'r:0:1:f1', 2, 'First', 10 );
+		renderer.backend.emit( 'render', 'r:1:2:f1', 1, 'Second', 15 );
+		ProfilerService.endGpu( parent );
+		await ProfilerService.flushGpu( renderer );
+
+		const trace = ProfilerService.exportChromeTrace();
+		const first = trace.traceEvents.find( event => event.name === 'GPU pass: First' );
+		const second = trace.traceEvents.find( event => event.name === 'GPU pass: Second' );
+
+		assert.strictEqual( first.dur, 2000, 'first pass uses its GPU duration' );
+		assert.strictEqual( second.ts - first.ts, 5000, 'pass starts preserve the GPU timestamp gap' );
+		assert.strictEqual( ProfilerService.getGpuStats( 'gpu-frame' ).avg, 6, 'parent uses the GPU start/end envelope' );
 
 	} );
 
