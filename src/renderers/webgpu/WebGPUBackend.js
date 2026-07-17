@@ -25,7 +25,7 @@ import GPUShaderModuleDescriptor from './descriptors/GPUShaderModuleDescriptor.j
 import GPURenderPassColorAttachment from './descriptors/GPURenderPassColorAttachment.js';
 import GPURenderPassDepthStencilAttachment from './descriptors/GPURenderPassDepthStencilAttachment.js';
 import GPURenderPassDescriptor from './descriptors/GPURenderPassDescriptor.js';
-import GPURenderPassTimestampWrites from './descriptors/GPURenderPassTimestampWrites.js';
+// import GPURenderPassTimestampWrites from './descriptors/GPURenderPassTimestampWrites.js';
 import GPUTexelCopyTextureInfo from './descriptors/GPUTexelCopyTextureInfo.js';
 import GPUTextureViewDescriptor from './descriptors/GPUTextureViewDescriptor.js';
 import GPUExtent3D from './descriptors/GPUExtent3D.js';
@@ -36,7 +36,7 @@ const _commandEncoderDescriptor = new GPUCommandEncoderDescriptor();
 const _computePassDescriptor = new GPUComputePassDescriptor();
 const _querySetDescriptor = new GPUQuerySetDescriptor();
 const _shaderModuleDescriptor = new GPUShaderModuleDescriptor();
-const _renderPassTimestampWrites = new GPURenderPassTimestampWrites();
+// const _renderPassTimestampWrites = new GPURenderPassTimestampWrites();
 const _texelCopyTextureInfoSrc = new GPUTexelCopyTextureInfo();
 const _texelCopyTextureInfoDst = new GPUTexelCopyTextureInfo();
 const _viewDescriptor = new GPUTextureViewDescriptor();
