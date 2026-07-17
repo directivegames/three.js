@@ -84781,6 +84781,7 @@ const _commandEncoderDescriptor = new GPUCommandEncoderDescriptor();
 const _computePassDescriptor = new GPUComputePassDescriptor();
 const _querySetDescriptor = new GPUQuerySetDescriptor();
 const _shaderModuleDescriptor = new GPUShaderModuleDescriptor();
+// const _renderPassTimestampWrites = new GPURenderPassTimestampWrites();
 const _texelCopyTextureInfoSrc = new GPUTexelCopyTextureInfo();
 const _texelCopyTextureInfoDst = new GPUTexelCopyTextureInfo();
 const _viewDescriptor = new GPUTextureViewDescriptor();

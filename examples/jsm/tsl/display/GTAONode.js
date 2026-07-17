@@ -1,5 +1,5 @@
 import { DataTexture, RenderTarget, RepeatWrapping, Vector2, Vector3, TempNode, QuadMesh, NodeMaterial, RendererUtils, RedFormat } from 'three/webgpu';
-import { reference, logarithmicDepthToViewZ, viewZToPerspectiveDepth, getNormalFromDepth, getScreenPosition, getViewPosition, nodeObject, Fn, float, NodeUpdateType, uv, uniform, Loop, vec2, vec3, vec4, int, dot, max, pow, abs, If, textureSize, sin, cos, PI, texture, passTexture, mat3, add, normalize, mul, cross, div, mix, acos, clamp } from 'three/tsl';
+import { reference, logarithmicDepthToViewZ, viewZToPerspectiveDepth, getNormalFromDepth, getScreenPosition, getViewPosition, nodeObject, Fn, float, NodeUpdateType, uv, uniform, Loop, vec2, vec3, vec4, int, dot, max, min, pow, abs, If, textureSize, sin, cos, PI, texture, passTexture, mat3, add, normalize, mul, cross, div, mix, acos, clamp } from 'three/tsl';
 
 const _quadMesh = /*@__PURE__*/ new QuadMesh();
 const _size = /*@__PURE__*/ new Vector2();
@@ -70,6 +70,18 @@ class GTAONode extends TempNode {
 		 */
 		this.normalNode = normalNode;
 
+		// WITH_GENESYS
+		/**
+		 * Optional node that marks pixels where GTAO should run. This is sampled only
+		 * for the center pixel, allowing neighbor depth taps to use the raw depth
+		 * texture without repeating an auxiliary validity texture fetch.
+		 *
+		 * @type {?Node<float>}
+		 * @default null
+		 */
+		this.validityNode = null;
+		// !WITH_GENESYS
+
 		/**
 		 * The resolution scale. By default the effect is rendered in full resolution
 		 * for best quality but a value of `0.5` should be sufficient for most scenes.
@@ -105,6 +117,18 @@ class GTAONode extends TempNode {
 		 * @type {UniformNode<float>}
 		 */
 		this.radius = uniform( 0.25 );
+
+		// WITH_GENESYS
+		/**
+		 * Maximum screen-space radius in pixels. Clamps the projected world-space
+		 * radius when the camera is close to surfaces so sample UVs stay local and
+		 * avoid texture-cache thrashing (Activision GTAO guidance).
+		 *
+		 * @type {UniformNode<float>}
+		 * @default 64
+		 */
+		this.maxScreenRadius = uniform( 64 );
+		// !WITH_GENESYS
 
 		/**
 		 * The resolution of the effect. Can be scaled via
@@ -343,12 +367,30 @@ class GTAONode extends TempNode {
 
 			const depth = sampleDepth( uvNode ).toVar();
 
+			// WITH_GENESYS
+			if ( this.validityNode !== null ) {
+
+				this.validityNode.sample( uvNode ).lessThan( 0.5 ).discard();
+
+			}
+			// !WITH_GENESYS
+
 			depth.greaterThanEqual( 1.0 ).discard();
 
 			const viewPosition = getViewPosition( uvNode, depth, this._cameraProjectionMatrixInverse ).toVar();
 			const viewNormal = sampleNormal( uvNode ).toVar();
 
-			const radiusToUse = this.radius;
+			// WITH_GENESYS
+			// Clamp world radius so its screen footprint never exceeds maxScreenRadius
+			// pixels. Without this, near-camera surfaces project a huge UV stride and
+			// the depth/normal taps thrash the texture cache.
+			const probeScreen = getScreenPosition( viewPosition.add( vec3( this.radius, 0.0, 0.0 ) ), this._cameraProjectionMatrix );
+			const centerScreen = getScreenPosition( viewPosition, this._cameraProjectionMatrix );
+			const screenRadiusPx = abs( probeScreen.x.sub( centerScreen.x ) ).mul( this.resolution.x );
+			const radiusScale = min( float( 1.0 ), this.maxScreenRadius.div( max( screenRadiusPx, float( 1e-4 ) ) ) );
+			const radiusToUse = this.radius.mul( radiusScale );
+			// !WITH_GENESYS
+			// const radiusToUse = this.radius;
 
 			const noiseResolution = textureSize( this._noiseNode, 0 );
 			let noiseUv = vec2( uvNode.x, uvNode.y.oneMinus() );
@@ -360,8 +402,16 @@ class GTAONode extends TempNode {
 			const bitangent = vec3( tangent.y.mul( - 1.0 ), tangent.x, 0.0 );
 			const kernelMatrix = mat3( tangent, bitangent, vec3( 0.0, 0.0, 1.0 ) );
 
-			const DIRECTIONS = this.samples.lessThan( 30 ).select( 3, 5 ).toVar();
-			const STEPS = add( this.samples, DIRECTIONS.sub( 1 ) ).div( DIRECTIONS ).toVar();
+			// WITH_GENESYS
+			// A clamped radius covers less screen space, so proportionally reduce the
+			// sample budget as well. Keeping all samples only changes tap locality and
+			// does not address the near-camera shader cost.
+			const samplesToUse = min( this.samples, max( float( 6 ), this.samples.mul( radiusScale ) ) ).toVar();
+			const DIRECTIONS = samplesToUse.lessThan( 30 ).select( 3, 5 ).toVar();
+			const STEPS = add( samplesToUse, DIRECTIONS.sub( 1 ) ).div( DIRECTIONS ).toVar();
+			// !WITH_GENESYS
+			// const DIRECTIONS = this.samples.lessThan( 30 ).select( 3, 5 ).toVar();
+			// const STEPS = add( this.samples, DIRECTIONS.sub( 1 ) ).div( DIRECTIONS ).toVar();
 
 			const ao = float( 0 ).toVar();
 
