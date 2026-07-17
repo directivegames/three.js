@@ -1618,8 +1618,23 @@ class Renderer {
 		const renderContext = this._renderContexts.get( renderTarget, this._mrt, this._callDepth );
 
 		// WITH_GENESYS
-		renderContext.gpuProfilerLabel = scene.isQuadMesh === true && scene.name !== '' ? scene.name : null;
+		// Prefer an explicit scene/pass name; otherwise fall back to the render
+		// target texture name so depth/shadow/RTT work is not an invisible hole.
+		let gpuProfilerLabel = scene.name !== '' ? scene.name : null;
+		if ( gpuProfilerLabel === null && renderTarget !== null ) {
+
+			const textureName = renderTarget.texture?.name;
+			if ( textureName !== undefined && textureName !== null && textureName !== '' ) {
+
+				gpuProfilerLabel = textureName;
+
+			}
+
+		}
+
+		renderContext.gpuProfilerLabel = gpuProfilerLabel;
 		// !WITH_GENESYS
+		// renderContext.gpuProfilerLabel = scene.name !== '' ? scene.name : null;
 
 		this._currentRenderContext = renderContext;
 		this._currentRenderObjectFunction = this._renderObjectFunction || this.renderObject;
@@ -2620,7 +2635,7 @@ class Renderer {
 
 			// WITH_GENESYS
 			// Drop the strong reference to the active `RenderContext` so module-level
-			// `WeakMap<RenderContext, ?>` caches can release entries once
+			// `WeakMap<RenderContext, ...>` caches can release entries once
 			// `_renderContexts.dispose()` has cleared its dictionary.
 			this._currentRenderContext = null;
 			// !WITH_GENESYS

@@ -61603,8 +61603,23 @@ class Renderer {
 		const renderContext = this._renderContexts.get( renderTarget, this._mrt, this._callDepth );
 
 		// WITH_GENESYS
-		renderContext.gpuProfilerLabel = scene.isQuadMesh === true && scene.name !== '' ? scene.name : null;
+		// Prefer an explicit scene/pass name; otherwise fall back to the render
+		// target texture name so depth/shadow/RTT work is not an invisible hole.
+		let gpuProfilerLabel = scene.name !== '' ? scene.name : null;
+		if ( gpuProfilerLabel === null && renderTarget !== null ) {
+
+			const textureName = renderTarget.texture?.name;
+			if ( textureName !== undefined && textureName !== null && textureName !== '' ) {
+
+				gpuProfilerLabel = textureName;
+
+			}
+
+		}
+
+		renderContext.gpuProfilerLabel = gpuProfilerLabel;
 		// !WITH_GENESYS
+		// renderContext.gpuProfilerLabel = scene.name !== '' ? scene.name : null;
 
 		this._currentRenderContext = renderContext;
 		this._currentRenderObjectFunction = this._renderObjectFunction || this.renderObject;
@@ -62605,7 +62620,7 @@ class Renderer {
 
 			// WITH_GENESYS
 			// Drop the strong reference to the active `RenderContext` so module-level
-			// `WeakMap<RenderContext, �?>` caches can release entries once
+			// `WeakMap<RenderContext, ...>` caches can release entries once
 			// `_renderContexts.dispose()` has cleared its dictionary.
 			this._currentRenderContext = null;
 			// !WITH_GENESYS
@@ -84338,7 +84353,20 @@ class WebGPUTimestampQueryPool extends TimestampQueryPool {
 		const baseOffset = this.currentQueryIndex;
 		this.currentQueryIndex += 2;
 
-		this.queryOffsets.set( uid, baseOffset );
+		// WITH_GENESYS
+		// One logical uid can own multiple GPU passes (nested interrupt /
+		// copyFramebuffer restart). Keep every offset; resolve sums them.
+		let offsets = this.queryOffsets.get( uid );
+		if ( offsets === undefined ) {
+
+			offsets = [];
+			this.queryOffsets.set( uid, offsets );
+
+		}
+
+		offsets.push( baseOffset );
+		// !WITH_GENESYS
+		// this.queryOffsets.set( uid, baseOffset );
 
 		return baseOffset;
 
@@ -84460,7 +84488,7 @@ class WebGPUTimestampQueryPool extends TimestampQueryPool {
 
 			const frames = [];
 
-			for ( const [ uid, baseOffset ] of currentOffsets ) {
+			for ( const [ uid, offsetOrOffsets ] of currentOffsets ) {
 
 				const match = uid.match( /^(.*):f(\d+)$/ );
 				const frame = parseInt( match[ 2 ] );
@@ -84473,14 +84501,34 @@ class WebGPUTimestampQueryPool extends TimestampQueryPool {
 
 				if ( framesDuration[ frame ] === undefined ) framesDuration[ frame ] = 0;
 
-				const startTime = times[ baseOffset ];
-				const endTime = times[ baseOffset + 1 ];
-				const duration = Number( endTime - startTime ) / 1e6;
+				// WITH_GENESYS
+				const offsets = Array.isArray( offsetOrOffsets ) ? offsetOrOffsets : [ offsetOrOffsets ];
+				let duration = 0;
+				let rangeStart = null;
+				let rangeEnd = null;
+
+				for ( const baseOffset of offsets ) {
+
+					const startTime = times[ baseOffset ];
+					const endTime = times[ baseOffset + 1 ];
+					duration += Number( endTime - startTime ) / 1e6;
+
+					if ( rangeStart === null || startTime < rangeStart ) rangeStart = startTime;
+					if ( rangeEnd === null || endTime > rangeEnd ) rangeEnd = endTime;
+
+				}
 
 				this.timestamps.set( uid, duration );
-				// WITH_GENESYS
-				this.timestampRanges.set( uid, { start: startTime, end: endTime } );
+				if ( rangeStart !== null && rangeEnd !== null ) {
+
+					this.timestampRanges.set( uid, { start: rangeStart, end: rangeEnd } );
+
+				}
 				// !WITH_GENESYS
+				// const startTime = times[ baseOffset ];
+				// const endTime = times[ baseOffset + 1 ];
+				// const duration = Number( endTime - startTime ) / 1e6;
+				// this.timestamps.set( uid, duration );
 
 				framesDuration[ frame ] += duration;
 
@@ -84723,54 +84771,6 @@ class GPURenderPassDepthStencilAttachment {
 
 }
 
-/**
- * Reusable descriptor for `GPURenderPassTimestampWrites`, the
- * `timestampWrites` field of `GPURenderPassDescriptor`. The same shape is
- * also accepted as `GPUComputePassTimestampWrites`.
- *
- * @private
- */
-class GPURenderPassTimestampWrites {
-
-	constructor() {
-
-		/**
-		 * The query set the timestamps are written to.
-		 *
-		 * @type {?GPUQuerySet}
-		 * @default null
-		 */
-		this.querySet = null;
-
-		/**
-		 * The index in the query set the beginning timestamp is written to.
-		 *
-		 * @type {number|undefined}
-		 */
-		this.beginningOfPassWriteIndex = undefined;
-
-		/**
-		 * The index in the query set the ending timestamp is written to.
-		 *
-		 * @type {number|undefined}
-		 */
-		this.endOfPassWriteIndex = undefined;
-
-	}
-
-	/**
-	 * Resets the descriptor to its default state.
-	 */
-	reset() {
-
-		this.querySet = null;
-		this.beginningOfPassWriteIndex = undefined;
-		this.endOfPassWriteIndex = undefined;
-
-	}
-
-}
-
 // debugger tools
 // import 'https://greggman.github.io/webgpu-avoid-redundant-state-setting/webgpu-check-redundant-state-setting.js';
 
@@ -84781,7 +84781,6 @@ const _commandEncoderDescriptor = new GPUCommandEncoderDescriptor();
 const _computePassDescriptor = new GPUComputePassDescriptor();
 const _querySetDescriptor = new GPUQuerySetDescriptor();
 const _shaderModuleDescriptor = new GPUShaderModuleDescriptor();
-const _renderPassTimestampWrites = new GPURenderPassTimestampWrites();
 const _texelCopyTextureInfoSrc = new GPUTexelCopyTextureInfo();
 const _texelCopyTextureInfoDst = new GPUTexelCopyTextureInfo();
 const _viewDescriptor = new GPUTextureViewDescriptor();
@@ -87024,15 +87023,22 @@ class WebGPUBackend extends Backend {
 		if ( baseOffset === null || timestampQueryPool.querySet === null ) return;
 		// !WITH_GENESYS
 
-		_renderPassTimestampWrites.querySet = timestampQueryPool.querySet;
-		_renderPassTimestampWrites.beginningOfPassWriteIndex = baseOffset;
-		_renderPassTimestampWrites.endOfPassWriteIndex = baseOffset + 1;
-
-		descriptor.timestampWrites = _renderPassTimestampWrites;
-
 		// WITH_GENESYS
+		// Per-pass object: a shared descriptor is mutated by nested beginRender /
+		// copyFramebuffer restarts and can make unrelated passes write the same
+		// query indices (shadow maps collapsing to ~1µs is the common symptom).
+		descriptor.timestampWrites = {
+			querySet: timestampQueryPool.querySet,
+			beginningOfPassWriteIndex: baseOffset,
+			endOfPassWriteIndex: baseOffset + 1,
+		};
+
 		this.notifyTimestampQuery( type, uid, label );
 		// !WITH_GENESYS
+		// _renderPassTimestampWrites.querySet = timestampQueryPool.querySet;
+		// _renderPassTimestampWrites.beginningOfPassWriteIndex = baseOffset;
+		// _renderPassTimestampWrites.endOfPassWriteIndex = baseOffset + 1;
+		// descriptor.timestampWrites = _renderPassTimestampWrites;
 
 	}
 
@@ -87592,6 +87598,17 @@ class WebGPUBackend extends Backend {
 
 			if ( renderContext.depth ) descriptor.depthStencilAttachment.depthLoadOp = GPULoadOp.Load;
 			if ( renderContext.stencil ) descriptor.depthStencilAttachment.stencilLoadOp = GPULoadOp.Load;
+
+			// WITH_GENESYS
+			// Restarted passes need fresh timestamp slots; reusing the previous
+			// timestampWrites overwrites the first segment's query results.
+			this.initTimestampQuery(
+				TimestampQuery.RENDER,
+				this.getTimestampUID( renderContext ),
+				descriptor,
+				renderContext.gpuProfilerLabel
+			);
+			// !WITH_GENESYS
 
 			renderContextData.currentPass = encoder.beginRenderPass( descriptor );
 			renderContextData.currentSets = { attributes: {}, bindingGroups: [], pipeline: null, index: null };

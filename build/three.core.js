@@ -60409,6 +60409,9 @@ class ProfilerServiceClass {
 
 		if ( label !== null && label !== undefined && label !== '' ) {
 
+			// Queue labelled passes with the active beginGpu span(s). Flushing
+			// immediately would commit them before their parent envelope exists and
+			// can anchor gpuTraceOrigin mid-frame, which breaks Speedscope nesting.
 			const passSpan = {
 				label: `GPU pass: ${label}`,
 				renderer,
@@ -60422,7 +60425,13 @@ class ProfilerServiceClass {
 			};
 			passSpan._queries[ type ].add( uid );
 			state.pendingSpans.push( passSpan );
-			this._scheduleGpuFlush( state );
+			// Only auto-flush when no beginGpu parent is open. Nested parents flush on endGpu
+			// so pass slices share one origin and nest inside the parent envelope.
+			if ( state.activeSpans.length === 0 ) {
+
+				this._scheduleGpuFlush( state );
+
+			}
 
 		}
 
@@ -60483,38 +60492,22 @@ class ProfilerServiceClass {
 
 		if ( state.gpuTimestampOrigin === null ) {
 
-			let earliestRange = null;
-			let earliestUid = null;
-			for ( const span of spans ) {
+			const origin = this._findEarliestGpuTimestampOrigin( state, spans );
+			if ( origin !== null ) {
 
-				for ( const type of [ TimestampQuery.RENDER, TimestampQuery.COMPUTE ] ) {
-
-					for ( const uid of span._queries[ type ] ) {
-
-						const range = state.renderer.backend.getTimestampRange( uid );
-						if ( range !== null && ( earliestRange === null || range.start < earliestRange.start ) ) {
-
-							earliestRange = range;
-							earliestUid = uid;
-
-						}
-
-					}
-
-				}
-
-			}
-
-			if ( earliestRange !== null ) {
-
-				state.gpuTimestampOrigin = earliestRange.start;
-				state.gpuTraceOrigin = state.queryCpuTimes.get( earliestUid ) ?? spans[ 0 ].t0;
+				state.gpuTimestampOrigin = origin.gpuTimestampOrigin;
+				state.gpuTraceOrigin = origin.gpuTraceOrigin;
 
 			}
 
 		}
 
 		const resolvedUids = new Set();
+		/** @type {Array<{ label: string, startTime: number, durationMs: number, isPass: boolean }>} */
+		const samples = [];
+		/** @type {Set<string>} */
+		const labelledQueryUids = new Set();
+
 		for ( const span of spans ) {
 
 			if ( span._generation !== this._gpuGeneration ) continue;
@@ -60552,20 +60545,247 @@ class ProfilerServiceClass {
 			if ( resolvedQueries > 0 ) {
 
 				let startTime = span.t0;
-				if ( rangedQueries === resolvedQueries && gpuStart !== null && gpuEnd !== null && state.gpuTimestampOrigin !== null ) {
+				// Prefer the device envelope whenever any query has a range. Requiring
+				// *all* queries to be ranged forced a CPU-t0 + summed-duration fallback
+				// that often ended before later GPU pass slices, breaking flame nesting.
+				if ( rangedQueries > 0 && gpuStart !== null && gpuEnd !== null && state.gpuTimestampOrigin !== null ) {
 
 					duration = Number( gpuEnd - gpuStart ) / 1e6;
 					startTime = state.gpuTraceOrigin + Number( gpuStart - state.gpuTimestampOrigin ) / 1e6;
 
 				}
 
-				this._commitGpuDurationSample( span.label, startTime, duration );
+				const isPass = span.label.startsWith( 'GPU pass:' );
+				if ( isPass ) {
+
+					for ( const type of [ TimestampQuery.RENDER, TimestampQuery.COMPUTE ] ) {
+
+						for ( const uid of span._queries[ type ] ) labelledQueryUids.add( uid );
+
+					}
+
+				}
+
+				samples.push( {
+					label: span.label,
+					startTime,
+					durationMs: duration,
+					isPass,
+				} );
 
 			}
 
 		}
 
-		for ( const uid of resolvedUids ) state.queryCpuTimes.delete( uid );
+		// Parent beginGpu spans collect every timestamp query, including renders that
+		// had no gpuProfilerLabel. Surface those as pass slices so they are not empty
+		// holes under the parent envelope.
+		for ( const span of spans ) {
+
+			if ( span._generation !== this._gpuGeneration ) continue;
+			if ( span.label.startsWith( 'GPU pass:' ) ) continue;
+			if ( state.gpuTimestampOrigin === null ) continue;
+
+			for ( const type of [ TimestampQuery.RENDER, TimestampQuery.COMPUTE ] ) {
+
+				for ( const uid of span._queries[ type ] ) {
+
+					if ( labelledQueryUids.has( uid ) ) continue;
+					if ( state.renderer.backend.hasTimestampQuery( uid ) === false ) continue;
+
+					const range = state.renderer.backend.getTimestampRange( uid );
+					if ( range === null ) continue;
+
+					const durationMs = Number( range.end - range.start ) / 1e6;
+					if ( durationMs <= 0 ) continue;
+
+					samples.push( {
+						label: 'GPU pass: (unlabeled)',
+						startTime: state.gpuTraceOrigin + Number( range.start - state.gpuTimestampOrigin ) / 1e6,
+						durationMs,
+						isPass: true,
+					} );
+					labelledQueryUids.add( uid );
+
+				}
+
+			}
+
+		}
+
+		const passSamples = samples.filter( sample => sample.isPass );
+		const otherSamples = samples.filter( sample => sample.isPass === false );
+		this._snapHalfOpenGpuPassTraceIntervals( passSamples );
+		this._expandGpuParentTraceToContainPasses( otherSamples, passSamples );
+
+		for ( const sample of otherSamples ) {
+
+			this._commitGpuDurationSample( sample.label, sample.startTime, sample.durationMs, {
+				ts: sample.traceTs,
+				dur: sample.traceDur,
+			} );
+
+		}
+
+		for ( const sample of passSamples ) {
+
+			this._commitGpuDurationSample( sample.label, sample.startTime, sample.durationMs, {
+				ts: sample.traceTs,
+				dur: sample.traceDur,
+			} );
+
+		}
+
+		// Keep CPU times for queries still referenced by active parent spans.
+		for ( const uid of resolvedUids ) {
+
+			if ( this._isGpuQueryReferencedByActiveSpans( state, uid ) ) continue;
+			state.queryCpuTimes.delete( uid );
+
+		}
+
+	}
+
+	/**
+	 * Convert labelled GPU pass samples to non-overlapping half-open µs intervals for
+	 * Chrome/Speedscope traces. Stats keep the raw measured durations.
+	 *
+	 * @param {Array<{ startTime: number, durationMs: number, traceTs?: number, traceDur?: number }>} samples
+	 */
+	_snapHalfOpenGpuPassTraceIntervals( samples ) {
+
+		if ( samples.length === 0 ) return;
+
+		for ( const sample of samples ) {
+
+			sample.traceTs = Math.round( this._getTraceTimestamp( sample.startTime ) );
+			sample.traceDur = Math.max( 1, Math.round( sample.durationMs * 1000 ) );
+
+		}
+
+		// Longer first at the same timestamp so the substantial pass keeps its start.
+		samples.sort( ( a, b ) => a.traceTs - b.traceTs || b.traceDur - a.traceDur );
+
+		let cursor = Number.NEGATIVE_INFINITY;
+		for ( const sample of samples ) {
+
+			if ( sample.traceTs < cursor ) {
+
+				const end = Math.max( sample.traceTs + sample.traceDur, cursor + 1 );
+				sample.traceTs = cursor;
+				sample.traceDur = Math.max( 1, end - sample.traceTs );
+
+			}
+
+			cursor = sample.traceTs + sample.traceDur;
+
+		}
+
+	}
+
+	/**
+	 * Speedscope nests by time containment on a thread. If a snapped GPU pass
+	 * sticks out past its beginGpu parent (rounding / half-open adjust), the
+	 * parent fails containment and is pushed onto a lower lane under renderFrame.
+	 * Expand overlapping parents so they strictly cover their pass children.
+	 *
+	 * @param {Array<{ startTime: number, durationMs: number, traceTs?: number, traceDur?: number }>} parents
+	 * @param {Array<{ traceTs: number, traceDur: number }>} passes
+	 */
+	_expandGpuParentTraceToContainPasses( parents, passes ) {
+
+		if ( parents.length === 0 || passes.length === 0 ) return;
+
+		for ( const parent of parents ) {
+
+			parent.traceTs = Math.round( this._getTraceTimestamp( parent.startTime ) );
+			parent.traceDur = Math.max( 1, Math.round( parent.durationMs * 1000 ) );
+
+			const parentEnd = parent.traceTs + parent.traceDur;
+			let minTs = parent.traceTs;
+			let maxEnd = parentEnd;
+			let touched = false;
+
+			for ( const pass of passes ) {
+
+				const passEnd = pass.traceTs + pass.traceDur;
+				if ( pass.traceTs >= parentEnd || passEnd <= parent.traceTs ) continue;
+
+				touched = true;
+				if ( pass.traceTs < minTs ) minTs = pass.traceTs;
+				if ( passEnd > maxEnd ) maxEnd = passEnd;
+
+			}
+
+			if ( touched === false ) continue;
+
+			// Start 1µs before the first child so equal-start pairs still nest
+			// (Speedscope sorts same-ts by longer-first; a child that begins
+			// strictly after the parent is unambiguous).
+			parent.traceTs = minTs > 0 ? minTs - 1 : minTs;
+			parent.traceDur = Math.max( 1, maxEnd - parent.traceTs );
+
+		}
+
+	}
+
+	/**
+	 * @param {import('./ProfilerService.js').CommonGpuRendererState} state
+	 * @param {import('./ProfilerService.js').GpuSpanHandle[]} spans
+	 * @return {?{ gpuTimestampOrigin: bigint, gpuTraceOrigin: number }}
+	 */
+	_findEarliestGpuTimestampOrigin( state, spans ) {
+
+		let earliestRange = null;
+		let earliestUid = null;
+		const candidates = spans.concat( state.activeSpans );
+
+		for ( const span of candidates ) {
+
+			for ( const type of [ TimestampQuery.RENDER, TimestampQuery.COMPUTE ] ) {
+
+				const queries = span._queries?.[ type ];
+				if ( queries === undefined ) continue;
+
+				for ( const uid of queries ) {
+
+					const range = state.renderer.backend.getTimestampRange( uid );
+					if ( range !== null && ( earliestRange === null || range.start < earliestRange.start ) ) {
+
+						earliestRange = range;
+						earliestUid = uid;
+
+					}
+
+				}
+
+			}
+
+		}
+
+		if ( earliestRange === null ) return null;
+
+		return {
+			gpuTimestampOrigin: earliestRange.start,
+			gpuTraceOrigin: state.queryCpuTimes.get( earliestUid ) ?? spans[ 0 ].t0,
+		};
+
+	}
+
+	/**
+	 * @param {import('./ProfilerService.js').CommonGpuRendererState} state
+	 * @param {string} uid
+	 * @return {boolean}
+	 */
+	_isGpuQueryReferencedByActiveSpans( state, uid ) {
+
+		for ( const span of state.activeSpans ) {
+
+			if ( span._queries.render.has( uid ) || span._queries.compute.has( uid ) ) return true;
+
+		}
+
+		return false;
 
 	}
 
@@ -60793,8 +61013,9 @@ class ProfilerServiceClass {
 	 * @param {string} label
 	 * @param {number} startTime
 	 * @param {number} durationMs
+	 * @param {{ ts: number, dur: number }} [traceOverride]
 	 */
-	_commitGpuDurationSample( label, startTime, durationMs ) {
+	_commitGpuDurationSample( label, startTime, durationMs, traceOverride = null ) {
 
 		let buffer = this.gpuBuffers.get( label );
 		if ( buffer === undefined ) {
@@ -60817,8 +61038,8 @@ class ProfilerServiceClass {
 			this.traceEvents.push( {
 				name: label,
 				ph: 'X',
-				ts: Math.round( this._getTraceTimestamp( startTime ) ),
-				dur: Math.max( 1, Math.round( durationMs * 1000 ) ),
+				ts: traceOverride?.ts ?? Math.round( this._getTraceTimestamp( startTime ) ),
+				dur: traceOverride?.dur ?? Math.max( 1, Math.round( durationMs * 1000 ) ),
 				pid: 1,
 				tid: TRACE_TID_GPU,
 				cat: 'gnsx-gpu',

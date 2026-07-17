@@ -78,7 +78,20 @@ class WebGPUTimestampQueryPool extends TimestampQueryPool {
 		const baseOffset = this.currentQueryIndex;
 		this.currentQueryIndex += 2;
 
-		this.queryOffsets.set( uid, baseOffset );
+		// WITH_GENESYS
+		// One logical uid can own multiple GPU passes (nested interrupt /
+		// copyFramebuffer restart). Keep every offset; resolve sums them.
+		let offsets = this.queryOffsets.get( uid );
+		if ( offsets === undefined ) {
+
+			offsets = [];
+			this.queryOffsets.set( uid, offsets );
+
+		}
+
+		offsets.push( baseOffset );
+		// !WITH_GENESYS
+		// this.queryOffsets.set( uid, baseOffset );
 
 		return baseOffset;
 
@@ -200,7 +213,7 @@ class WebGPUTimestampQueryPool extends TimestampQueryPool {
 
 			const frames = [];
 
-			for ( const [ uid, baseOffset ] of currentOffsets ) {
+			for ( const [ uid, offsetOrOffsets ] of currentOffsets ) {
 
 				const match = uid.match( /^(.*):f(\d+)$/ );
 				const frame = parseInt( match[ 2 ] );
@@ -213,14 +226,34 @@ class WebGPUTimestampQueryPool extends TimestampQueryPool {
 
 				if ( framesDuration[ frame ] === undefined ) framesDuration[ frame ] = 0;
 
-				const startTime = times[ baseOffset ];
-				const endTime = times[ baseOffset + 1 ];
-				const duration = Number( endTime - startTime ) / 1e6;
+				// WITH_GENESYS
+				const offsets = Array.isArray( offsetOrOffsets ) ? offsetOrOffsets : [ offsetOrOffsets ];
+				let duration = 0;
+				let rangeStart = null;
+				let rangeEnd = null;
+
+				for ( const baseOffset of offsets ) {
+
+					const startTime = times[ baseOffset ];
+					const endTime = times[ baseOffset + 1 ];
+					duration += Number( endTime - startTime ) / 1e6;
+
+					if ( rangeStart === null || startTime < rangeStart ) rangeStart = startTime;
+					if ( rangeEnd === null || endTime > rangeEnd ) rangeEnd = endTime;
+
+				}
 
 				this.timestamps.set( uid, duration );
-				// WITH_GENESYS
-				this.timestampRanges.set( uid, { start: startTime, end: endTime } );
+				if ( rangeStart !== null && rangeEnd !== null ) {
+
+					this.timestampRanges.set( uid, { start: rangeStart, end: rangeEnd } );
+
+				}
 				// !WITH_GENESYS
+				// const startTime = times[ baseOffset ];
+				// const endTime = times[ baseOffset + 1 ];
+				// const duration = Number( endTime - startTime ) / 1e6;
+				// this.timestamps.set( uid, duration );
 
 				framesDuration[ frame ] += duration;
 

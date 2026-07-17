@@ -2279,15 +2279,22 @@ class WebGPUBackend extends Backend {
 		if ( baseOffset === null || timestampQueryPool.querySet === null ) return;
 		// !WITH_GENESYS
 
-		_renderPassTimestampWrites.querySet = timestampQueryPool.querySet;
-		_renderPassTimestampWrites.beginningOfPassWriteIndex = baseOffset;
-		_renderPassTimestampWrites.endOfPassWriteIndex = baseOffset + 1;
-
-		descriptor.timestampWrites = _renderPassTimestampWrites;
-
 		// WITH_GENESYS
+		// Per-pass object: a shared descriptor is mutated by nested beginRender /
+		// copyFramebuffer restarts and can make unrelated passes write the same
+		// query indices (shadow maps collapsing to ~1µs is the common symptom).
+		descriptor.timestampWrites = {
+			querySet: timestampQueryPool.querySet,
+			beginningOfPassWriteIndex: baseOffset,
+			endOfPassWriteIndex: baseOffset + 1,
+		};
+
 		this.notifyTimestampQuery( type, uid, label );
 		// !WITH_GENESYS
+		// _renderPassTimestampWrites.querySet = timestampQueryPool.querySet;
+		// _renderPassTimestampWrites.beginningOfPassWriteIndex = baseOffset;
+		// _renderPassTimestampWrites.endOfPassWriteIndex = baseOffset + 1;
+		// descriptor.timestampWrites = _renderPassTimestampWrites;
 
 	}
 
@@ -2847,6 +2854,17 @@ class WebGPUBackend extends Backend {
 
 			if ( renderContext.depth ) descriptor.depthStencilAttachment.depthLoadOp = GPULoadOp.Load;
 			if ( renderContext.stencil ) descriptor.depthStencilAttachment.stencilLoadOp = GPULoadOp.Load;
+
+			// WITH_GENESYS
+			// Restarted passes need fresh timestamp slots; reusing the previous
+			// timestampWrites overwrites the first segment's query results.
+			this.initTimestampQuery(
+				TimestampQuery.RENDER,
+				this.getTimestampUID( renderContext ),
+				descriptor,
+				renderContext.gpuProfilerLabel
+			);
+			// !WITH_GENESYS
 
 			renderContextData.currentPass = encoder.beginRenderPass( descriptor );
 			renderContextData.currentSets = { attributes: {}, bindingGroups: [], pipeline: null, index: null };
