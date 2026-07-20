@@ -10,6 +10,7 @@ import { warnOnce } from '../utils.js';
  *   // play for a few seconds
  *   __gnsx_profiler.report()         // sorted console.table (aggregated stats)
  *   __gnsx_profiler.downloadTrace()  // download gnsx-trace.json for Speedscope / Perfetto
+ *   __gnsx_profiler.downloadTrace('gnsx-trace.json', 0.05)  // omit spans < 0.05 ms
  *   __gnsx_profiler.reset()          // clear samples and trace
  *   __gnsx_profiler.disable()
  *
@@ -1216,11 +1217,16 @@ class ProfilerServiceClass {
 	}
 
 	/**
+	 * @param {number} [minDurationMs=0] Omit complete spans shorter than this duration (ms). Capture is unaffected.
 	 * @return {import('./ProfilerService.js').ChromeTrace}
 	 */
-	exportChromeTrace() {
+	exportChromeTrace( minDurationMs = 0 ) {
 
-		const slices = [ ...this.traceEvents ];
+		const thresholdMs = Number.isFinite( minDurationMs ) && minDurationMs > 0 ? minDurationMs : 0;
+		const minDurUs = thresholdMs * 1000;
+		const slices = minDurUs > 0
+			? this.traceEvents.filter( e => ( e.dur ?? 0 ) >= minDurUs )
+			: [ ...this.traceEvents ];
 		slices.sort( ( a, b ) => {
 
 			if ( a.ts !== b.ts ) return a.ts - b.ts;
@@ -1298,8 +1304,9 @@ class ProfilerServiceClass {
 
 	/**
 	 * @param {string} [filename='gnsx-trace.json']
+	 * @param {number} [minDurationMs=0] Omit complete spans shorter than this duration (ms).
 	 */
-	downloadTrace( filename = 'gnsx-trace.json' ) {
+	downloadTrace( filename = 'gnsx-trace.json', minDurationMs = 0 ) {
 
 		if ( typeof document === 'undefined' ) {
 
@@ -1322,7 +1329,10 @@ class ProfilerServiceClass {
 
 		}
 
-		const json = JSON.stringify( this.exportChromeTrace() );
+		const thresholdMs = Number.isFinite( minDurationMs ) && minDurationMs > 0 ? minDurationMs : 0;
+		const trace = this.exportChromeTrace( thresholdMs );
+		const eventCount = trace.traceEvents.filter( e => e.ph === 'X' ).length;
+		const json = JSON.stringify( trace );
 		const blob = new Blob( [ json ], { type: 'application/json' } );
 		const url = URL.createObjectURL( blob );
 		const a = document.createElement( 'a' );
@@ -1330,7 +1340,10 @@ class ProfilerServiceClass {
 		a.download = filename;
 		a.click();
 		URL.revokeObjectURL( url );
-		console.log( `[ProfilerService] Trace downloaded: ${filename} (${this.traceEvents.length} events)` );
+		const thresholdNote = thresholdMs > 0
+			? ` (filtered ${this.traceEvents.length - eventCount} spans < ${thresholdMs} ms)`
+			: '';
+		console.log( `[ProfilerService] Trace downloaded: ${filename} (${eventCount} events${thresholdNote})` );
 
 	}
 

@@ -1378,20 +1378,26 @@ class Renderer {
 	 */
 	render( scene, camera ) {
 
-		// WITH_GENESYS
-		ProfilerService.begin( 'Renderer.render' );
-		// !WITH_GENESYS
-
 		if ( this._initialized === false ) {
 
 			throw new Error( 'THREE.Renderer: .render() called before the backend is initialized. Use "await renderer.init();" before rendering.' );
 
 		}
 
-		this._renderScene( scene, camera );
-
 		// WITH_GENESYS
-		ProfilerService.end( 'Renderer.render' );
+		const label = `Renderer.render (${scene.name || scene.type})`;
+		ProfilerService.begin( label );
+		const handle = ProfilerService.beginGpu( label, this );
+		try {
+
+			this._renderScene( scene, camera );
+
+		} finally {
+
+			ProfilerService.endGpu( handle );
+			ProfilerService.end( label );
+
+		}
 		// !WITH_GENESYS
 
 	}
@@ -3436,7 +3442,7 @@ class Renderer {
 	_renderObjects( renderList, camera, scene, lightsNode, passId = null ) {
 
 		// WITH_GENESYS
-		const label = `${this._currentRenderObjectFunction?.name || 'renderObject'} (${renderList.length})`;
+		const label = `_renderObjects (${renderList.length})`;
 		ProfilerService.begin( label );
 		// !WITH_GENESYS
 
@@ -3671,6 +3677,11 @@ class Renderer {
 	 */
 	renderObject( object, scene, camera, geometry, material, group, lightsNode, clippingContext = null, passId = null ) {
 
+		// WITH_GENESYS
+		const label = `renderObject (${object.name || object.type} - ${material.name || material.type})`;
+		ProfilerService.begin( label );
+		// !WITH_GENESYS
+
 		let materialOverride = false;
 		let materialColorNode;
 		let materialDepthNode;
@@ -3781,6 +3792,10 @@ class Renderer {
 		//
 
 		object.onAfterRender( this, scene, camera, geometry, material, group );
+
+		// WITH_GENESYS
+		ProfilerService.end( label );
+		// !WITH_GENESYS
 
 	}
 
