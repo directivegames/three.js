@@ -61371,7 +61371,6 @@ class Renderer {
 
 		// WITH_GENESYS
 		const label = `Renderer.render (${scene.name || scene.type})`;
-		ProfilerService.begin( label );
 		const handle = ProfilerService.beginGpu( label, this );
 		try {
 
@@ -61380,7 +61379,6 @@ class Renderer {
 		} finally {
 
 			ProfilerService.endGpu( handle );
-			ProfilerService.end( label );
 
 		}
 		// !WITH_GENESYS
@@ -61535,10 +61533,6 @@ class Renderer {
 	_renderScene( scene, camera, useFrameBufferTarget = true ) {
 
 		if ( this._isDeviceLost === true ) return;
-
-		// WITH_GENESYS
-		ProfilerService.begin( 'Renderer._renderScene' );
-		// !WITH_GENESYS
 
 		//
 
@@ -61776,6 +61770,12 @@ class Renderer {
 		renderContext.activeMipmapLevel = activeMipmapLevel;
 		renderContext.occlusionQueryCount = renderList.occlusionQueryCount;
 
+		// WITH_GENESYS
+		// Size is finalized above from the active RT or drawing buffer.
+		const profilerLabel = `Renderer._renderScene (${renderContext.width}x${renderContext.height})`;
+		ProfilerService.begin( profilerLabel );
+		// !WITH_GENESYS
+
 		//
 
 		renderContext.scissorValue.max( _vector4.set( 0, 0, 0, 0 ) );
@@ -61851,7 +61851,7 @@ class Renderer {
 		//
 
 		// WITH_GENESYS
-		ProfilerService.end( 'Renderer._renderScene' );
+		ProfilerService.end( profilerLabel );
 		// !WITH_GENESYS
 
 		return renderContext;
