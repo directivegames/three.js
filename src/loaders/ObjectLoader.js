@@ -1128,6 +1128,10 @@ class ObjectLoader extends Loader {
 
 		object.uuid = data.uuid;
 
+		// WITH_GENESYS
+		if ( data.nodeId !== undefined ) object.nodeId = data.nodeId;
+		// !WITH_GENESYS
+
 		if ( data.name !== undefined ) object.name = data.name;
 
 		if ( data.matrix !== undefined ) {

@@ -7,6 +7,15 @@ import { Layers } from './Layers.js';
 import { Matrix3 } from '../math/Matrix3.js';
 import { generateUUID } from '../math/MathUtils.js';
 import { error } from '../utils.js';
+// WITH_GENESYS
+import {
+	allocateNodeId,
+	ensureUniqueNodeIdAmongParentChildren,
+	generateNodeId,
+	isValidNodeId
+} from './nodeId.js';
+import { NodePath } from './NodePath.js';
+// !WITH_GENESYS
 
 let _object3DId = 0;
 
@@ -95,6 +104,16 @@ class Object3D extends EventDispatcher {
 		 * @readonly
 		 */
 		this.uuid = generateUUID();
+
+		// WITH_GENESYS
+		/**
+		 * Sibling-local 16-bit identity for scene-graph addressing ({@link NodePath}).
+		 * `0` is valid. Reminted on parent attach when colliding with a sibling.
+		 *
+		 * @type {number}
+		 */
+		this.nodeId = generateNodeId();
+		// !WITH_GENESYS
 
 		/**
 		 * The name of the 3D object.
@@ -778,6 +797,9 @@ class Object3D extends EventDispatcher {
 		if ( object && object.isObject3D ) {
 
 			object.removeFromParent();
+			// WITH_GENESYS
+			ensureUniqueNodeIdAmongParentChildren( object, this );
+			// !WITH_GENESYS
 			object.parent = this;
 			this.children.push( object );
 
@@ -903,6 +925,9 @@ class Object3D extends EventDispatcher {
 		object.applyMatrix4( _m1 );
 
 		object.removeFromParent();
+		// WITH_GENESYS
+		ensureUniqueNodeIdAmongParentChildren( object, this );
+		// !WITH_GENESYS
 		object.parent = this;
 		this.children.push( object );
 
@@ -917,6 +942,166 @@ class Object3D extends EventDispatcher {
 		return this;
 
 	}
+
+	// WITH_GENESYS
+	/**
+	 * Assigns a {@link nodeId} when unset or outside the uint16 range.
+	 * @return {number}
+	 */
+	ensureNodeId() {
+
+		if ( ! isValidNodeId( this.nodeId ) ) {
+
+			this.nodeId = generateNodeId();
+
+		}
+
+		return this.nodeId;
+
+	}
+
+	/**
+	 * Replaces {@link nodeId} with a newly generated value (e.g. prefab instance roots).
+	 * @param {Iterable<number>} [existingSiblingIds]
+	 * @return {number}
+	 */
+	remintNodeId( existingSiblingIds ) {
+
+		this.nodeId = existingSiblingIds !== undefined
+			? allocateNodeId( existingSiblingIds )
+			: generateNodeId();
+		return this.nodeId;
+
+	}
+
+	/**
+	 * Direct child with the given {@link nodeId}, or `null`.
+	 * @param {number} id
+	 * @return {?Object3D}
+	 */
+	findChildByNodeId( id ) {
+
+		for ( let i = 0; i < this.children.length; i ++ ) {
+
+			const child = this.children[ i ];
+			if ( child.nodeId === id ) {
+
+				return child;
+
+			}
+
+		}
+
+		return null;
+
+	}
+
+	/**
+	 * Resolves a path relative to this node. An empty path returns `this`.
+	 * @param {NodePath|string} path
+	 * @return {?Object3D}
+	 */
+	resolvePath( path ) {
+
+		const nodePath = NodePath.coerce( path );
+		if ( nodePath.isEmpty ) {
+
+			return this;
+
+		}
+
+		let current = this;
+		for ( let i = 0; i < nodePath.ids.length; i ++ ) {
+
+			const next = current.findChildByNodeId( nodePath.ids[ i ] );
+			if ( ! next ) {
+
+				return null;
+
+			}
+
+			current = next;
+
+		}
+
+		return current;
+
+	}
+
+	/**
+	 * Builds a {@link NodePath} for this node.
+	 * - Without `root`: absolute path from the topmost non-Scene ancestor down to this node.
+	 * - With `root`: path relative to `root` (empty when `this === root`); `null` when not under `root`.
+	 * @param {Object3D} [root]
+	 * @return {?NodePath}
+	 */
+	getNodePath( root ) {
+
+		if ( root !== undefined ) {
+
+			if ( this === root ) {
+
+				return NodePath.empty;
+
+			}
+
+			const absolute = this.getNodePath();
+			const rootAbsolute = root.getNodePath();
+			if ( ! absolute || ! rootAbsolute ) {
+
+				return null;
+
+			}
+
+			return absolute.relativeFrom( rootAbsolute );
+
+		}
+
+		const ids = [];
+		let current = this;
+		while ( current ) {
+
+			ids.push( current.ensureNodeId() );
+			const parent = current.parent;
+			// Scene / World containers are not part of authored NodePaths.
+			if ( parent === null || parent.isScene === true ) {
+
+				break;
+
+			}
+
+			current = parent;
+
+		}
+
+		ids.reverse();
+		return new NodePath( ids );
+
+	}
+
+	/**
+	 * Ensures every Object3D in this subtree has a valid {@link nodeId}, unique among its siblings.
+	 */
+	ensureNodeIdsInSubtree() {
+
+		this.ensureNodeId();
+		const taken = new Set();
+		for ( let i = 0; i < this.children.length; i ++ ) {
+
+			const child = this.children[ i ];
+			if ( ! isValidNodeId( child.nodeId ) || taken.has( child.nodeId ) ) {
+
+				child.nodeId = allocateNodeId( taken );
+
+			}
+
+			taken.add( child.nodeId );
+			child.ensureNodeIdsInSubtree();
+
+		}
+
+	}
+	// !WITH_GENESYS
 
 	/**
 	 * Searches through the 3D object and its children, starting with the 3D object
@@ -1320,6 +1505,10 @@ class Object3D extends EventDispatcher {
 		object.uuid = this.uuid;
 		object.type = this.type;
 
+		// WITH_GENESYS
+		object.nodeId = this.nodeId;
+		// !WITH_GENESYS
+
 		if ( this.name !== '' ) object.name = this.name;
 		if ( this.castShadow === true ) object.castShadow = true;
 		if ( this.receiveShadow === true ) object.receiveShadow = true;
@@ -1630,6 +1819,8 @@ class Object3D extends EventDispatcher {
 		this.visible = source.visible;
 		// WITH_GENESYS
 		this.selfHidden = source.selfHidden;
+		// Keep nodeId; reminted on attach if it collides with a sibling.
+		this.nodeId = source.nodeId;
 		// !WITH_GENESYS
 
 		this.castShadow = source.castShadow;

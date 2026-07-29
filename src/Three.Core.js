@@ -102,6 +102,20 @@ export { InstancedBufferAttribute } from './core/InstancedBufferAttribute.js';
 export { GLBufferAttribute } from './core/GLBufferAttribute.js';
 export * from './core/BufferAttribute.js';
 export { Object3D } from './core/Object3D.js';
+// WITH_GENESYS
+export { NodePath } from './core/NodePath.js';
+export {
+	isValidNodeId,
+	nodeIdToString,
+	nodeIdFromString,
+	configureNodeIdSeed,
+	generateNodeId,
+	allocateNodeId,
+	nodeIdFromKey,
+	collectSiblingNodeIds,
+	ensureUniqueNodeIdAmongParentChildren
+} from './core/nodeId.js';
+// !WITH_GENESYS
 export { Raycaster } from './core/Raycaster.js';
 export { Layers } from './core/Layers.js';
 export { EventDispatcher } from './core/EventDispatcher.js';
@@ -115,6 +129,9 @@ export { BezierInterpolant } from './math/interpolants/BezierInterpolant.js';
 export { Interpolant } from './math/Interpolant.js';
 export { Triangle } from './math/Triangle.js';
 export { MathUtils } from './math/MathUtils.js';
+// WITH_GENESYS
+export { hashStringToUint32, xorshift32, randomSeedUint32, XorShift32 } from './math/XorShift32.js';
+// !WITH_GENESYS
 export { Spherical } from './math/Spherical.js';
 export { Cylindrical } from './math/Cylindrical.js';
 export { Plane } from './math/Plane.js';

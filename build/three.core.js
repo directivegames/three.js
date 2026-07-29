@@ -11743,6 +11743,488 @@ class Layers {
 
 }
 
+// WITH_GENESYS
+/**
+ * Shared deterministic PRNG helpers (FNV-1a seed hash + xorshift32).
+ * Used by sibling-local nodeId allocation and other deterministic streams.
+ */
+
+/**
+ * Lightweight FNV-1a hash for converting strings into a deterministic 32-bit seed.
+ * @param {string} input
+ * @return {number}
+ */
+function hashStringToUint32( input ) {
+
+	let hash = 0x811c9dc5;
+
+	for ( let i = 0; i < input.length; i ++ ) {
+
+		hash ^= input.charCodeAt( i );
+		hash = Math.imul( hash, 0x01000193 );
+
+	}
+
+	return ( hash >>> 0 ) || 0x9e3779b9;
+
+}
+
+/**
+ * Xorshift32 step; deterministic and fast for ID generation. Never returns 0.
+ * @param {number} state
+ * @return {number}
+ */
+function xorshift32( state ) {
+
+	let next = state | 0;
+	next ^= next << 13;
+	next ^= next >>> 17;
+	next ^= next << 5;
+	return ( next >>> 0 ) || 0x9e3779b9;
+
+}
+
+/**
+ * Random non-zero uint32 seed for non-deterministic streams.
+ * @return {number}
+ */
+function randomSeedUint32() {
+
+	return ( ( Math.random() * 0x100000000 ) >>> 0 ) || 0x9e3779b9;
+
+}
+
+/**
+ * Deterministic xorshift32 stream. Internal state is never 0.
+ */
+class XorShift32 {
+
+	/**
+	 * @param {number|string} [seed]
+	 */
+	constructor( seed = randomSeedUint32() ) {
+
+		this._state = typeof seed === 'string'
+			? hashStringToUint32( seed )
+			: ( ( seed >>> 0 ) || 0x9e3779b9 );
+
+	}
+
+	/**
+	 * Advance and return the next non-zero uint32.
+	 * @return {number}
+	 */
+	nextUint32() {
+
+		this._state = xorshift32( this._state );
+		return this._state;
+
+	}
+
+	/**
+	 * Advance and return the low 16 bits (0 is allowed).
+	 * @return {number}
+	 */
+	nextUint16() {
+
+		return this.nextUint32() & 0xffff;
+
+	}
+
+	/**
+	 * @return {number}
+	 */
+	getState() {
+
+		return this._state >>> 0;
+
+	}
+
+	/**
+	 * @param {number} state
+	 */
+	setState( state ) {
+
+		this._state = ( state >>> 0 ) || 0x9e3779b9;
+
+	}
+
+	/**
+	 * @return {XorShift32}
+	 */
+	clone() {
+
+		return new XorShift32( this._state );
+
+	}
+
+}
+// !WITH_GENESYS
+
+// WITH_GENESYS
+/**
+ * Sibling-local 16-bit node identities.
+ *
+ * `null` / `undefined` mean unset. `0` is a valid NodeId.
+ */
+
+
+/**
+ * True when `id` is a finite integer in the uint16 range (including 0).
+ * @param {unknown} id
+ * @return {boolean}
+ */
+function isValidNodeId( id ) {
+
+	return typeof id === 'number' && Number.isInteger( id ) && id >= 0 && id <= 0xffff;
+
+}
+
+/**
+ * Canonical display form: 4 lowercase hex characters.
+ * @param {number} id
+ * @return {string}
+ */
+function nodeIdToString( id ) {
+
+	return ( id & 0xffff ).toString( 16 ).padStart( 4, '0' );
+
+}
+
+/**
+ * Parses a hex node-id segment (1–4 hex digits).
+ * @param {string} value
+ * @return {?number}
+ */
+function nodeIdFromString( value ) {
+
+	const trimmed = value.trim();
+	if ( ! /^[0-9a-fA-F]{1,4}$/.test( trimmed ) ) {
+
+		return null;
+
+	}
+
+	return Number.parseInt( trimmed, 16 ) & 0xffff;
+
+}
+
+const defaultNodeIdRng = new XorShift32();
+
+/**
+ * Seeds the process-wide NodeId RNG for deterministic construction.
+ * Pass `undefined` / omit to restore a non-deterministic stream.
+ * @param {string} [seed]
+ */
+function configureNodeIdSeed( seed ) {
+
+	if ( seed == null ) {
+
+		defaultNodeIdRng.setState( randomSeedUint32() );
+		return;
+
+	}
+
+	defaultNodeIdRng.setState( hashStringToUint32( seed ) );
+
+}
+
+/**
+ * Generates a random NodeId from the process-wide default RNG.
+ * @param {XorShift32} [rng]
+ * @return {number}
+ */
+function generateNodeId( rng = defaultNodeIdRng ) {
+
+	return rng.nextUint16();
+
+}
+
+/**
+ * Allocates a NodeId not present in `existing`.
+ * @param {Iterable<number>|ReadonlySet<number>} existing
+ * @param {XorShift32} [rng]
+ * @return {number}
+ */
+function allocateNodeId( existing, rng = defaultNodeIdRng ) {
+
+	const taken = existing instanceof Set ? existing : new Set( existing );
+	if ( taken.size >= 0x10000 ) {
+
+		throw new Error( '[nodeId] Cannot allocate NodeId: all 65536 sibling ids are in use' );
+
+	}
+
+	let id = rng.nextUint16();
+	while ( taken.has( id ) ) {
+
+		id = rng.nextUint16();
+
+	}
+
+	return id;
+
+}
+
+/**
+ * Deterministic NodeId from a stable key (first-try candidate for remints).
+ * @param {string} key
+ * @return {number}
+ */
+function nodeIdFromKey( key ) {
+
+	return new XorShift32( key ).nextUint16();
+
+}
+
+/**
+ * Collects nodeId values from a sibling set.
+ * @param {Iterable<{nodeId?: ?number}>} nodes
+ * @param {object} [except]
+ * @return {Set<number>}
+ */
+function collectSiblingNodeIds( nodes, except ) {
+
+	const taken = new Set();
+	for ( const node of nodes ) {
+
+		if ( node !== except && isValidNodeId( node.nodeId ) ) {
+
+			taken.add( node.nodeId );
+
+		}
+
+	}
+
+	return taken;
+
+}
+
+/**
+ * Ensures `object.nodeId` is unique among `parent.children`.
+ * @param {import('./Object3D.js').Object3D} object
+ * @param {import('./Object3D.js').Object3D} parent
+ */
+function ensureUniqueNodeIdAmongParentChildren( object, parent ) {
+
+	const taken = collectSiblingNodeIds( parent.children, object );
+	if ( ! isValidNodeId( object.nodeId ) || taken.has( object.nodeId ) ) {
+
+		object.nodeId = allocateNodeId( taken );
+
+	}
+
+}
+// !WITH_GENESYS
+
+// WITH_GENESYS
+/**
+ * Path of sibling-local nodeIds identifying a node in the scene tree.
+ * String form: `"a1b2/c3d4"` (4-hex segments separated by `/`).
+ */
+
+
+class NodePath {
+
+	/**
+	 * @param {readonly number[]} [ids]
+	 */
+	constructor( ids = [] ) {
+
+		const normalized = [];
+		for ( const id of ids ) {
+
+			if ( ! isValidNodeId( id ) ) {
+
+				throw new Error( `[NodePath] Invalid NodeId segment: ${ String( id ) }` );
+
+			}
+
+			normalized.push( id & 0xffff );
+
+		}
+
+		this.ids = normalized;
+
+	}
+
+	/**
+	 * @param {...number} ids
+	 * @return {NodePath}
+	 */
+	static fromIds( ...ids ) {
+
+		return new NodePath( ids );
+
+	}
+
+	/**
+	 * Parses `"a1b2/c3d4"`. Empty / whitespace-only string yields {@link NodePath.empty}.
+	 * @param {string} path
+	 * @return {NodePath}
+	 */
+	static fromString( path ) {
+
+		const trimmed = path.trim();
+		if ( trimmed.length === 0 ) {
+
+			return NodePath.empty;
+
+		}
+
+		const parts = trimmed.split( '/' );
+		const ids = [];
+		for ( const part of parts ) {
+
+			if ( part.length === 0 ) {
+
+				throw new Error( `[NodePath] Empty segment in path "${ path }"` );
+
+			}
+
+			const id = nodeIdFromString( part );
+			if ( id === null ) {
+
+				throw new Error( `[NodePath] Invalid segment "${ part }" in path "${ path }"` );
+
+			}
+
+			ids.push( id );
+
+		}
+
+		return new NodePath( ids );
+
+	}
+
+	/**
+	 * @param {NodePath|string} path
+	 * @return {NodePath}
+	 */
+	static coerce( path ) {
+
+		return typeof path === 'string' ? NodePath.fromString( path ) : path;
+
+	}
+
+	/** @return {number} */
+	get length() {
+
+		return this.ids.length;
+
+	}
+
+	/** @return {boolean} */
+	get isEmpty() {
+
+		return this.ids.length === 0;
+
+	}
+
+	/** @return {string} */
+	toString() {
+
+		return this.ids.map( nodeIdToString ).join( '/' );
+
+	}
+
+	/**
+	 * @param {NodePath} other
+	 * @return {boolean}
+	 */
+	equals( other ) {
+
+		if ( this.ids.length !== other.ids.length ) {
+
+			return false;
+
+		}
+
+		for ( let i = 0; i < this.ids.length; i ++ ) {
+
+			if ( this.ids[ i ] !== other.ids[ i ] ) {
+
+				return false;
+
+			}
+
+		}
+
+		return true;
+
+	}
+
+	/**
+	 * @param {NodePath} prefix
+	 * @return {boolean}
+	 */
+	startsWith( prefix ) {
+
+		if ( prefix.ids.length > this.ids.length ) {
+
+			return false;
+
+		}
+
+		for ( let i = 0; i < prefix.ids.length; i ++ ) {
+
+			if ( this.ids[ i ] !== prefix.ids[ i ] ) {
+
+				return false;
+
+			}
+
+		}
+
+		return true;
+
+	}
+
+	/**
+	 * @param {number} start
+	 * @param {number} [end]
+	 * @return {NodePath}
+	 */
+	slice( start, end ) {
+
+		return new NodePath( this.ids.slice( start, end ) );
+
+	}
+
+	/**
+	 * @param {NodePath} relative
+	 * @return {NodePath}
+	 */
+	concat( relative ) {
+
+		return new NodePath( [ ...this.ids, ...relative.ids ] );
+
+	}
+
+	/**
+	 * If this path starts with `ancestor`, returns the remainder; otherwise `null`.
+	 * @param {NodePath} ancestor
+	 * @return {?NodePath}
+	 */
+	relativeFrom( ancestor ) {
+
+		if ( ! this.startsWith( ancestor ) ) {
+
+			return null;
+
+		}
+
+		return this.slice( ancestor.length );
+
+	}
+
+}
+
+NodePath.empty = new NodePath( [] );
+// !WITH_GENESYS
+
+// !WITH_GENESYS
+
 let _object3DId = 0;
 
 const _v1$6 = /*@__PURE__*/ new Vector3();
@@ -11830,6 +12312,16 @@ class Object3D extends EventDispatcher {
 		 * @readonly
 		 */
 		this.uuid = generateUUID();
+
+		// WITH_GENESYS
+		/**
+		 * Sibling-local 16-bit identity for scene-graph addressing ({@link NodePath}).
+		 * `0` is valid. Reminted on parent attach when colliding with a sibling.
+		 *
+		 * @type {number}
+		 */
+		this.nodeId = generateNodeId();
+		// !WITH_GENESYS
 
 		/**
 		 * The name of the 3D object.
@@ -12513,6 +13005,9 @@ class Object3D extends EventDispatcher {
 		if ( object && object.isObject3D ) {
 
 			object.removeFromParent();
+			// WITH_GENESYS
+			ensureUniqueNodeIdAmongParentChildren( object, this );
+			// !WITH_GENESYS
 			object.parent = this;
 			this.children.push( object );
 
@@ -12638,6 +13133,9 @@ class Object3D extends EventDispatcher {
 		object.applyMatrix4( _m1$1 );
 
 		object.removeFromParent();
+		// WITH_GENESYS
+		ensureUniqueNodeIdAmongParentChildren( object, this );
+		// !WITH_GENESYS
 		object.parent = this;
 		this.children.push( object );
 
@@ -12652,6 +13150,166 @@ class Object3D extends EventDispatcher {
 		return this;
 
 	}
+
+	// WITH_GENESYS
+	/**
+	 * Assigns a {@link nodeId} when unset or outside the uint16 range.
+	 * @return {number}
+	 */
+	ensureNodeId() {
+
+		if ( ! isValidNodeId( this.nodeId ) ) {
+
+			this.nodeId = generateNodeId();
+
+		}
+
+		return this.nodeId;
+
+	}
+
+	/**
+	 * Replaces {@link nodeId} with a newly generated value (e.g. prefab instance roots).
+	 * @param {Iterable<number>} [existingSiblingIds]
+	 * @return {number}
+	 */
+	remintNodeId( existingSiblingIds ) {
+
+		this.nodeId = existingSiblingIds !== undefined
+			? allocateNodeId( existingSiblingIds )
+			: generateNodeId();
+		return this.nodeId;
+
+	}
+
+	/**
+	 * Direct child with the given {@link nodeId}, or `null`.
+	 * @param {number} id
+	 * @return {?Object3D}
+	 */
+	findChildByNodeId( id ) {
+
+		for ( let i = 0; i < this.children.length; i ++ ) {
+
+			const child = this.children[ i ];
+			if ( child.nodeId === id ) {
+
+				return child;
+
+			}
+
+		}
+
+		return null;
+
+	}
+
+	/**
+	 * Resolves a path relative to this node. An empty path returns `this`.
+	 * @param {NodePath|string} path
+	 * @return {?Object3D}
+	 */
+	resolvePath( path ) {
+
+		const nodePath = NodePath.coerce( path );
+		if ( nodePath.isEmpty ) {
+
+			return this;
+
+		}
+
+		let current = this;
+		for ( let i = 0; i < nodePath.ids.length; i ++ ) {
+
+			const next = current.findChildByNodeId( nodePath.ids[ i ] );
+			if ( ! next ) {
+
+				return null;
+
+			}
+
+			current = next;
+
+		}
+
+		return current;
+
+	}
+
+	/**
+	 * Builds a {@link NodePath} for this node.
+	 * - Without `root`: absolute path from the topmost non-Scene ancestor down to this node.
+	 * - With `root`: path relative to `root` (empty when `this === root`); `null` when not under `root`.
+	 * @param {Object3D} [root]
+	 * @return {?NodePath}
+	 */
+	getNodePath( root ) {
+
+		if ( root !== undefined ) {
+
+			if ( this === root ) {
+
+				return NodePath.empty;
+
+			}
+
+			const absolute = this.getNodePath();
+			const rootAbsolute = root.getNodePath();
+			if ( ! absolute || ! rootAbsolute ) {
+
+				return null;
+
+			}
+
+			return absolute.relativeFrom( rootAbsolute );
+
+		}
+
+		const ids = [];
+		let current = this;
+		while ( current ) {
+
+			ids.push( current.ensureNodeId() );
+			const parent = current.parent;
+			// Scene / World containers are not part of authored NodePaths.
+			if ( parent === null || parent.isScene === true ) {
+
+				break;
+
+			}
+
+			current = parent;
+
+		}
+
+		ids.reverse();
+		return new NodePath( ids );
+
+	}
+
+	/**
+	 * Ensures every Object3D in this subtree has a valid {@link nodeId}, unique among its siblings.
+	 */
+	ensureNodeIdsInSubtree() {
+
+		this.ensureNodeId();
+		const taken = new Set();
+		for ( let i = 0; i < this.children.length; i ++ ) {
+
+			const child = this.children[ i ];
+			if ( ! isValidNodeId( child.nodeId ) || taken.has( child.nodeId ) ) {
+
+				child.nodeId = allocateNodeId( taken );
+
+			}
+
+			taken.add( child.nodeId );
+			child.ensureNodeIdsInSubtree();
+
+		}
+
+	}
+	// !WITH_GENESYS
 
 	/**
 	 * Searches through the 3D object and its children, starting with the 3D object
@@ -13055,6 +13713,10 @@ class Object3D extends EventDispatcher {
 		object.uuid = this.uuid;
 		object.type = this.type;
 
+		// WITH_GENESYS
+		object.nodeId = this.nodeId;
+		// !WITH_GENESYS
+
 		if ( this.name !== '' ) object.name = this.name;
 		if ( this.castShadow === true ) object.castShadow = true;
 		if ( this.receiveShadow === true ) object.receiveShadow = true;
@@ -13365,6 +14027,8 @@ class Object3D extends EventDispatcher {
 		this.visible = source.visible;
 		// WITH_GENESYS
 		this.selfHidden = source.selfHidden;
+		// Keep nodeId; reminted on attach if it collides with a sibling.
+		this.nodeId = source.nodeId;
 		// !WITH_GENESYS
 
 		this.castShadow = source.castShadow;
@@ -49601,6 +50265,10 @@ class ObjectLoader extends Loader {
 
 		object.uuid = data.uuid;
 
+		// WITH_GENESYS
+		if ( data.nodeId !== undefined ) object.nodeId = data.nodeId;
+		// !WITH_GENESYS
+
 		if ( data.name !== undefined ) object.name = data.name;
 
 		if ( data.matrix !== undefined ) {
@@ -61731,4 +62399,4 @@ if ( typeof window !== 'undefined' ) {
 
 }
 
-export { ACESFilmicToneMapping, AddEquation, AddOperation, AdditiveAnimationBlendMode, AdditiveBlending, AgXToneMapping, AlphaFormat, AlwaysCompare, AlwaysDepth, AlwaysStencilFunc, AmbientLight, AnimationAction, AnimationClip, AnimationLoader, AnimationMixer, AnimationObjectGroup, AnimationUtils, ArcCurve, ArrayCamera, ArrowHelper, AttachedBindMode, Audio, AudioAnalyser, AudioContext, AudioListener, AudioLoader, AxesHelper, BackSide, BasicDepthPacking, BasicShadowMap, BatchedMesh, BezierInterpolant, Bone, BooleanKeyframeTrack, Box2, Box3, Box3Helper, BoxGeometry, BoxHelper, BufferAttribute, BufferGeometry, BufferGeometryLoader, ByteType, Cache, Camera, CameraHelper, CanvasTexture, CapsuleGeometry, CatmullRomCurve3, CineonToneMapping, CircleGeometry, ClampToEdgeWrapping, Clock, Color, ColorKeyframeTrack, ColorManagement, Compatibility, CompressedArrayTexture, CompressedCubeTexture, CompressedTexture, CompressedTextureLoader, ConeGeometry, ConstantAlphaFactor, ConstantColorFactor, Controls, CubeCamera, CubeDepthTexture, CubeReflectionMapping, CubeRefractionMapping, CubeTexture, CubeTextureLoader, CubeUVReflectionMapping, CubicBezierCurve, CubicBezierCurve3, CubicInterpolant, CullFaceBack, CullFaceFront, CullFaceFrontBack, CullFaceNone, Curve, CurvePath, CustomBlending, CustomToneMapping, CylinderGeometry, Cylindrical, Data3DTexture, DataArrayTexture, DataTexture, DataTextureLoader, DataUtils, DecrementStencilOp, DecrementWrapStencilOp, DefaultLoadingManager, DepthFormat, DepthStencilFormat, DepthTexture, DetachedBindMode, DirectionalLight, DirectionalLightHelper, DiscreteInterpolant, DodecahedronGeometry, DoubleSide, DstAlphaFactor, DstColorFactor, DynamicCopyUsage, DynamicDrawUsage, DynamicReadUsage, EdgesGeometry, EllipseCurve, EqualCompare, EqualDepth, EqualStencilFunc, EquirectangularReflectionMapping, EquirectangularRefractionMapping, Euler, EventDispatcher, ExternalTexture, ExtrudeGeometry, FileLoader, Float16BufferAttribute, Float32BufferAttribute, FloatType, Fog, FogExp2, FramebufferTexture, FrontSide, Frustum, FrustumArray, GLBufferAttribute, GLSL1, GLSL3, GreaterCompare, GreaterDepth, GreaterEqualCompare, GreaterEqualDepth, GreaterEqualStencilFunc, GreaterStencilFunc, GridHelper, Group, HTMLTexture, HalfFloatType, HemisphereLight, HemisphereLightHelper, IcosahedronGeometry, ImageBitmapLoader, ImageLoader, ImageUtils, IncrementStencilOp, IncrementWrapStencilOp, InstancedBufferAttribute, InstancedBufferGeometry, InstancedInterleavedBuffer, InstancedMesh, Int16BufferAttribute, Int32BufferAttribute, Int8BufferAttribute, IntType, InterleavedBuffer, InterleavedBufferAttribute, Interpolant, InterpolateBezier, InterpolateDiscrete, InterpolateLinear, InterpolateSmooth, InterpolationSamplingMode, InterpolationSamplingType, InvertStencilOp, KeepStencilOp, KeyframeTrack, LOD, LatheGeometry, Layers, LessCompare, LessDepth, LessEqualCompare, LessEqualDepth, LessEqualStencilFunc, LessStencilFunc, Light, LightProbe, Line, Line3, LineBasicMaterial, LineCurve, LineCurve3, LineDashedMaterial, LineLoop, LineSegments, LinearFilter, LinearInterpolant, LinearMipMapLinearFilter, LinearMipMapNearestFilter, LinearMipmapLinearFilter, LinearMipmapNearestFilter, LinearSRGBColorSpace, LinearToneMapping, LinearTransfer, Loader, LoaderUtils, LoadingManager, LoopOnce, LoopPingPong, LoopRepeat, MOUSE, Material, MaterialBlending, MaterialLoader, MathUtils, Matrix2, Matrix3, Matrix4, MaxEquation, Mesh, MeshBasicMaterial, MeshDepthMaterial, MeshDistanceMaterial, MeshLambertMaterial, MeshMatcapMaterial, MeshNormalMaterial, MeshPhongMaterial, MeshPhysicalMaterial, MeshStandardMaterial, MeshToonMaterial, MinEquation, MirroredRepeatWrapping, MixOperation, MultiplyBlending, MultiplyOperation, NearestFilter, NearestMipMapLinearFilter, NearestMipMapNearestFilter, NearestMipmapLinearFilter, NearestMipmapNearestFilter, NeutralToneMapping, NeverCompare, NeverDepth, NeverStencilFunc, NoBlending, NoColorSpace, NoNormalPacking, NoToneMapping, NormalAnimationBlendMode, NormalBlending, NormalGAPacking, NormalRGPacking, NotEqualCompare, NotEqualDepth, NotEqualStencilFunc, NumberKeyframeTrack, Object3D, ObjectLoader, ObjectSpaceNormalMap, OctahedronGeometry, OneFactor, OneMinusConstantAlphaFactor, OneMinusConstantColorFactor, OneMinusDstAlphaFactor, OneMinusDstColorFactor, OneMinusSrcAlphaFactor, OneMinusSrcColorFactor, OrthographicCamera, PCFShadowMap, PCFSoftShadowMap, Path, PerspectiveCamera, Plane, PlaneGeometry, PlaneHelper, PointLight, PointLightHelper, Points, PointsMaterial, PolarGridHelper, PolyhedronGeometry, PositionalAudio, ProfilerService, PropertyBinding, PropertyMixer, QuadraticBezierCurve, QuadraticBezierCurve3, Quaternion, QuaternionKeyframeTrack, QuaternionLinearInterpolant, R11_EAC_Format, RAD2DEG, RED_GREEN_RGTC2_Format, RED_RGTC1_Format, REVISION, RG11_EAC_Format, RGBADepthPacking, RGBAFormat, RGBAIntegerFormat, RGBA_ASTC_10x10_Format, RGBA_ASTC_10x5_Format, RGBA_ASTC_10x6_Format, RGBA_ASTC_10x8_Format, RGBA_ASTC_12x10_Format, RGBA_ASTC_12x12_Format, RGBA_ASTC_4x4_Format, RGBA_ASTC_5x4_Format, RGBA_ASTC_5x5_Format, RGBA_ASTC_6x5_Format, RGBA_ASTC_6x6_Format, RGBA_ASTC_8x5_Format, RGBA_ASTC_8x6_Format, RGBA_ASTC_8x8_Format, RGBA_BPTC_Format, RGBA_ETC2_EAC_Format, RGBA_PVRTC_2BPPV1_Format, RGBA_PVRTC_4BPPV1_Format, RGBA_S3TC_DXT1_Format, RGBA_S3TC_DXT3_Format, RGBA_S3TC_DXT5_Format, RGBDepthPacking, RGBFormat, RGBIntegerFormat, RGB_BPTC_SIGNED_Format, RGB_BPTC_UNSIGNED_Format, RGB_ETC1_Format, RGB_ETC2_Format, RGB_PVRTC_2BPPV1_Format, RGB_PVRTC_4BPPV1_Format, RGB_S3TC_DXT1_Format, RGDepthPacking, RGFormat, RGIntegerFormat, RawShaderMaterial, Ray, Raycaster, RectAreaLight, RedFormat, RedIntegerFormat, ReinhardToneMapping, RenderTarget, RenderTarget3D, RepeatWrapping, ReplaceStencilOp, ReverseSubtractEquation, ReversedDepthFuncs, RingGeometry, SIGNED_R11_EAC_Format, SIGNED_RED_GREEN_RGTC2_Format, SIGNED_RED_RGTC1_Format, SIGNED_RG11_EAC_Format, SRGBColorSpace, SRGBTransfer, Scene, ShaderMaterial, ShadowMaterial, Shape, ShapeGeometry, ShapePath, ShapeUtils, ShortType, Skeleton, SkeletonHelper, SkinnedMesh, Source, Sphere, SphereGeometry, Spherical, SphericalHarmonics3, SplineCurve, SpotLight, SpotLightHelper, Sprite, SpriteMaterial, SrcAlphaFactor, SrcAlphaSaturateFactor, SrcColorFactor, StaticCopyUsage, StaticDrawUsage, StaticReadUsage, StereoCamera, StreamCopyUsage, StreamDrawUsage, StreamReadUsage, StringKeyframeTrack, SubtractEquation, SubtractiveBlending, TOUCH, TangentSpaceNormalMap, TetrahedronGeometry, Texture, TextureLoader, TextureUtils, Timer, TimestampQuery, TorusGeometry, TorusKnotGeometry, Triangle, TriangleFanDrawMode, TriangleStripDrawMode, TrianglesDrawMode, TubeGeometry, UVMapping, Uint16BufferAttribute, Uint32BufferAttribute, Uint8BufferAttribute, Uint8ClampedBufferAttribute, Uniform, UniformsGroup, UniformsUtils, UnsignedByteType, UnsignedInt101111Type, UnsignedInt248Type, UnsignedInt5999Type, UnsignedIntType, UnsignedShort4444Type, UnsignedShort5551Type, UnsignedShortType, VSMShadowMap, Vector2, Vector3, Vector4, VectorKeyframeTrack, VideoFrameTexture, VideoTexture, WebGL3DRenderTarget, WebGLArrayRenderTarget, WebGLCoordinateSystem, WebGLRenderTarget, WebGPUCoordinateSystem, WebXRController, WireframeGeometry, WrapAroundEnding, ZeroCurvatureEnding, ZeroFactor, ZeroSlopeEnding, ZeroStencilOp, cloneUniforms, createCanvasElement, createElementNS, error, getByteLength, getConsoleFunction, getUnlitUniformColorSpace, isTypedArray, log, mergeUniforms, probeAsync, profile, profileClass, setConsoleFunction, warn, warnOnce, yieldToMain };
+export { ACESFilmicToneMapping, AddEquation, AddOperation, AdditiveAnimationBlendMode, AdditiveBlending, AgXToneMapping, AlphaFormat, AlwaysCompare, AlwaysDepth, AlwaysStencilFunc, AmbientLight, AnimationAction, AnimationClip, AnimationLoader, AnimationMixer, AnimationObjectGroup, AnimationUtils, ArcCurve, ArrayCamera, ArrowHelper, AttachedBindMode, Audio, AudioAnalyser, AudioContext, AudioListener, AudioLoader, AxesHelper, BackSide, BasicDepthPacking, BasicShadowMap, BatchedMesh, BezierInterpolant, Bone, BooleanKeyframeTrack, Box2, Box3, Box3Helper, BoxGeometry, BoxHelper, BufferAttribute, BufferGeometry, BufferGeometryLoader, ByteType, Cache, Camera, CameraHelper, CanvasTexture, CapsuleGeometry, CatmullRomCurve3, CineonToneMapping, CircleGeometry, ClampToEdgeWrapping, Clock, Color, ColorKeyframeTrack, ColorManagement, Compatibility, CompressedArrayTexture, CompressedCubeTexture, CompressedTexture, CompressedTextureLoader, ConeGeometry, ConstantAlphaFactor, ConstantColorFactor, Controls, CubeCamera, CubeDepthTexture, CubeReflectionMapping, CubeRefractionMapping, CubeTexture, CubeTextureLoader, CubeUVReflectionMapping, CubicBezierCurve, CubicBezierCurve3, CubicInterpolant, CullFaceBack, CullFaceFront, CullFaceFrontBack, CullFaceNone, Curve, CurvePath, CustomBlending, CustomToneMapping, CylinderGeometry, Cylindrical, Data3DTexture, DataArrayTexture, DataTexture, DataTextureLoader, DataUtils, DecrementStencilOp, DecrementWrapStencilOp, DefaultLoadingManager, DepthFormat, DepthStencilFormat, DepthTexture, DetachedBindMode, DirectionalLight, DirectionalLightHelper, DiscreteInterpolant, DodecahedronGeometry, DoubleSide, DstAlphaFactor, DstColorFactor, DynamicCopyUsage, DynamicDrawUsage, DynamicReadUsage, EdgesGeometry, EllipseCurve, EqualCompare, EqualDepth, EqualStencilFunc, EquirectangularReflectionMapping, EquirectangularRefractionMapping, Euler, EventDispatcher, ExternalTexture, ExtrudeGeometry, FileLoader, Float16BufferAttribute, Float32BufferAttribute, FloatType, Fog, FogExp2, FramebufferTexture, FrontSide, Frustum, FrustumArray, GLBufferAttribute, GLSL1, GLSL3, GreaterCompare, GreaterDepth, GreaterEqualCompare, GreaterEqualDepth, GreaterEqualStencilFunc, GreaterStencilFunc, GridHelper, Group, HTMLTexture, HalfFloatType, HemisphereLight, HemisphereLightHelper, IcosahedronGeometry, ImageBitmapLoader, ImageLoader, ImageUtils, IncrementStencilOp, IncrementWrapStencilOp, InstancedBufferAttribute, InstancedBufferGeometry, InstancedInterleavedBuffer, InstancedMesh, Int16BufferAttribute, Int32BufferAttribute, Int8BufferAttribute, IntType, InterleavedBuffer, InterleavedBufferAttribute, Interpolant, InterpolateBezier, InterpolateDiscrete, InterpolateLinear, InterpolateSmooth, InterpolationSamplingMode, InterpolationSamplingType, InvertStencilOp, KeepStencilOp, KeyframeTrack, LOD, LatheGeometry, Layers, LessCompare, LessDepth, LessEqualCompare, LessEqualDepth, LessEqualStencilFunc, LessStencilFunc, Light, LightProbe, Line, Line3, LineBasicMaterial, LineCurve, LineCurve3, LineDashedMaterial, LineLoop, LineSegments, LinearFilter, LinearInterpolant, LinearMipMapLinearFilter, LinearMipMapNearestFilter, LinearMipmapLinearFilter, LinearMipmapNearestFilter, LinearSRGBColorSpace, LinearToneMapping, LinearTransfer, Loader, LoaderUtils, LoadingManager, LoopOnce, LoopPingPong, LoopRepeat, MOUSE, Material, MaterialBlending, MaterialLoader, MathUtils, Matrix2, Matrix3, Matrix4, MaxEquation, Mesh, MeshBasicMaterial, MeshDepthMaterial, MeshDistanceMaterial, MeshLambertMaterial, MeshMatcapMaterial, MeshNormalMaterial, MeshPhongMaterial, MeshPhysicalMaterial, MeshStandardMaterial, MeshToonMaterial, MinEquation, MirroredRepeatWrapping, MixOperation, MultiplyBlending, MultiplyOperation, NearestFilter, NearestMipMapLinearFilter, NearestMipMapNearestFilter, NearestMipmapLinearFilter, NearestMipmapNearestFilter, NeutralToneMapping, NeverCompare, NeverDepth, NeverStencilFunc, NoBlending, NoColorSpace, NoNormalPacking, NoToneMapping, NodePath, NormalAnimationBlendMode, NormalBlending, NormalGAPacking, NormalRGPacking, NotEqualCompare, NotEqualDepth, NotEqualStencilFunc, NumberKeyframeTrack, Object3D, ObjectLoader, ObjectSpaceNormalMap, OctahedronGeometry, OneFactor, OneMinusConstantAlphaFactor, OneMinusConstantColorFactor, OneMinusDstAlphaFactor, OneMinusDstColorFactor, OneMinusSrcAlphaFactor, OneMinusSrcColorFactor, OrthographicCamera, PCFShadowMap, PCFSoftShadowMap, Path, PerspectiveCamera, Plane, PlaneGeometry, PlaneHelper, PointLight, PointLightHelper, Points, PointsMaterial, PolarGridHelper, PolyhedronGeometry, PositionalAudio, ProfilerService, PropertyBinding, PropertyMixer, QuadraticBezierCurve, QuadraticBezierCurve3, Quaternion, QuaternionKeyframeTrack, QuaternionLinearInterpolant, R11_EAC_Format, RAD2DEG, RED_GREEN_RGTC2_Format, RED_RGTC1_Format, REVISION, RG11_EAC_Format, RGBADepthPacking, RGBAFormat, RGBAIntegerFormat, RGBA_ASTC_10x10_Format, RGBA_ASTC_10x5_Format, RGBA_ASTC_10x6_Format, RGBA_ASTC_10x8_Format, RGBA_ASTC_12x10_Format, RGBA_ASTC_12x12_Format, RGBA_ASTC_4x4_Format, RGBA_ASTC_5x4_Format, RGBA_ASTC_5x5_Format, RGBA_ASTC_6x5_Format, RGBA_ASTC_6x6_Format, RGBA_ASTC_8x5_Format, RGBA_ASTC_8x6_Format, RGBA_ASTC_8x8_Format, RGBA_BPTC_Format, RGBA_ETC2_EAC_Format, RGBA_PVRTC_2BPPV1_Format, RGBA_PVRTC_4BPPV1_Format, RGBA_S3TC_DXT1_Format, RGBA_S3TC_DXT3_Format, RGBA_S3TC_DXT5_Format, RGBDepthPacking, RGBFormat, RGBIntegerFormat, RGB_BPTC_SIGNED_Format, RGB_BPTC_UNSIGNED_Format, RGB_ETC1_Format, RGB_ETC2_Format, RGB_PVRTC_2BPPV1_Format, RGB_PVRTC_4BPPV1_Format, RGB_S3TC_DXT1_Format, RGDepthPacking, RGFormat, RGIntegerFormat, RawShaderMaterial, Ray, Raycaster, RectAreaLight, RedFormat, RedIntegerFormat, ReinhardToneMapping, RenderTarget, RenderTarget3D, RepeatWrapping, ReplaceStencilOp, ReverseSubtractEquation, ReversedDepthFuncs, RingGeometry, SIGNED_R11_EAC_Format, SIGNED_RED_GREEN_RGTC2_Format, SIGNED_RED_RGTC1_Format, SIGNED_RG11_EAC_Format, SRGBColorSpace, SRGBTransfer, Scene, ShaderMaterial, ShadowMaterial, Shape, ShapeGeometry, ShapePath, ShapeUtils, ShortType, Skeleton, SkeletonHelper, SkinnedMesh, Source, Sphere, SphereGeometry, Spherical, SphericalHarmonics3, SplineCurve, SpotLight, SpotLightHelper, Sprite, SpriteMaterial, SrcAlphaFactor, SrcAlphaSaturateFactor, SrcColorFactor, StaticCopyUsage, StaticDrawUsage, StaticReadUsage, StereoCamera, StreamCopyUsage, StreamDrawUsage, StreamReadUsage, StringKeyframeTrack, SubtractEquation, SubtractiveBlending, TOUCH, TangentSpaceNormalMap, TetrahedronGeometry, Texture, TextureLoader, TextureUtils, Timer, TimestampQuery, TorusGeometry, TorusKnotGeometry, Triangle, TriangleFanDrawMode, TriangleStripDrawMode, TrianglesDrawMode, TubeGeometry, UVMapping, Uint16BufferAttribute, Uint32BufferAttribute, Uint8BufferAttribute, Uint8ClampedBufferAttribute, Uniform, UniformsGroup, UniformsUtils, UnsignedByteType, UnsignedInt101111Type, UnsignedInt248Type, UnsignedInt5999Type, UnsignedIntType, UnsignedShort4444Type, UnsignedShort5551Type, UnsignedShortType, VSMShadowMap, Vector2, Vector3, Vector4, VectorKeyframeTrack, VideoFrameTexture, VideoTexture, WebGL3DRenderTarget, WebGLArrayRenderTarget, WebGLCoordinateSystem, WebGLRenderTarget, WebGPUCoordinateSystem, WebXRController, WireframeGeometry, WrapAroundEnding, XorShift32, ZeroCurvatureEnding, ZeroFactor, ZeroSlopeEnding, ZeroStencilOp, allocateNodeId, cloneUniforms, collectSiblingNodeIds, configureNodeIdSeed, createCanvasElement, createElementNS, ensureUniqueNodeIdAmongParentChildren, error, generateNodeId, getByteLength, getConsoleFunction, getUnlitUniformColorSpace, hashStringToUint32, isTypedArray, isValidNodeId, log, mergeUniforms, nodeIdFromKey, nodeIdFromString, nodeIdToString, probeAsync, profile, profileClass, randomSeedUint32, setConsoleFunction, warn, warnOnce, xorshift32, yieldToMain };
