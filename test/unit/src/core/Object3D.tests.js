@@ -1083,6 +1083,13 @@ export default QUnit.module( 'Core', () => {
 			child.add( childChild );
 			a.add( child );
 
+			// WITH_GENESYS
+			// Stable sibling-local ids for deterministic toJSON golden comparison.
+			a.nodeId = 1;
+			child.nodeId = 2;
+			childChild.nodeId = 3;
+			// !WITH_GENESYS
+
 			const gold = {
 				'metadata': {
 					'version': 4.7,
@@ -1092,6 +1099,9 @@ export default QUnit.module( 'Core', () => {
 				'object': {
 					'uuid': '0A1E4F43-CB5B-4097-8F82-DC2969C0B8C2',
 					'type': 'Object3D',
+					// WITH_GENESYS
+					'nodeId': 1,
+					// !WITH_GENESYS
 					'name': 'a\'s name',
 					'castShadow': true,
 					'receiveShadow': true,
@@ -1103,12 +1113,18 @@ export default QUnit.module( 'Core', () => {
 						{
 							'uuid': '5D4E9AE8-DA61-4912-A575-71A5BE3D72CD',
 							'type': 'Object3D',
+							// WITH_GENESYS
+							'nodeId': 2,
+							// !WITH_GENESYS
 							'layers': 1,
 							'matrix': [ 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 ],
 							'children': [
 								{
 									'uuid': 'B43854B3-E970-4E85-BD41-AAF8D7BFA189',
 									'type': 'Object3D',
+									// WITH_GENESYS
+									'nodeId': 3,
+									// !WITH_GENESYS
 									'layers': 1,
 									'matrix': [ 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 ],
 									'up': [ 0, 1, 0 ]

@@ -162,7 +162,10 @@ function SmartComparer() {
 
 			const key = keys1[ i ];
 
-			if ( key === 'uuid' || key === 'id' ) {
+			// WITH_GENESYS
+			if ( key === 'uuid' || key === 'id' || key === 'nodeId' ) {
+			// !WITH_GENESYS
+			// if ( key === 'uuid' || key === 'id' ) {
 
 				continue;
 
