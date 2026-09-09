@@ -347,16 +347,22 @@ export function compareReleaseVersions(a: string, b: string): number {
 
 /**
  * Highest semver under `prefix` for this channel preid. Missing → `undefined`.
+ *
+ * @param belowVersion - When set, ignore tags greater than or equal to this version
  */
 export function selectHighestGitPrefixVersion(
   tagNames: string[],
   prefix: string,
   preid?: string,
+  belowVersion?: string,
 ): string | undefined {
   let highest: string | undefined;
   for (const tagName of tagNames) {
     const version = gitTagVersion(tagName, prefix);
     if (!version || !matchesChannelPreid(version, preid)) {
+      continue;
+    }
+    if (belowVersion !== undefined && compareReleaseVersions(version, belowVersion) >= 0) {
       continue;
     }
     if (!highest || compareReleaseVersions(version, highest) > 0) {
@@ -367,10 +373,36 @@ export function selectHighestGitPrefixVersion(
 }
 
 /**
- * Read matching tags from `origin` and return the highest channel version.
- * No matching tags → `undefined`. `git ls-remote` failure throws.
+ * Highest tagged version that shares major.minor with `version` on this channel.
  */
-export function fetchGitPrefixVersion(prefix: string, preid?: string): string | undefined {
+export function selectHighestGitPrefixVersionOnLine(
+  tagNames: string[],
+  prefix: string,
+  version: string,
+  preid?: string,
+): string | undefined {
+  const target = parseVersionNumbers(version);
+  let highest: string | undefined;
+  for (const tagName of tagNames) {
+    const candidate = gitTagVersion(tagName, prefix);
+    if (!candidate || !matchesChannelPreid(candidate, preid)) {
+      continue;
+    }
+    const numbers = parseVersionNumbers(candidate);
+    if (numbers.major !== target.major || numbers.minor !== target.minor) {
+      continue;
+    }
+    if (!highest || compareReleaseVersions(candidate, highest) > 0) {
+      highest = candidate;
+    }
+  }
+  return highest;
+}
+
+/**
+ * Read matching tag names from `origin`. `git ls-remote` failure throws.
+ */
+export function fetchGitPrefixTagNames(prefix: string): string[] {
   let raw: string;
   try {
     raw = execFileSync('git', ['ls-remote', '--tags', 'origin', `refs/tags/${prefix}*`], {
@@ -380,7 +412,15 @@ export function fetchGitPrefixVersion(prefix: string, preid?: string): string | 
   } catch (error) {
     throw new Error(gitLsRemoteFailureMessage(prefix, error));
   }
-  return selectHighestGitPrefixVersion(parseGitLsRemoteTagNames(raw), prefix, preid);
+  return parseGitLsRemoteTagNames(raw);
+}
+
+/**
+ * Read matching tags from `origin` and return the highest channel version.
+ * No matching tags → `undefined`. `git ls-remote` failure throws.
+ */
+export function fetchGitPrefixVersion(prefix: string, preid?: string): string | undefined {
+  return selectHighestGitPrefixVersion(fetchGitPrefixTagNames(prefix), prefix, preid);
 }
 
 /**
@@ -531,7 +571,30 @@ export function resolveGitTagBump(
 }
 
 /**
- * Resolve `--next-version` against the git-tag base for bump-type inference.
+ * Resolve `--next-version` from existing git tags without requiring a global bump.
+ *
+ * Uses the highest tag on the same major.minor line so a hotfix such as
+ * `0.185.16` can publish after `0.186.x`. When that line has no tags, bump
+ * type is inferred from the highest older tag (new minor/major).
+ */
+export function resolveNextVersionFromGitTags(
+  tagNames: string[],
+  prefix: string,
+  nextVersion: string,
+  preid?: string,
+): Pick<GitTagBumpResolution, 'baseVersion' | 'version' | 'bumpType'> {
+  const version = resolveSpecifiedNextVersion(nextVersion, preid);
+  const lineBase = selectHighestGitPrefixVersionOnLine(tagNames, prefix, version, preid);
+  if (lineBase !== undefined && compareReleaseVersions(version, lineBase) <= 0) {
+    throw new Error(`Next version ${version} is not greater than ${lineBase}`);
+  }
+  const baseVersion = lineBase ?? selectHighestGitPrefixVersion(tagNames, prefix, preid, version);
+  const bumpType = inferBumpType(baseVersion ?? '0.0.0', version);
+  return { baseVersion, version, bumpType };
+}
+
+/**
+ * Resolve `--next-version` against git tags for bump-type inference.
  */
 export function resolveGitTagNextVersion(
   packageJsonPath: string,
@@ -540,10 +603,13 @@ export function resolveGitTagNextVersion(
 ): GitTagBumpResolution {
   const prefix = resolveGitTagPrefix(packageJsonPath, options.gitTagPrefix);
   const preid = options.preid ?? '';
-  const version = resolveSpecifiedNextVersion(nextVersion, options.preid);
-  const baseVersion = fetchGitPrefixVersion(prefix, options.preid);
-  const bumpType = inferBumpType(baseVersion ?? '0.0.0', version);
-  return { prefix, baseVersion, version, bumpType, preid };
+  const resolution = resolveNextVersionFromGitTags(
+    fetchGitPrefixTagNames(prefix),
+    prefix,
+    nextVersion,
+    options.preid,
+  );
+  return { prefix, preid, ...resolution };
 }
 
 /**
