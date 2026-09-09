@@ -140,6 +140,7 @@ function WebGLPrograms( renderer, environments, extensions, capabilities, bindin
 		const HAS_ANISOTROPY = material.anisotropy > 0;
 		const HAS_CLEARCOAT = material.clearcoat > 0;
 		const HAS_DISPERSION = material.dispersion > 0;
+		const HAS_RETROREFLECTION = material.retroreflectivity > 0;
 		const HAS_IRIDESCENCE = material.iridescence > 0;
 		const HAS_SHEEN = material.sheen > 0;
 		const HAS_TRANSMISSION = material.transmission > 0;
@@ -240,6 +241,7 @@ function WebGLPrograms( renderer, environments, extensions, capabilities, bindin
 			clearcoatRoughnessMap: HAS_CLEARCOAT_ROUGHNESSMAP,
 
 			dispersion: HAS_DISPERSION,
+			retroreflection: HAS_RETROREFLECTION,
 
 			iridescence: HAS_IRIDESCENCE,
 			iridescenceMap: HAS_IRIDESCENCEMAP,
@@ -335,6 +337,7 @@ function WebGLPrograms( renderer, environments, extensions, capabilities, bindin
 			morphTargetsCount: morphTargetsCount,
 			morphTextureStride: morphTextureStride,
 
+			numSunLights: lights.sun.length,
 			numDirLights: lights.directional.length,
 			numPointLights: lights.point.length,
 			numSpotLights: lights.spot.length,
@@ -342,6 +345,7 @@ function WebGLPrograms( renderer, environments, extensions, capabilities, bindin
 			numRectAreaLights: lights.rectArea.length,
 			numHemiLights: lights.hemi.length,
 
+			numSunLightShadows: lights.sunShadowMap.length,
 			numDirLightShadows: lights.directionalShadowMap.length,
 			numPointLightShadows: lights.pointShadowMap.length,
 			numSpotLightShadows: lights.spotShadowMap.length,
@@ -469,12 +473,14 @@ function WebGLPrograms( renderer, environments, extensions, capabilities, bindin
 		array.push( parameters.sizeAttenuation );
 		array.push( parameters.morphTargetsCount );
 		array.push( parameters.morphAttributeCount );
+		array.push( parameters.numSunLights );
 		array.push( parameters.numDirLights );
 		array.push( parameters.numPointLights );
 		array.push( parameters.numSpotLights );
 		array.push( parameters.numSpotLightMaps );
 		array.push( parameters.numHemiLights );
 		array.push( parameters.numRectAreaLights );
+		array.push( parameters.numSunLightShadows );
 		array.push( parameters.numDirLightShadows );
 		array.push( parameters.numPointLightShadows );
 		array.push( parameters.numSpotLightShadows );
@@ -532,6 +538,8 @@ function WebGLPrograms( renderer, environments, extensions, capabilities, bindin
 			_programLayers.enable( 18 );
 		if ( parameters.dispersion )
 			_programLayers.enable( 19 );
+		if ( parameters.retroreflection )
+			_programLayers.enable( 24 );
 		if ( parameters.batchingColor )
 			_programLayers.enable( 20 );
 		if ( parameters.gradientMap )

@@ -68,9 +68,18 @@ class RenderObjects {
 		 * A dictionary that manages render contexts in chain maps
 		 * for each pass ID.
 		 *
+		 * @private
 		 * @type {Object<string,ChainMap>}
 		 */
-		this.chainMaps = {};
+		this._chainMaps = {};
+
+		/**
+		 * Stores all render objects created by this component.
+		 *
+		 * @private
+		 * @type {Set<RenderObject>}
+		 */
+		this._renderObjects = new Set();
 
 		// WITH_GENESYS
 		/**
@@ -180,7 +189,7 @@ class RenderObjects {
 	 */
 	getChainMap( passId = 'default' ) {
 
-		return this.chainMaps[ passId ] || ( this.chainMaps[ passId ] = new ChainMap() );
+		return this._chainMaps[ passId ] || ( this._chainMaps[ passId ] = new ChainMap() );
 
 	}
 
@@ -202,8 +211,8 @@ class RenderObjects {
 
 		}
 
+		this._chainMaps = {};
 		// !WITH_GENESYS
-		this.chainMaps = {};
 
 	}
 
@@ -276,10 +285,6 @@ class RenderObjects {
 
 		const renderObject = new RenderObject( nodes, geometries, renderer, object, material, scene, camera, lightsNode, renderContext, clippingContext );
 
-		// WITH_GENESYS
-		this._renderObjects.add( renderObject );
-		// !WITH_GENESYS
-
 		renderObject.onDispose = () => {
 
 			this.pipelines.delete( renderObject );
@@ -288,11 +293,11 @@ class RenderObjects {
 
 			chainMap.delete( renderObject.getChainArray() );
 
-			// WITH_GENESYS
 			this._renderObjects.delete( renderObject );
-			// !WITH_GENESYS
 
 		};
+
+		this._renderObjects.add( renderObject );
 
 		return renderObject;
 

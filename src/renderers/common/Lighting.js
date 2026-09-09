@@ -6,11 +6,10 @@ import {
 } from '../../nodes/Nodes.js';
 
 const _defaultLights = /*@__PURE__*/ new LightsNode();
-const _weakMap = /*@__PURE__*/ new WeakMap();
 
 /**
  * This renderer module manages the lights nodes which are unique
- * per scene and camera combination.
+ * per scene + camera + lighting combination.
  *
  * The lights node itself is later configured in the render list
  * with the actual lights from the scene.
@@ -39,6 +38,14 @@ class Lighting {
 		 * @type {Array<Array<Light>>}
 		 */
 		this._cache = [];
+
+		/**
+		 * A map of lights nodes per scene.
+		 *
+		 * @private
+		 * @type {WeakMap<Scene, LightsNode>}
+		 */
+		this._lightsNodeMap = new WeakMap();
 
 	}
 
@@ -81,12 +88,12 @@ class Lighting {
 		// Ignore renderable objects, e.g: Mesh, Sprite, etc.
 		if ( scene.isScene !== true && scene.isGroup !== true ) return _defaultLights;
 
-		let node = _weakMap.get( scene );
+		let node = this._lightsNodeMap.get( scene );
 
 		if ( node === undefined ) {
 
 			node = this.createNode();
-			_weakMap.set( scene, node );
+			this._lightsNodeMap.set( scene, node );
 
 		}
 

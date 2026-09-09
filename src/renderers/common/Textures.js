@@ -135,7 +135,7 @@ class Textures extends DataMap {
 
 			textureNeedsUpdate = true;
 
-			if ( depthTexture ) {
+			if ( depthTexture && depthTexture.renderTarget === renderTarget ) {
 
 				depthTexture.needsUpdate = true;
 				depthTexture.image.width = mipWidth;
@@ -158,7 +158,7 @@ class Textures extends DataMap {
 
 			textureNeedsUpdate = true;
 
-			if ( depthTexture ) {
+			if ( depthTexture && depthTexture.renderTarget === renderTarget ) {
 
 				depthTexture.needsUpdate = true;
 
@@ -600,7 +600,7 @@ class Textures extends DataMap {
 
 			}
 
-			if ( depthTexture ) {
+			if ( depthTexture && depthTexture.renderTarget === renderTarget ) {
 
 				this._destroyTexture( depthTexture );
 

@@ -150,6 +150,43 @@ class Bindings extends DataMap {
 	}
 
 	/**
+	 * Updates only the shared uniform buffers of the given render object.
+	 *
+	 * @param {RenderObject} renderObject - The render object.
+	 */
+	updateSharedForRender( renderObject ) {
+
+		const bindings = this.getForRender( renderObject );
+
+		for ( const bindGroup of bindings ) {
+
+			for ( const binding of bindGroup.bindings ) {
+
+				if ( ( binding.isNodeUniformsGroup === true || binding.isNodeUniformBuffer === true ) && binding.groupNode.shared === true ) {
+
+					const updatedGroup = this.nodes.updateGroup( binding );
+
+					if ( updatedGroup === false ) continue;
+
+					const updated = binding.update();
+
+					if ( updated ) {
+
+						this.backend.updateBinding( binding );
+
+					}
+
+					if ( binding.updateRanges.length > 0 ) binding.clearUpdateRanges();
+
+				}
+
+			}
+
+		}
+
+	}
+
+	/**
 	 * Deletes the bindings for the given compute node.
 	 *
 	 * @param {Node} computeNode - The compute node.
@@ -225,7 +262,7 @@ class Bindings extends DataMap {
 
 				// each object defines an array of bindings (ubos, textures, samplers etc.)
 
-				this.backend.createBindings( bindGroup, bindings, 0 );
+				this.backend.createBindings( bindGroup, bindings, '' );
 
 				groupData.bindGroup = bindGroup;
 				groupData.usedTimes = 1;
@@ -271,6 +308,13 @@ class Bindings extends DataMap {
 
 							this.backend.destroySampler( binding );
 
+						} else if ( binding.texture !== null ) {
+
+							// untrack destroyed bind group from its texture
+
+							const textureData = this.textures.get( binding.texture );
+							if ( textureData.bindGroups !== undefined ) textureData.bindGroups.delete( bindGroup );
+
 						}
 
 						binding.release();
@@ -315,7 +359,7 @@ class Bindings extends DataMap {
 
 		let needsBindingsUpdate = false;
 		let cacheBindings = true;
-		let cacheIndex = 0;
+		let cacheKey = '';
 		let version = 0;
 
 		// iterate over all bindings and check if buffer updates or a new binding group is required
@@ -347,6 +391,8 @@ class Bindings extends DataMap {
 					needsBindingsUpdate = true;
 
 				}
+
+				cacheKey += attribute.id + ',';
 
 			}
 
@@ -399,7 +445,7 @@ class Bindings extends DataMap {
 
 				} else {
 
-					cacheIndex = cacheIndex * 10 + texture.id;
+					cacheKey += texture.id + ',';
 					version += texture.version;
 
 				}
@@ -452,7 +498,7 @@ class Bindings extends DataMap {
 
 		if ( needsBindingsUpdate === true ) {
 
-			this.backend.updateBindings( bindGroup, bindings, cacheBindings ? cacheIndex : 0, version );
+			this.backend.updateBindings( bindGroup, bindings, cacheBindings ? cacheKey : '', version );
 
 		}
 

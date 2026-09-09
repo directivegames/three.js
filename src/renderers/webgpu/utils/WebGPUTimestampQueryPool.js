@@ -1,4 +1,4 @@
-import { error, warnOnce } from '../../../utils.js';
+import { error } from '../../../utils.js';
 import TimestampQueryPool from '../../common/TimestampQueryPool.js';
 import { submit } from './WebGPUUtils.js';
 import GPUBufferDescriptor from '../descriptors/GPUBufferDescriptor.js';
@@ -70,8 +70,10 @@ class WebGPUTimestampQueryPool extends TimestampQueryPool {
 
 		if ( this.currentQueryIndex + 2 > this.maxQueries ) {
 
-			warnOnce( `WebGPUTimestampQueryPool [${ this.type }]: Maximum number of queries exceeded, when using trackTimestamp it is necessary to resolves the queries via renderer.resolveTimestampsAsync( THREE.TimestampQuery.${ this.type.toUpperCase() } ).` );
-			return null;
+			this.resolveQueriesAsync();
+
+			this.currentQueryIndex = 0;
+			this.queryOffsets.clear();
 
 		}
 
@@ -213,6 +215,8 @@ class WebGPUTimestampQueryPool extends TimestampQueryPool {
 
 			const frames = [];
 
+			this.timestamps.clear();
+
 			for ( const [ uid, offsetOrOffsets ] of currentOffsets ) {
 
 				const match = uid.match( /^(.*):f(\d+)$/ );
@@ -352,6 +356,8 @@ class WebGPUTimestampQueryPool extends TimestampQueryPool {
 		}
 
 		this.queryOffsets.clear();
+		this.timestamps.clear();
+		this.frames = [];
 		// WITH_GENESYS
 		this.timestampRanges.clear();
 		// !WITH_GENESYS

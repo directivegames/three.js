@@ -14,7 +14,7 @@ function WebGLTextures( _gl, extensions, state, properties, capabilities, utils,
 	const _htmlTextures = new Set();
 	let _canvas;
 
-	const _sources = new WeakMap(); // maps WebglTexture objects to instances of Source
+	const _sources = new WeakMap(); // maps WebglTexture objects to instances of TextureSource
 
 	// cordova iOS (as of 5.0) still uses UIWebView, which provides OffscreenCanvas,
 	// also OffscreenCanvas.getContext("webgl"), but not OffscreenCanvas.getContext("2d")!
@@ -515,7 +515,7 @@ function WebGLTextures( _gl, extensions, state, properties, capabilities, utils,
 
 		if ( textureUnit >= capabilities.maxTextures ) {
 
-			warn( 'WebGLTextures: Trying to use ' + textureUnit + ' texture units while this GPU supports only ' + capabilities.maxTextures );
+			warn( 'WebGLTextures: Trying to use ' + ( textureUnit + 1 ) + ' texture units while this GPU supports only ' + capabilities.maxTextures );
 
 		}
 
@@ -720,7 +720,7 @@ function WebGLTextures( _gl, extensions, state, properties, capabilities, utils,
 
 		}
 
-		// create Source <-> WebGLTextures mapping if necessary
+		// create TextureSource <-> WebGLTextures mapping if necessary
 
 		const source = texture.source;
 		let webglTextures = _sources.get( source );
@@ -1065,8 +1065,6 @@ function WebGLTextures( _gl, extensions, state, properties, capabilities, utils,
 
 											}
 
-											texture.clearLayerUpdates();
-
 										} else {
 
 											state.compressedTexSubImage3D( _gl.TEXTURE_2D_ARRAY, i, 0, 0, 0, mipmap.width, mipmap.height, image.depth, glFormat, mipmap.data );
@@ -1106,6 +1104,8 @@ function WebGLTextures( _gl, extensions, state, properties, capabilities, utils,
 						}
 
 					}
+
+					if ( texture.layerUpdates.size > 0 ) texture.clearLayerUpdates();
 
 				} else {
 
@@ -2348,7 +2348,7 @@ function WebGLTextures( _gl, extensions, state, properties, capabilities, utils,
 
 						invalidationArrayRead.push( _gl.COLOR_ATTACHMENT0 + i );
 
-						if ( renderTarget.depthBuffer && renderTarget.resolveDepthBuffer === false ) {
+						if ( renderTarget.depthBuffer && renderTarget.storeMultisampledDepthBuffer === false ) {
 
 							invalidationArrayRead.push( depthStyle );
 							invalidationArrayDraw.push( depthStyle );
@@ -2387,7 +2387,7 @@ function WebGLTextures( _gl, extensions, state, properties, capabilities, utils,
 
 			} else {
 
-				if ( renderTarget.depthBuffer && renderTarget.resolveDepthBuffer === false && supportsInvalidateFramebuffer ) {
+				if ( renderTarget.depthBuffer && renderTarget.storeMultisampledDepthBuffer === false && supportsInvalidateFramebuffer ) {
 
 					const depthStyle = renderTarget.stencilBuffer ? _gl.DEPTH_STENCIL_ATTACHMENT : _gl.DEPTH_ATTACHMENT;
 

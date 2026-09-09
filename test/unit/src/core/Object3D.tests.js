@@ -1106,6 +1106,10 @@ export default QUnit.module( 'Core', () => {
 					'castShadow': true,
 					'receiveShadow': true,
 					'visible': false,
+					'frustumCulled': true,
+					'renderOrder': 0,
+					'static': false,
+					'matrixAutoUpdate': true,
 					'userData': { 'foo': 'bar' },
 					'layers': 1,
 					'matrix': [ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 ],
@@ -1116,6 +1120,14 @@ export default QUnit.module( 'Core', () => {
 							// WITH_GENESYS
 							'nodeId': 2,
 							// !WITH_GENESYS
+							'name': '',
+							'castShadow': false,
+							'receiveShadow': false,
+							'visible': true,
+							'frustumCulled': true,
+							'renderOrder': 0,
+							'static': false,
+							'matrixAutoUpdate': true,
 							'layers': 1,
 							'matrix': [ 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 ],
 							'children': [
@@ -1125,6 +1137,14 @@ export default QUnit.module( 'Core', () => {
 									// WITH_GENESYS
 									'nodeId': 3,
 									// !WITH_GENESYS
+									'name': '',
+									'castShadow': false,
+									'receiveShadow': false,
+									'visible': true,
+									'frustumCulled': true,
+									'renderOrder': 0,
+									'static': false,
+									'matrixAutoUpdate': true,
 									'layers': 1,
 									'matrix': [ 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 ],
 									'up': [ 0, 1, 0 ]

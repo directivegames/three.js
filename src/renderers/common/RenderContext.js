@@ -241,6 +241,14 @@ class RenderContext {
 		// !WITH_GENESYS
 
 		/**
+		 * Whether a fullscreen pass is rendered or not.
+		 *
+		 * @type {boolean}
+		 * @default false
+		 */
+		this.fullscreenPass = false;
+
+		/**
 		 * This flag can be used for type testing.
 		 *
 		 * @type {boolean}

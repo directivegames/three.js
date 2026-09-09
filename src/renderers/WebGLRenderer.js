@@ -184,6 +184,14 @@ class WebGLRenderer {
 			 */
 			checkShaderErrors: true,
 			/**
+			 * Diagnostics configuration for the shader generation. Only relevant for TSL.
+			 * @type {Object}
+			 * @property {boolean} keywords - Whether declaration names that collide with reserved keywords of the shading language should be renamed or not.
+			 */
+			diagnostics: {
+				keywords: false
+			},
+			/**
 			 * Callback for custom error reporting.
 			 * @type {?Function}
 			 */
@@ -370,6 +378,14 @@ class WebGLRenderer {
 
 		}
 
+		let extensions, capabilities, state, info;
+		let properties, textures, environments, attributes, geometries, objects;
+		let programCache, materials, renderLists, renderStates, clipping, shadowMap;
+
+		let background, morphtargets, bufferRenderer, indexedBufferRenderer;
+
+		let utils, bindingStates, uniformsGroups;
+
 		try {
 
 			const contextAttributes = {
@@ -413,20 +429,18 @@ class WebGLRenderer {
 
 			}
 
+			initGLContext();
+
 		} catch ( e ) {
+
+			canvas.removeEventListener( 'webglcontextlost', onContextLost, false );
+			canvas.removeEventListener( 'webglcontextrestored', onContextRestore, false );
+			canvas.removeEventListener( 'webglcontextcreationerror', onContextCreationError, false );
 
 			error( 'WebGLRenderer: ' + e.message );
 			throw e;
 
 		}
-
-		let extensions, capabilities, state, info;
-		let properties, textures, environments, attributes, geometries, objects;
-		let programCache, materials, renderLists, renderStates, clipping, shadowMap;
-
-		let background, morphtargets, bufferRenderer, indexedBufferRenderer;
-
-		let utils, bindingStates, uniformsGroups;
 
 		function initGLContext() {
 
@@ -548,8 +562,6 @@ class WebGLRenderer {
 			_this.info = info;
 
 		}
-
-		initGLContext();
 
 		// initialize internal render target for non-UnsignedByteType color buffer
 
@@ -1346,7 +1358,11 @@ class WebGLRenderer {
 
 		// Compile
 
-		function prepareMaterial( material, scene, object ) {
+		function prepareMaterial( material, scene, camera, object ) {
+
+			if ( _nodesHandler !== null && material.isNodeMaterial ) _nodesHandler.setObject( object, material );
+
+			if ( _clippingEnabled === true ) clipping.setState( material, camera, false );
 
 			if ( material.transparent === true && material.side === DoubleSide && material.forceSinglePass === false ) {
 
@@ -1383,6 +1399,7 @@ class WebGLRenderer {
 		this.compile = function ( scene, camera, targetScene = null ) {
 
 			if ( targetScene === null ) targetScene = scene;
+			if ( _nodesHandler !== null ) _nodesHandler.renderStart( scene, camera, targetScene );
 
 			currentRenderState = renderStates.get( targetScene );
 			currentRenderState.init( camera );
@@ -1428,6 +1445,16 @@ class WebGLRenderer {
 			}
 
 			currentRenderState.setupLights();
+			if ( _nodesHandler !== null ) _nodesHandler.updateLights( currentRenderState.state.lightsArray );
+
+			_localClippingEnabled = this.localClippingEnabled;
+			_clippingEnabled = clipping.init( this.clippingPlanes, _localClippingEnabled );
+
+			if ( _clippingEnabled === true ) clipping.setGlobalState( this.clippingPlanes, camera );
+
+			// node materials reference the shadow map when they are built, so it must exist by now
+
+			if ( _nodesHandler !== null ) shadowMap.render( currentRenderState.state.shadowsArray, targetScene, camera );
 
 			// Only initialize materials in the new scene, not the targetScene.
 
@@ -1451,14 +1478,14 @@ class WebGLRenderer {
 
 							const material2 = material[ i ];
 
-							prepareMaterial( material2, targetScene, object );
+							prepareMaterial( material2, targetScene, camera, object );
 							materials.add( material2 );
 
 						}
 
 					} else {
 
-						prepareMaterial( material, targetScene, object );
+						prepareMaterial( material, targetScene, camera, object );
 						materials.add( material );
 
 					}
@@ -1468,6 +1495,7 @@ class WebGLRenderer {
 			} );
 
 			currentRenderState = renderStateStack.pop();
+			if ( _nodesHandler !== null ) _nodesHandler.renderEnd();
 
 			return materials;
 
@@ -1503,9 +1531,9 @@ class WebGLRenderer {
 						const materialProperties = properties.get( material );
 						const program = materialProperties.currentProgram;
 
-						if ( program.isReady() ) {
+						if ( program === undefined || program.isReady() ) {
 
-							// remove any programs that report they're ready to use from the list
+							// stop waiting for materials that are ready to use or have been disposed
 							materials.delete( material );
 
 						}
@@ -1716,6 +1744,7 @@ class WebGLRenderer {
 			// !WITH_GENESYS
 
 			currentRenderList.finish();
+			if ( _nodesHandler !== null ) _nodesHandler.updateLights( currentRenderState.state.lightsArray );
 
 			if ( _this.sortObjects === true ) {
 
@@ -1723,7 +1752,7 @@ class WebGLRenderer {
 				ProfilerService.begin( 'sortRenderList' );
 				// !WITH_GENESYS
 
-				currentRenderList.sort( _opaqueSort, _transparentSort, camera.reversedDepth );
+				currentRenderList.sort( _opaqueSort, _transparentSort );
 
 				// WITH_GENESYS
 				ProfilerService.end( 'sortRenderList' );
@@ -1931,7 +1960,7 @@ class WebGLRenderer {
 
 				} else if ( object.isSprite ) {
 
-					if ( ! object.frustumCulled || _frustum.intersectsSprite( object ) ) {
+					if ( ! object.frustumCulled || object.intersectsFrustum( _frustum ) ) {
 
 						if ( sortObjects ) {
 
@@ -1945,7 +1974,7 @@ class WebGLRenderer {
 
 						if ( material.visible ) {
 
-							currentRenderList.push( object, geometry, material, groupOrder, _vector4.z, null );
+							currentRenderList.push( object, geometry, material, groupOrder, _vector4.z, null, camera );
 
 						}
 
@@ -1953,7 +1982,7 @@ class WebGLRenderer {
 
 				} else if ( object.isMesh || object.isLine || object.isPoints ) {
 
-					if ( ! object.frustumCulled || _frustum.intersectsObject( object ) ) {
+					if ( ! object.frustumCulled || object.intersectsFrustum( _frustum ) ) {
 
 						const geometry = objects.update( object );
 						const material = object.material;
@@ -1989,7 +2018,7 @@ class WebGLRenderer {
 
 								if ( groupMaterial && groupMaterial.visible ) {
 
-									currentRenderList.push( object, geometry, groupMaterial, groupOrder, _vector4.z, group );
+									currentRenderList.push( object, geometry, groupMaterial, groupOrder, _vector4.z, group, camera );
 
 								}
 
@@ -1997,7 +2026,7 @@ class WebGLRenderer {
 
 						} else if ( material.visible ) {
 
-							currentRenderList.push( object, geometry, material, groupOrder, _vector4.z, null );
+							currentRenderList.push( object, geometry, material, groupOrder, _vector4.z, null, camera );
 
 						}
 
@@ -2070,6 +2099,8 @@ class WebGLRenderer {
 					stencilBuffer: stencil,
 					resolveDepthBuffer: false,
 					resolveStencilBuffer: false,
+					storeMultisampledDepthBuffer: false,
+					storeMultisampledStencilBuffer: false,
 					colorSpace: ColorManagement.workingColorSpace,
 				} );
 
@@ -2214,6 +2245,7 @@ class WebGLRenderer {
 
 		function renderObject( object, scene, camera, geometry, material, group ) {
 
+			if ( _nodesHandler !== null && material.isNodeMaterial ) _nodesHandler.setObject( object, material );
 			object.onBeforeRender( _this, scene, camera, geometry, material, group );
 
 			object.modelViewMatrix.multiplyMatrices( camera.matrixWorldInverse, object.matrixWorld );
@@ -2334,6 +2366,8 @@ class WebGLRenderer {
 
 				uniforms.ambientLightColor.value = lights.state.ambient;
 				uniforms.lightProbe.value = lights.state.probe;
+				uniforms.sunLights.value = lights.state.sun;
+				uniforms.sunLightShadows.value = lights.state.sunShadow;
 				uniforms.directionalLights.value = lights.state.directional;
 				uniforms.directionalLightShadows.value = lights.state.directionalShadow;
 				uniforms.spotLights.value = lights.state.spot;
@@ -2345,6 +2379,8 @@ class WebGLRenderer {
 				uniforms.pointLightShadows.value = lights.state.pointShadow;
 				uniforms.hemisphereLights.value = lights.state.hemi;
 
+				uniforms.sunShadowMatrix.value = lights.state.sunShadowMatrix;
+				uniforms.sunShadowCascade.value = lights.state.sunShadowCascade;
 				uniforms.directionalShadowMatrix.value = lights.state.directionalShadowMatrix;
 				uniforms.spotLightMatrix.value = lights.state.spotLightMatrix;
 				uniforms.spotLightMap.value = lights.state.spotLightMap;
@@ -2496,11 +2532,11 @@ class WebGLRenderer {
 
 					needsProgramChange = true;
 
-				} else if ( object.isBatchedMesh && materialProperties.batchingColor === true && object.colorTexture === null ) {
+				} else if ( object.isBatchedMesh && materialProperties.batchingColor === true && object._colorsTexture === null ) {
 
 					needsProgramChange = true;
 
-				} else if ( object.isBatchedMesh && materialProperties.batchingColor === false && object.colorTexture !== null ) {
+				} else if ( object.isBatchedMesh && materialProperties.batchingColor === false && object._colorsTexture !== null ) {
 
 					needsProgramChange = true;
 
@@ -2709,6 +2745,12 @@ class WebGLRenderer {
 			if ( materialProperties.needsLights ) {
 
 				// Set shadow map uniforms first to ensure they get the first texture units
+				if ( lights.state.sunShadowMap.length > 0 ) {
+
+					p_uniforms.setValue( _gl, 'sunShadowMap', lights.state.sunShadowMap, textures );
+
+				}
+
 				if ( lights.state.directionalShadowMap.length > 0 ) {
 
 					p_uniforms.setValue( _gl, 'directionalShadowMap', lights.state.directionalShadowMap, textures );
@@ -2888,6 +2930,8 @@ class WebGLRenderer {
 			uniforms.ambientLightColor.needsUpdate = value;
 			uniforms.lightProbe.needsUpdate = value;
 
+			uniforms.sunLights.needsUpdate = value;
+			uniforms.sunLightShadows.needsUpdate = value;
 			uniforms.directionalLights.needsUpdate = value;
 			uniforms.directionalLightShadows.needsUpdate = value;
 			uniforms.pointLights.needsUpdate = value;
@@ -3147,6 +3191,23 @@ class WebGLRenderer {
 
 		};
 
+		function getReadableState( texture ) {
+
+			const textureProperties = properties.get( texture );
+
+			if ( textureProperties.__readFormat !== texture.format || textureProperties.__readType !== texture.type ) {
+
+				textureProperties.__readFormat = texture.format;
+				textureProperties.__readType = texture.type;
+				textureProperties.__formatReadable = capabilities.textureFormatReadable( texture.format );
+				textureProperties.__typeReadable = capabilities.textureTypeReadable( texture.type );
+
+			}
+
+			return textureProperties;
+
+		}
+
 		/**
 		 * Reads the pixel data from the given render target into the given buffer.
 		 *
@@ -3190,14 +3251,16 @@ class WebGLRenderer {
 
 					if ( renderTarget.textures.length > 1 ) _gl.readBuffer( _gl.COLOR_ATTACHMENT0 + textureIndex );
 
-					if ( ! capabilities.textureFormatReadable( textureFormat ) ) {
+					const readableState = getReadableState( texture );
+
+					if ( readableState.__formatReadable === false ) {
 
 						error( 'WebGLRenderer.readRenderTargetPixels: renderTarget is not in RGBA or implementation defined format.' );
 						return;
 
 					}
 
-					if ( ! capabilities.textureTypeReadable( textureType ) ) {
+					if ( readableState.__typeReadable === false ) {
 
 						error( 'WebGLRenderer.readRenderTargetPixels: renderTarget is not in UnsignedByteType or implementation defined type.' );
 						return;
@@ -3272,14 +3335,15 @@ class WebGLRenderer {
 
 					if ( renderTarget.textures.length > 1 ) _gl.readBuffer( _gl.COLOR_ATTACHMENT0 + textureIndex );
 
+					const readableState = getReadableState( texture );
 
-					if ( ! capabilities.textureFormatReadable( textureFormat ) ) {
+					if ( readableState.__formatReadable === false ) {
 
 						throw new Error( 'THREE.WebGLRenderer.readRenderTargetPixelsAsync: renderTarget is not in RGBA or implementation defined format.' );
 
 					}
 
-					if ( ! capabilities.textureTypeReadable( textureType ) ) {
+					if ( readableState.__typeReadable === false ) {
 
 						throw new Error( 'THREE.WebGLRenderer.readRenderTargetPixelsAsync: renderTarget is not in UnsignedByteType or implementation defined type.' );
 
@@ -3290,6 +3354,7 @@ class WebGLRenderer {
 					_gl.bufferData( _gl.PIXEL_PACK_BUFFER, buffer.byteLength, _gl.STREAM_READ );
 
 					_gl.readPixels( x, y, width, height, utils.convert( textureFormat ), utils.convert( textureType ), 0 );
+					_gl.bindBuffer( _gl.PIXEL_PACK_BUFFER, null );
 
 					// reset the frame buffer to the currently set buffer before waiting
 					const currFramebuffer = _currentRenderTarget !== null ? properties.get( _currentRenderTarget ).__webglFramebuffer : null;
@@ -3305,6 +3370,7 @@ class WebGLRenderer {
 					// read the data and delete the buffer
 					_gl.bindBuffer( _gl.PIXEL_PACK_BUFFER, glBuffer );
 					_gl.getBufferSubData( _gl.PIXEL_PACK_BUFFER, 0, buffer );
+					_gl.bindBuffer( _gl.PIXEL_PACK_BUFFER, null );
 					_gl.deleteBuffer( glBuffer );
 					_gl.deleteSync( sync );
 

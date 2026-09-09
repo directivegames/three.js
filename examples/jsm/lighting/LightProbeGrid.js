@@ -1,122 +1,288 @@
 import {
 	Box3,
 	CubeCamera,
+	CubeRenderTarget,
 	FloatType,
 	HalfFloatType,
+	Light,
 	LinearFilter,
-	Mesh,
+	MathUtils,
 	NearestFilter,
-	Object3D,
-	OrthographicCamera,
-	PlaneGeometry,
+	NodeMaterial,
+	QuadMesh,
+	RenderTarget,
+	RenderTarget3D,
 	RGBAFormat,
-	Scene,
-	ShaderMaterial,
-	Vector3,
-	Vector4,
-	WebGL3DRenderTarget,
-	WebGLCubeRenderTarget,
-	WebGLRenderTarget
-} from 'three';
-// WITH_GENESYS
-import { CubeRenderTarget, Storage3DTexture } from 'three/webgpu';
+	Vector3
+} from 'three/webgpu';
+
 import {
-	Fn,
-	If,
-	Loop,
-	PI,
-	convert,
+	array,
 	cubeTexture,
 	float,
+	Fn,
 	int,
-	select,
-	storageTexture,
-	textureStore,
+	ivec2,
+	Loop,
+	screenCoordinate,
+	texture,
 	uniform,
-	uint,
-	uvec3,
 	vec3,
 	vec4
 } from 'three/tsl';
-// !WITH_GENESYS
 
-// Shared fullscreen-quad scene / camera
-let _scene = null;
-let _camera = null;
-let _mesh = null;
+import { LightProbeGridNode, ATLAS_PADDING } from '../tsl/lighting/LightProbeGridNode.js';
+import { replaceSunLights, restoreSunLights } from './LightProbeGridUtils.js';
 
-// SH projection material (depends on cubemapSize)
-let _shMaterial = null;
-let _lastCubemapSize = 0;
+// Shared fullscreen-quad for the bake passes.
+const _quad = /*@__PURE__*/ new QuadMesh();
 
-// Repack materials (one per output sub-volume / texture index)
-let _repackMaterials = null;
-
-// Cached bake resources
-let _cubeRenderTarget = null;
-let _cubeCamera = null;
-let _cachedCubemapSize = 0;
-let _cachedNear = 0;
-let _cachedFar = 0;
-
-// WITH_GENESYS
-// Cached WebGPU bake resources. The WebGPU path projects cubemaps on the GPU
-// via TSL compute and writes directly into a Storage3DTexture atlas.
-let _webgpuCubeRenderTarget = null;
-let _webgpuCubeCamera = null;
-let _webgpuCachedCubemapSize = 0;
-let _webgpuCachedNear = 0;
-let _webgpuCachedFar = 0;
-let _webgpuComputeNode = null;
-let _webgpuComputeCubemapSize = 0;
-let _webgpuComputeAtlas = null;
-let _webgpuComputeEnvMap = null;
-let _webgpuProbeUniforms = null;
-// !WITH_GENESYS
-
-// Cached batch render target
-let _batchTarget = null;
-let _batchTargetProbes = 0;
-
-// Reusable temp objects
+// Reusable temp objects.
 const _position = /*@__PURE__*/ new Vector3();
 const _size = /*@__PURE__*/ new Vector3();
-const _currentViewport = /*@__PURE__*/ new Vector4();
-const _currentScissor = /*@__PURE__*/ new Vector4();
+const _copyRegion = /*@__PURE__*/ new Box3();
 
-// Number of padding texels added at each boundary of every sub-volume in the atlas.
-const ATLAS_PADDING = 1;
+// Bake materials, shared across grids so the shaders compile once, not per bake.
+let _shMaterial = null;
+let _shSampleCount = - 1;
+let _cubeNode = null;
+let _batchNode = null;
+let _resolutionUniform = null;
+let _sliceZUniform = null;
+let _repackMaterials = null;
+
+// Bake render targets, pooled by size so rebakes don't churn allocations.
+let _cubeRenderTarget = null;
+let _cubeCamera = null;
+let _cubeKey = '';
+let _batchTarget = null;
+let _batchProbes = - 1;
+
+// Golden-angle increment for the equal-area Fibonacci sphere.
+const GOLDEN_ANGLE = Math.PI * ( 3.0 - Math.sqrt( 5.0 ) );
+
+/**
+ * Returns the output node for the spherical-harmonic projection pass. Each
+ * fragment of the 9-wide batch row computes a single SH coefficient by
+ * integrating the captured cubemap over an equal-area Fibonacci sphere,
+ * selecting the basis function for its column. Sampling the cubemap by world
+ * direction keeps the projection independent of the cube face layout.
+ *
+ * @private
+ * @param {Node} cube - The captured environment cubemap texture node.
+ * @param {number} sampleCount - Number of directions to integrate.
+ * @return {Node<vec4>} The projected coefficient.
+ */
+function projectSHNode( cube, sampleCount ) {
+
+	return Fn( () => {
+
+		const coefIndex = int( screenCoordinate.x ).toVar();
+		const accum = vec3( 0.0 ).toVar();
+
+		Loop( sampleCount, ( { i } ) => {
+
+			const fi = float( i );
+
+			// Equal-area Fibonacci sphere direction.
+			const z = float( 1.0 ).sub( fi.mul( 2.0 ).add( 1.0 ).div( sampleCount ) );
+			const r = z.mul( z ).oneMinus().max( 0.0 ).sqrt();
+			const phi = fi.mul( GOLDEN_ANGLE );
+			const dir = vec3( r.mul( phi.cos() ), z, r.mul( phi.sin() ) ).toVar();
+
+			const radiance = cube.sample( dir ).level( 0 ).rgb;
+
+			// The L2 SH basis function for this fragment's coefficient.
+			const x = dir.x, y = dir.y, zc = dir.z;
+			const basis = array( [
+				float( 0.282095 ),
+				y.mul( 0.488603 ),
+				zc.mul( 0.488603 ),
+				x.mul( 0.488603 ),
+				x.mul( y ).mul( 1.092548 ),
+				y.mul( zc ).mul( 1.092548 ),
+				zc.mul( zc ).mul( 3.0 ).sub( 1.0 ).mul( 0.315392 ),
+				x.mul( zc ).mul( 1.092548 ),
+				x.mul( x ).sub( y.mul( y ) ).mul( 0.546274 )
+			] ).element( coefIndex );
+
+			accum.addAssign( radiance.mul( basis ) );
+
+		} );
+
+		// Equal-area quadrature: each direction covers 4*PI / sampleCount.
+		const norm = float( 4.0 * Math.PI / sampleCount );
+
+		return vec4( accum.mul( norm ), 1.0 );
+
+	} )();
+
+}
+
+/**
+ * Returns the repack output node for one of the seven SH textures. It reads the
+ * 9 projected coefficients from the batch texture for the probe at the current
+ * texel and packs the four floats stored by this texture index.
+ *
+ * @private
+ * @param {Node} batch - The batch texture node holding projected coefficients.
+ * @param {number} textureIndex - The output texture index (0–6).
+ * @param {Node<vec3>} resolution - The probe grid resolution uniform.
+ * @param {Node<int>} sliceZ - The current Z slice being written.
+ * @return {Node<vec4>} The packed texel.
+ */
+function repackNode( batch, textureIndex, resolution, sliceZ ) {
+
+	return Fn( () => {
+
+		const ix = int( screenCoordinate.x );
+		const iy = int( screenCoordinate.y );
+
+		const nx = int( resolution.x );
+		const ny = int( resolution.y );
+		const probeIndex = ix.add( iy.mul( nx ) ).add( sliceZ.mul( nx ).mul( ny ) );
+
+		const c0 = batch.load( ivec2( 0, probeIndex ) );
+		const c1 = batch.load( ivec2( 1, probeIndex ) );
+		const c2 = batch.load( ivec2( 2, probeIndex ) );
+		const c3 = batch.load( ivec2( 3, probeIndex ) );
+		const c4 = batch.load( ivec2( 4, probeIndex ) );
+		const c5 = batch.load( ivec2( 5, probeIndex ) );
+		const c6 = batch.load( ivec2( 6, probeIndex ) );
+		const c7 = batch.load( ivec2( 7, probeIndex ) );
+		const c8 = batch.load( ivec2( 8, probeIndex ) );
+
+		let packed;
+
+		switch ( textureIndex ) {
+
+			case 0: packed = vec4( c0.xyz, c1.x ); break;
+			case 1: packed = vec4( c1.yz, c2.xy ); break;
+			case 2: packed = vec4( c2.z, c3.xyz ); break;
+			case 3: packed = vec4( c4.xyz, c5.x ); break;
+			case 4: packed = vec4( c5.yz, c6.xy ); break;
+			case 5: packed = vec4( c6.z, c7.xyz ); break;
+			default: packed = vec4( c8.xyz, 0.0 ); break;
+
+		}
+
+		return packed;
+
+	} )();
+
+}
+
+/**
+ * Lazily pools the shared cube and batch render targets, recreating them only
+ * when their dimensions change.
+ *
+ * @private
+ * @param {number} cubemapSize - Resolution of each cubemap face.
+ * @param {number} near - Cube camera near plane.
+ * @param {number} far - Cube camera far plane.
+ * @param {number} totalProbes - Number of probes (batch target height).
+ */
+function ensureBakeTargets( cubemapSize, near, far, totalProbes ) {
+
+	const cubeKey = `${ cubemapSize },${ near },${ far }`;
+
+	if ( _cubeRenderTarget === null || _cubeKey !== cubeKey ) {
+
+		if ( _cubeRenderTarget !== null ) _cubeRenderTarget.dispose();
+
+		_cubeRenderTarget = new CubeRenderTarget( cubemapSize, { type: HalfFloatType, generateMipmaps: false } );
+		_cubeCamera = new CubeCamera( near, far, _cubeRenderTarget );
+		_cubeKey = cubeKey;
+
+	}
+
+	if ( _batchTarget === null || _batchProbes !== totalProbes ) {
+
+		if ( _batchTarget !== null ) _batchTarget.dispose();
+
+		_batchTarget = new RenderTarget( 9, totalProbes, {
+			type: FloatType,
+			format: RGBAFormat,
+			minFilter: NearestFilter,
+			magFilter: NearestFilter,
+			depthBuffer: false
+		} );
+
+		_batchProbes = totalProbes;
+
+	}
+
+}
+
+/**
+ * Lazily builds the shared bake materials and rebinds them to the current
+ * cube/batch textures. The SH projection material is rebuilt only when the
+ * sample count changes; the repack materials are static.
+ *
+ * @private
+ * @param {number} sampleCount - Number of directions integrated by the projection.
+ * @param {CubeTexture} cubeMap - The current cube render target texture.
+ * @param {Texture} batchMap - The current batch render target texture.
+ */
+function ensureBakeMaterials( sampleCount, cubeMap, batchMap ) {
+
+	if ( _repackMaterials === null ) {
+
+		_cubeNode = cubeTexture( cubeMap );
+		_batchNode = texture( batchMap );
+		_resolutionUniform = uniform( new Vector3() );
+		_sliceZUniform = uniform( 0, 'int' );
+		_repackMaterials = [];
+
+		for ( let t = 0; t < 7; t ++ ) {
+
+			const material = new NodeMaterial();
+			material.outputNode = repackNode( _batchNode, t, _resolutionUniform, _sliceZUniform );
+			material.depthTest = false;
+			material.depthWrite = false;
+			_repackMaterials.push( material );
+
+		}
+
+	} else {
+
+		_cubeNode.value = cubeMap;
+		_batchNode.value = batchMap;
+
+	}
+
+	if ( _shMaterial === null || _shSampleCount !== sampleCount ) {
+
+		if ( _shMaterial !== null ) _shMaterial.dispose();
+
+		_shMaterial = new NodeMaterial();
+		_shMaterial.outputNode = projectSHNode( _cubeNode, sampleCount );
+		_shMaterial.depthTest = false;
+		_shMaterial.depthWrite = false;
+		_shSampleCount = sampleCount;
+
+	}
+
+}
 
 /**
  * A 3D grid of L2 Spherical Harmonic irradiance probes that provides
  * position-dependent diffuse global illumination.
  *
- * Note that this class can only be used with {@link WebGLRenderer}.
- * A version for {@link WebGPURenderer} will be added at a later point.
+ * This is the {@link WebGPURenderer} version of `LightProbeGrid`. The grid is a
+ * {@link Light}, so adding it to the scene applies its baked irradiance to every
+ * lit node material automatically. When using {@link WebGLRenderer}, import the
+ * grid from `LightProbeGridWebGL.js` instead.
  *
- * All seven packed SH sub-volumes are stored in a **single** RGBA
- * `WebGL3DRenderTarget` using a texture-atlas layout along the Z axis.
- * Each sub-volume occupies `( nz + 2 )` atlas slices: one padding slice at
- * each end (a copy of the nearest edge data slice) to prevent color bleeding
- * when the hardware trilinear filter reads across a sub-volume boundary.
+ * The baked data is stored in a single RGBA `RenderTarget3D` atlas that packs
+ * the nine L2 SH coefficients into seven sub-volumes stacked along Z. Baking is
+ * fully GPU-resident: cubemap rendering, SH projection, and texture packing all
+ * happen on the GPU with zero CPU readback.
  *
- * Atlas layout (nz = resolution.z, PADDING = 1):
- * ```
- *   slice   0              : padding  (copy of sub-volume 0, data slice 0)
- *   slices  1 to nz        : sub-volume 0 data
- *   slice   nz + 1         : padding  (copy of sub-volume 0, data slice nz-1)
- *   slice   nz + 2         : padding  (copy of sub-volume 1, data slice 0)
- *   slices  nz+3 to 2*nz+2 : sub-volume 1 data
- *   ...
- * ```
- * Total atlas depth = `7 * ( nz + 2 )`.
- *
- * Baking is fully GPU-resident: cubemap rendering, SH projection, and
- * texture packing all happen on the GPU with zero CPU readback.
- *
+ * @augments Light
  * @three_import import { LightProbeGrid } from 'three/addons/lighting/LightProbeGrid.js';
  */
-class LightProbeGrid extends Object3D {
+class LightProbeGrid extends Light {
 
 	/**
 	 * Constructs a new irradiance probe grid.
@@ -132,7 +298,7 @@ class LightProbeGrid extends Object3D {
 	 */
 	constructor( width = 1, height = 1, depth = 1, widthProbes, heightProbes, depthProbes ) {
 
-		super();
+		super( 0xffffff, 1 );
 
 		/**
 		 * This flag can be used for type testing.
@@ -142,6 +308,8 @@ class LightProbeGrid extends Object3D {
 		 * @default true
 		 */
 		this.isLightProbeGrid = true;
+
+		this.type = 'LightProbeGrid';
 
 		/**
 		 * The full width of the volume along X.
@@ -184,7 +352,19 @@ class LightProbeGrid extends Object3D {
 		this.boundingBox = new Box3();
 
 		/**
-		 * The single RGBA atlas 3D texture storing all seven packed SH sub-volumes.
+		 * Distance in world units over which the grid contribution fades out
+		 * past the volume boundary. `0` applies the contribution everywhere
+		 * (clamped), which matches a single-volume setup. Use a small positive
+		 * value to blend multiple overlapping grids.
+		 *
+		 * @type {number}
+		 * @default 0
+		 */
+		this.falloff = 0;
+
+		/**
+		 * The single RGBA atlas 3D texture storing all seven packed SH
+		 * sub-volumes stacked along Z.
 		 *
 		 * @type {?Data3DTexture}
 		 * @default null
@@ -195,37 +375,14 @@ class LightProbeGrid extends Object3D {
 		 * Internal render target for GPU-resident baking.
 		 *
 		 * @private
-		 * @type {?WebGL3DRenderTarget}
+		 * @type {?RenderTarget3D}
 		 * @default null
 		 */
 		this._renderTarget = null;
 
-		/**
-		 * Array of cube textures captured during baking, only populated
-		 * when `retainCubemaps` option is true in {@link LightProbeGrid#bake}.
-		 *
-		 * @type {?CubeTexture[]}
-		 * @default null
-		 */
-		this.cubeTextures = null;
-
-		/**
-		 * Render targets backing retained cube textures.
-		 *
-		 * @private
-		 * @type {?Array<WebGLCubeRenderTarget|CubeRenderTarget>}
-		 * @default null
-		 */
-		this._cubeRenderTargets = null;
-
-		/**
-		 * Whether retained cube render targets are WebGPU render targets.
-		 *
-		 * @private
-		 * @type {?boolean}
-		 * @default null
-		 */
-		this._cubeRenderTargetsWebGPU = null;
+		// Indirect captures read a snapshot while the live atlas is updated in place.
+		this._bounceGrid = null;
+		this._bouncePass = - 1;
 
 		this.updateBoundingBox();
 
@@ -242,11 +399,11 @@ class LightProbeGrid extends Object3D {
 	 */
 	getProbePosition( ix, iy, iz, target ) {
 
-		// const pos = this.position;
 		// WITH_GENESYS
 		const pos = _position;
 		this.getWorldPosition( pos );
 		// !WITH_GENESYS
+		// const pos = this.position;
 		const res = this.resolution;
 		const w = this.width, h = this.height, d = this.depth;
 
@@ -278,411 +435,346 @@ class LightProbeGrid extends Object3D {
 	}
 
 	/**
-	 * Bakes all probes by rendering cubemaps at each probe position
-	 * and projecting to L2 SH. Optionally iterates additional passes to
-	 * capture indirect bounces - each extra pass samples the previous pass's
-	 * atlas as indirect light, so a grid added to the scene before baking
-	 * accumulates one bounce per extra pass.
+	 * Bakes probes by rendering cubemaps at each probe position and
+	 * projecting to L2 SH. Optionally iterates additional passes to capture
+	 * indirect bounces: each extra pass samples the previous pass's data as
+	 * indirect light, accumulating one bounce per extra pass.
 	 *
-	 * @param {WebGLRenderer} renderer - The renderer.
+	 * Use `start` and `count` to bake a range and publish its cells immediately.
+	 * Indices advance along X, then Z, then Y, filling horizontal layers from bottom
+	 * to top. For incremental indirect bounces, finish the whole grid for `pass: 0`,
+	 * then repeat with `pass: 1`, etc. Start each pass at index 0 to snapshot the
+	 * previous pass before updating its cells.
+	 *
+	 * Shadow-casting instances of `SunLight` are temporarily replaced with
+	 * equivalent directional lights, since their view-fitted shadow cascades
+	 * cannot be frozen across probe renders.
+	 *
+	 * @param {WebGPURenderer} renderer - The renderer.
 	 * @param {Scene} scene - The scene to render.
 	 * @param {Object} [options] - Bake options.
 	 * @param {number} [options.cubemapSize=8] - Resolution of each cubemap face.
 	 * @param {number} [options.near=0.1] - Near plane for the cube camera.
 	 * @param {number} [options.far=100] - Far plane for the cube camera.
-	 * @param {number} [options.bounces=0] - Additional bounce passes after the initial direct pass.
-	 * @param {boolean} [options.retainCubemaps=false] - Whether to retain the captured cube maps for visualization.
-	 * @return {Promise<void>} Resolves when baking has completed.
+	 * @param {number} [options.bounces=0] - Additional bounce passes. Only available when baking the whole grid.
+	 * @param {number} [options.sampleCount=512] - Directions integrated when projecting each cubemap to SH.
+	 * @param {number} [options.start=0] - Index of the first probe to bake.
+	 * @param {number} [options.count] - Number of probes to bake. Defaults to the remaining probes.
+	 * @param {number} [options.pass=0] - Starting pass. Zero captures direct light; later passes sample the previous pass. Ranged calls require `bounces: 0`.
 	 */
-	async bake( renderer, scene, options = {} ) {
+	bake( renderer, scene, options = {} ) {
 
-		const wasVisible = this.visible; // WITH_GENESYS
-		const retainCubemaps = options.retainCubemaps === true;
+		// The bake is node based, so it needs a WebGPURenderer.
+		if ( renderer.isWebGPURenderer !== true ) {
 
-		// Prevent feedback: temporarily hide the volume during baking
-		this.visible = false;
+			throw new Error( 'THREE.LightProbeGrid: .bake() requires a WebGPURenderer. For WebGLRenderer, use LightProbeGridWebGL.' );
 
-		if ( ! retainCubemaps ) this._disposeRetainedCubemaps();
+		}
 
-		// WITH_GENESYS
-		if ( renderer.isWebGPURenderer === true ) {
+		// The bake issues GPU work immediately, so the renderer must be ready.
+		if ( renderer.initialized === false ) {
 
-			await this._bakeWebGPU( renderer, scene, options );
+			throw new Error( 'THREE.LightProbeGrid: .bake() called before the renderer is initialized. Use "await renderer.init();" first.' );
 
-		} else { // !WITH_GENESYS
+		}
 
-		const { bounces = 0 } = options;
-		const { cubeRenderTarget, cubeCamera } = _ensureBakeResources( options );
+		// Register the light node with this renderer (idempotent).
+		if ( renderer.library.getLightNodeClass( LightProbeGrid ) === null ) {
+
+			renderer.library.addLight( LightProbeGridNode, LightProbeGrid );
+
+		}
+
+		const res = this.resolution;
+		const totalProbes = res.x * res.y * res.z;
+		const {
+			cubemapSize = 8,
+			near = 0.1,
+			far = 100,
+			bounces = 0,
+			sampleCount = 512,
+			start = 0,
+			count = totalProbes - start,
+			pass: firstPass = 0
+		} = options;
+		const end = start + count;
+
+		if ( ! Number.isInteger( start ) || ! Number.isInteger( count ) || start < 0 || count < 0 || end > totalProbes ) {
+
+			throw new RangeError( 'THREE.LightProbeGrid: Invalid probe range.' );
+
+		}
+
+		if ( ! Number.isInteger( firstPass ) || firstPass < 0 || ! Number.isInteger( bounces ) || bounces < 0 ) {
+
+			throw new RangeError( 'THREE.LightProbeGrid: Pass and bounce counts must be non-negative integers.' );
+
+		}
+
+		if ( bounces > 0 && count !== totalProbes ) {
+
+			throw new RangeError( 'THREE.LightProbeGrid: For ranged baking, use pass instead of bounces.' );
+
+		}
+
+		if ( count === 0 ) return;
+
+		if ( firstPass > 0 && start > 0 && this._bouncePass !== firstPass ) {
+
+			throw new Error( 'THREE.LightProbeGrid: Start each indirect pass at probe 0.' );
+
+		}
 
 		this._ensureTextures();
 		this.updateBoundingBox();
 
-		const res = this.resolution;
-		const totalProbes = res.x * res.y * res.z;
+		// Bind the pooled bake resources to the current textures.
 
-		// Batch render target for SH coefficients: 9 pixels wide, one row per probe
-		const batchTarget = _ensureBatchTarget( totalProbes );
+		ensureBakeTargets( cubemapSize, near, far, totalProbes );
+		ensureBakeMaterials( sampleCount, _cubeRenderTarget.texture, _batchTarget.texture );
+		_resolutionUniform.value.copy( res );
 
-		// Save renderer state
+		// Save renderer / scene state to restore after the bake.
+
 		const currentRenderTarget = renderer.getRenderTarget();
-		renderer.getViewport( _currentViewport );
-		renderer.getScissor( _currentScissor );
-		const currentScissorTest = renderer.getScissorTest();
-
-		// Scene is static across the bake - update once and disable per-render auto updates.
+		const currentActiveCubeFace = renderer.getActiveCubeFace();
+		const currentActiveMipmapLevel = renderer.getActiveMipmapLevel();
+		const currentAutoClear = renderer.autoClear;
+		const currentXrEnabled = renderer.xr.enabled;
+		const currentInspectorEnabled = renderer.inspector.enabled;
 		const currentMatrixWorldAutoUpdate = scene.matrixWorldAutoUpdate;
-		if ( currentMatrixWorldAutoUpdate === true ) {
+		const currentVisible = this.visible;
+		const renderTarget = this._renderTarget;
+		const currentViewport = renderTarget.viewport.clone();
+		const shadowStates = [];
+		let replacedSunLights = null;
 
-			scene.updateMatrixWorld( true );
-			scene.matrixWorldAutoUpdate = false;
+		try {
 
-		}
+			renderer.inspector.enabled = false;
+			this.visible = false;
 
-		// Disable shadow map auto-update across all passes - lights don't move.
-		// Force a single shadow update on the first render so maps are initialized.
-		const currentShadowAutoUpdate = renderer.shadowMap.autoUpdate;
-		renderer.shadowMap.autoUpdate = false;
-		renderer.shadowMap.needsUpdate = true;
+			// Scene is static during the bake: update once, disable auto-update.
 
-		_ensureRepackResources();
+			if ( currentMatrixWorldAutoUpdate === true ) {
 
-		const paddedSlices = res.z + 2 * ATLAS_PADDING;
-		const rt = this._renderTarget;
+				scene.updateMatrixWorld( true );
+				scene.matrixWorldAutoUpdate = false;
 
-		// const t0 = performance.now();
+			}
 
-		// Pass 0 captures direct light only (grid hidden, so probesSH is not sampled
-		// the atlas at this point may be uninitialized or hold a prior bake).
-		// Each subsequent pass keeps the grid visible so the cube cameras read the
-		// previous pass's atlas as indirect light, accumulating one bounce per pass.
-		// Phase 1 writes to the batch target and Phase 2 only swaps it into the atlas
-		// at the very end of each pass, which gives an implicit ping-pong for free.
+			replacedSunLights = replaceSunLights( scene );
 
-		for ( let pass = 0; pass <= bounces; pass ++ ) {
+			// Render each shadow map once, not once per cube face.
 
-			this.visible = pass > 0;
+			scene.traverse( ( object ) => {
 
-		// Clear pooled batch target so skipped probes read as zero
-		batchTarget.scissorTest = false;
-		batchTarget.viewport.set( 0, 0, 9, totalProbes );
-		renderer.setRenderTarget( batchTarget );
-		renderer.clear();
+				if ( object.isLight && object.castShadow && object.shadow ) {
 
-		// Phase 1: Render cubemaps and project to SH into batch target
-		// Note: set viewport/scissor on the render target directly to avoid pixel ratio scaling
-		batchTarget.scissorTest = true;
-
-			// Initialize cube texture/render target arrays if retaining
-			if ( retainCubemaps ) {
-
-				if ( this.cubeTextures === null || this.cubeTextures.length !== totalProbes ) {
-
-					this.cubeTextures = new Array( totalProbes );
+					const shadow = object.shadow;
+					shadowStates.push( { shadow, autoUpdate: shadow.autoUpdate } );
+					shadow.autoUpdate = false;
+					shadow.needsUpdate = true;
 
 				}
 
-				if ( this._cubeRenderTargets === null || this._cubeRenderTargets.length !== totalProbes ) {
+			} );
 
-					this._disposeRetainedCubemaps();
-					this.cubeTextures = new Array( totalProbes );
+			for ( let pass = firstPass; pass <= firstPass + bounces; pass ++ ) {
 
-					this._cubeRenderTargets = new Array( totalProbes );
-
-				}
-
-			}
-
-		for ( let iz = 0; iz < res.z; iz ++ ) {
-
-			for ( let iy = 0; iy < res.y; iy ++ ) {
-
-				for ( let ix = 0; ix < res.x; ix ++ ) {
-
-					const probeIndex = ix + iy * res.x + iz * res.x * res.y;
-
-					this.getProbePosition( ix, iy, iz, _position );
-
-						let envMapTexture = cubeRenderTarget.texture;
-
-						if ( retainCubemaps ) {
-
-							const retainedTarget = this._ensureRetainedCubeRenderTarget( probeIndex, options );
-							const retainedCamera = new CubeCamera(
-								options.near !== undefined ? options.near : 0.1,
-								options.far !== undefined ? options.far : 100,
-								retainedTarget
-							);
-
-							retainedCamera.position.copy( _position );
-							retainedCamera.update( renderer, scene );
-
-							envMapTexture = retainedTarget.texture;
-							this.cubeTextures[ probeIndex ] = retainedTarget.texture;
-
-						} else {
-
-					cubeCamera.position.copy( _position );
-					cubeCamera.update( renderer, scene );
-
-						}
-
-					// SH projection
-						_shMaterial.uniforms.envMap.value = envMapTexture;
-					_mesh.material = _shMaterial;
-					batchTarget.viewport.set( 0, probeIndex, 9, 1 );
-					batchTarget.scissor.set( 0, probeIndex, 9, 1 );
-					renderer.setRenderTarget( batchTarget );
-					renderer.render( _scene, _camera );
-
-				}
+				this._updateBounceGrid( renderer, scene, pass, start );
+				this._captureProbes( renderer, scene, start, end );
+				this._repackProbes( renderer, start, end );
 
 			}
 
-		}
+		} finally {
 
-		// Phase 2: Repack SH data from batch target into the atlas 3D texture on the GPU.
-		//
-		// For each of the 7 packed sub-volumes (texture index t) we write:
-		//   - A leading padding slice  (copy of data slice iz = 0)
-		//   - All nz data slices       (iz = 0 to nz-1)
-		//   - A trailing padding slice (copy of data slice iz = nz-1)
-		//
-		// In the atlas the slices for sub-volume t occupy the range:
-		//   [ t * paddedSlices, t * paddedSlices + paddedSlices - 1 ]
-		// where paddedSlices = nz + 2 * ATLAS_PADDING.
+			// Restore renderer / scene state (pooled targets and materials kept).
 
-		rt.scissorTest = false;
-		rt.viewport.set( 0, 0, res.x, res.y );
+			renderTarget.viewport.copy( currentViewport );
+			renderer.setRenderTarget( currentRenderTarget, currentActiveCubeFace, currentActiveMipmapLevel );
+			renderer.autoClear = currentAutoClear;
+			renderer.xr.enabled = currentXrEnabled;
+			scene.matrixWorldAutoUpdate = currentMatrixWorldAutoUpdate;
 
-		for ( let t = 0; t < 7; t ++ ) {
+			for ( const { shadow, autoUpdate } of shadowStates ) shadow.autoUpdate = autoUpdate;
 
-			_repackMaterials[ t ].uniforms.batchTexture.value = batchTarget.texture;
-			_repackMaterials[ t ].uniforms.resolution.value.copy( res );
+			if ( replacedSunLights !== null ) restoreSunLights( scene, replacedSunLights );
 
-			// Write data slices
-			for ( let iz = 0; iz < res.z; iz ++ ) {
+			this.visible = currentVisible;
+			if ( this._bounceGrid !== null ) this._bounceGrid.removeFromParent();
 
-				_repackMaterials[ t ].uniforms.sliceZ.value = iz;
-				_mesh.material = _repackMaterials[ t ];
-				renderer.setRenderTarget( rt, t * paddedSlices + ATLAS_PADDING + iz );
-				renderer.render( _scene, _camera );
-
-			}
-
-			// Leading padding: copy of data slice iz = 0
-			_repackMaterials[ t ].uniforms.sliceZ.value = 0;
-			_mesh.material = _repackMaterials[ t ];
-			renderer.setRenderTarget( rt, t * paddedSlices );
-			renderer.render( _scene, _camera );
-
-			// Trailing padding: copy of data slice iz = nz - 1
-			_repackMaterials[ t ].uniforms.sliceZ.value = res.z - 1;
-			_mesh.material = _repackMaterials[ t ];
-			renderer.setRenderTarget( rt, t * paddedSlices + ATLAS_PADDING + res.z );
-			renderer.render( _scene, _camera );
+			renderer.inspector.enabled = currentInspectorEnabled;
 
 		}
-
-		}
-
-		renderer.shadowMap.autoUpdate = currentShadowAutoUpdate;
-
-		// Restore renderer state
-		renderer.setRenderTarget( currentRenderTarget );
-		renderer.setViewport( _currentViewport );
-		renderer.setScissor( _currentScissor );
-		renderer.setScissorTest( currentScissorTest );
-
-		scene.matrixWorldAutoUpdate = currentMatrixWorldAutoUpdate;
-
-		// console.log( `LightProbeGrid: bake complete ${ ( performance.now() - t0 ).toFixed( 1 ) }ms` );
-
-		}
-
-		this.visible = wasVisible; // WITH_GENESYS
-		// this.visible = true;
 
 	}
 
-	// WITH_GENESYS
 	/**
-	 * Ensures a retained cube render target exists for a probe.
+	 * Snapshots each indirect pass before its first range overwrites the live atlas.
+	 * A separate light keeps the capture and main-view texture bindings stable.
 	 *
 	 * @private
-	 * @param {number} probeIndex - The probe index.
-	 * @param {Object} options - Bake options.
-	 * @param {boolean} [webgpu=false] - Whether to create a WebGPU cube render target.
-	 * @return {WebGLCubeRenderTarget|CubeRenderTarget} The retained cube render target.
-	 */
-	_ensureRetainedCubeRenderTarget( probeIndex, options, webgpu = false ) {
-
-		const cubemapSize = options.cubemapSize !== undefined ? options.cubemapSize : 8;
-
-		if ( this._cubeRenderTargetsWebGPU !== null && this._cubeRenderTargetsWebGPU !== webgpu ) {
-
-			this._disposeRetainedCubemaps();
-
-		}
-
-		if ( this._cubeRenderTargets === null ) {
-
-			this._cubeRenderTargets = [];
-
-		}
-
-		this._cubeRenderTargetsWebGPU = webgpu;
-
-		let target = this._cubeRenderTargets[ probeIndex ];
-
-		if ( target === undefined || target.width !== cubemapSize || target.height !== cubemapSize ) {
-
-			if ( target !== undefined ) target.dispose();
-
-			target = webgpu === true
-				? new CubeRenderTarget( cubemapSize, { type: HalfFloatType } )
-				: new WebGLCubeRenderTarget( cubemapSize, { type: HalfFloatType } );
-			this._cubeRenderTargets[ probeIndex ] = target;
-
-		}
-
-		return target;
-
-	}
-
-	/**
-	 * Frees retained cube map render targets.
-	 *
-	 * @private
-	 */
-	_disposeRetainedCubemaps() {
-
-		if ( this._cubeRenderTargets !== null ) {
-
-			for ( const target of this._cubeRenderTargets ) {
-
-				if ( target !== undefined ) target.dispose();
-
-			}
-
-			this._cubeRenderTargets = null;
-
-		}
-
-		this._cubeRenderTargetsWebGPU = null;
-		this.cubeTextures = null;
-
-	}
-
-	/**
-	 * Frees retained cube maps used for cube map visualization.
-	 */
-	disposeRetainedCubemaps() {
-
-		this._disposeRetainedCubemaps();
-
-	}
-
-	/**
-	 * Bakes all probes with a WebGPU renderer.
-	 *
-	 * @private
-	 * @async
 	 * @param {WebGPURenderer} renderer - The renderer.
-	 * @param {Scene} scene - The scene to render.
-	 * @param {Object} [options] - Bake options.
-	 * @return {Promise<void>} Resolves when baking has completed.
+	 * @param {Scene} scene - The scene to capture.
+	 * @param {number} pass - The bounce pass.
+	 * @param {number} start - The first probe index.
 	 */
-	async _bakeWebGPU( renderer, scene, options = {} ) {
+	_updateBounceGrid( renderer, scene, pass, start ) {
 
-		const cubemapSize = options.cubemapSize !== undefined ? options.cubemapSize : 8;
-		const retainCubemaps = options.retainCubemaps === true;
-		const { cubeRenderTarget, cubeCamera } = _ensureWebGPUBakeResources( options );
+		if ( pass === 0 ) {
 
-		this._ensureWebGPUTexture();
-		this.updateBoundingBox();
-
-		const computeNode = _ensureWebGPUComputeResources( cubemapSize, cubeRenderTarget.texture, this.texture );
-		const uniforms = _webgpuProbeUniforms;
-
-		const res = this.resolution;
-		const nx = res.x, ny = res.y, nz = res.z;
-		const totalProbes = nx * ny * nz;
-		const paddedSlices = nz + 2 * ATLAS_PADDING;
-
-		uniforms.paddedSlices.value = paddedSlices;
-
-		const savedShadowAutoUpdate = renderer.shadowMap.autoUpdate;
-		renderer.shadowMap.autoUpdate = false;
-		renderer.shadowMap.needsUpdate = true;
-
-		// Initialize cube textures array if retaining
-		if ( retainCubemaps ) {
-
-			if ( this.cubeTextures === null || this.cubeTextures.length !== totalProbes ) {
-
-				this.cubeTextures = new Array( totalProbes );
-
-			}
-
-			if ( this._cubeRenderTargets === null || this._cubeRenderTargets.length !== totalProbes ) {
-
-				this._disposeRetainedCubemaps();
-				this.cubeTextures = new Array( totalProbes );
-				this._cubeRenderTargets = new Array( totalProbes );
-
-			}
+			if ( start === 0 ) this._bouncePass = - 1;
+			return;
 
 		}
 
+		if ( start === 0 ) {
+
+			const renderTarget = this._renderTarget;
+
+			if ( this._bounceGrid === null ) {
+
+				const res = this.resolution;
+				this._bounceGrid = new LightProbeGrid( this.width, this.height, this.depth, res.x, res.y, res.z );
+				this._bounceGrid._ensureTextures();
+
+			}
+
+			renderer.initRenderTarget( renderTarget );
+			renderer.initRenderTarget( this._bounceGrid._renderTarget );
+			_copyRegion.min.set( 0, 0, 0 );
+			_copyRegion.max.set( renderTarget.width, renderTarget.height, renderTarget.depth );
+			renderer.copyTextureToTexture( renderTarget.texture, this._bounceGrid.texture, _copyRegion );
+			this._bouncePass = pass;
+
+		}
+
+		const bounceGrid = this._bounceGrid;
+		bounceGrid.boundingBox.copy( this.boundingBox );
+		bounceGrid.intensity = this.intensity;
+		bounceGrid.falloff = this.falloff;
+		scene.add( bounceGrid );
+
+	}
+
+	/**
+	 * Captures cubemaps and projects their SH coefficients into the batch target.
+	 *
+	 * @private
+	 * @param {WebGPURenderer} renderer - The renderer.
+	 * @param {Scene} scene - The scene to capture.
+	 * @param {number} start - The first probe index.
+	 * @param {number} end - The exclusive end probe index.
+	 */
+	_captureProbes( renderer, scene, start, end ) {
+
+		const { x: nx, y: ny, z: nz } = this.resolution;
+		const probesPerLayer = nx * nz;
+
+		_quad.material = _shMaterial;
+
+		for ( let probeIndex = start; probeIndex < end; probeIndex ++ ) {
+
+			const ix = probeIndex % nx;
+			const iy = Math.floor( probeIndex / probesPerLayer );
+			const iz = Math.floor( probeIndex / nx ) % nz;
+
+			this.getProbePosition( ix, iy, iz, _position );
+			_cubeCamera.position.copy( _position );
+
+			// The cube faces must be cleared per face.
+			renderer.autoClear = true;
+			_cubeCamera.update( renderer, scene );
+
+			// Keep batch rows in texture order (X, Y, Z).
+			const batchRow = ix + iy * nx + iz * nx * ny;
+
+			renderer.autoClear = false;
+			_batchTarget.viewport.set( 0, batchRow, 9, 1 );
+			renderer.setRenderTarget( _batchTarget );
+			_quad.render( renderer );
+
+		}
+
+	}
+
+	/**
+	 * Packs a probe range into the live atlas, including its boundary padding.
+	 *
+	 * @private
+	 * @param {WebGPURenderer} renderer - The renderer.
+	 * @param {number} start - The first probe index.
+	 * @param {number} end - The exclusive end probe index.
+	 */
+	_repackProbes( renderer, start, end ) {
+
+		const { x: nx, y: ny, z: nz } = this.resolution;
+		const probesPerLayer = nx * nz;
+		const startY = Math.floor( start / probesPerLayer );
+		const endY = Math.floor( end / probesPerLayer );
+		const paddedSlices = nz + 2 * ATLAS_PADDING;
+		const renderTarget = this._renderTarget;
+
+		// Map the horizontal bake range to contiguous rows in each Z slice.
 		for ( let iz = 0; iz < nz; iz ++ ) {
 
-			for ( let iy = 0; iy < ny; iy ++ ) {
+			const sliceStart = startY * nx + MathUtils.clamp( start % probesPerLayer - iz * nx, 0, nx );
+			const sliceEnd = endY * nx + MathUtils.clamp( end % probesPerLayer - iz * nx, 0, nx );
 
-				for ( let ix = 0; ix < nx; ix ++ ) {
+			for ( let probeIndex = sliceStart; probeIndex < sliceEnd; ) {
 
-					const probeIndex = ix + iy * nx + iz * nx * ny;
+				const ix = probeIndex % nx;
+				const iy = Math.floor( probeIndex / nx );
 
-					this.getProbePosition( ix, iy, iz, _position );
-					cubeCamera.position.copy( _position );
-					cubeCamera.update( renderer, scene );
+				// Coalesce complete rows within a slice into one rectangle.
+				const width = Math.min( nx - ix, sliceEnd - probeIndex );
+				let height = 1;
 
-					if ( retainCubemaps ) {
+				if ( width === nx ) {
 
-						const retainedTarget = this._ensureRetainedCubeRenderTarget( probeIndex, options, true );
-						const retainedCamera = new CubeCamera(
-							options.near !== undefined ? options.near : 0.1,
-							options.far !== undefined ? options.far : 100,
-							retainedTarget
-						);
+					height = Math.min( ny - iy, Math.floor( ( sliceEnd - probeIndex ) / nx ) );
 
-						retainedCamera.position.copy( _position );
-						retainedCamera.update( renderer, scene );
+				}
 
-						this.cubeTextures[ probeIndex ] = retainedTarget.texture;
+				renderTarget.viewport.set( ix, iy, width, height );
+				_sliceZUniform.value = iz;
+
+				for ( let t = 0; t < 7; t ++ ) {
+
+					_quad.material = _repackMaterials[ t ];
+					const base = t * paddedSlices;
+
+					renderer.setRenderTarget( renderTarget, base + ATLAS_PADDING + iz );
+					_quad.render( renderer );
+
+					if ( iz === 0 ) {
+
+						renderer.setRenderTarget( renderTarget, base );
+						_quad.render( renderer );
 
 					}
 
-					uniforms.probeIx.value = ix;
-					uniforms.probeIy.value = iy;
-					uniforms.probeIz.value = iz;
+					if ( iz === nz - 1 ) {
 
-					renderer.compute( computeNode );
+						renderer.setRenderTarget( renderTarget, base + ATLAS_PADDING + nz );
+						_quad.render( renderer );
+
+					}
 
 				}
+
+				probeIndex += width * height;
 
 			}
 
 		}
 
-		renderer.shadowMap.autoUpdate = savedShadowAutoUpdate;
-
-		await renderer.backend.device.queue.onSubmittedWorkDone();
-
 	}
-	// !WITH_GENESYS
 
 	/**
-	 * Ensures the atlas 3D render target exists with the correct dimensions.
+	 * Ensures the atlas 3D texture exists with the correct dimensions.
 	 *
 	 * @private
 	 */
@@ -690,546 +782,49 @@ class LightProbeGrid extends Object3D {
 
 		if ( this._renderTarget !== null ) return;
 
-		// WITH_GENESYS
-		if ( this.texture !== null ) {
-
-			this.texture.dispose();
-			this.texture = null;
-
-		}
-		// !WITH_GENESYS
-
 		const res = this.resolution;
 		const nx = res.x, ny = res.y, nz = res.z;
 
-		// Atlas depth: 7 sub-volumes, each with ATLAS_PADDING slices at both ends
+		// Atlas depth: 7 sub-volumes, each with ATLAS_PADDING slices at both ends.
 		const atlasDepth = 7 * ( nz + 2 * ATLAS_PADDING );
 
-		const rt = new WebGL3DRenderTarget( nx, ny, atlasDepth, {
+		this._renderTarget = new RenderTarget3D( nx, ny, atlasDepth, {
+			type: HalfFloatType,
 			format: RGBAFormat,
-			type: FloatType,
 			minFilter: LinearFilter,
 			magFilter: LinearFilter,
 			generateMipmaps: false,
 			depthBuffer: false
 		} );
 
-		this._renderTarget = rt;
-		this.texture = rt.texture;
+		this.texture = this._renderTarget.texture;
 
 	}
-
-	// WITH_GENESYS
-	/**
-	 * Ensures the atlas Storage3DTexture exists with the correct dimensions for WebGPU.
-	 *
-	 * @private
-	 */
-	_ensureWebGPUTexture() {
-
-		if ( this._renderTarget !== null ) {
-
-			this._renderTarget.dispose();
-			this._renderTarget = null;
-			this.texture = null;
-
-		}
-
-		const res = this.resolution;
-		const nx = res.x, ny = res.y, nz = res.z;
-		const atlasDepth = 7 * ( nz + 2 * ATLAS_PADDING );
-
-		if ( this.texture !== null ) {
-
-			const image = this.texture.image;
-
-			if ( image.width === nx && image.height === ny && image.depth === atlasDepth ) {
-
-				return;
-
-			}
-
-			this.texture.dispose();
-			this.texture = null;
-
-		}
-
-		const texture = new Storage3DTexture( nx, ny, atlasDepth );
-
-		texture.format = RGBAFormat;
-		texture.type = FloatType;
-		texture.minFilter = LinearFilter;
-		texture.magFilter = LinearFilter;
-		texture.generateMipmaps = false;
-
-		this.texture = texture;
-
-	}
-	// !WITH_GENESYS
 
 	/**
 	 * Frees GPU resources.
 	 */
 	dispose() {
 
+		if ( this._bounceGrid !== null ) {
+
+			this._bounceGrid.dispose();
+			this._bounceGrid = null;
+			this._bouncePass = - 1;
+
+		}
+
 		if ( this._renderTarget !== null ) {
 
 			this._renderTarget.dispose();
 			this._renderTarget = null;
 			this.texture = null;
 
-		} else if ( this.texture !== null ) { // WITH_GENESYS
-
-			this.texture.dispose();
-			this.texture = null;
-
-		} // !WITH_GENESYS
-
-		this._disposeRetainedCubemaps();
-
-	}
-
-}
-
-// Internal: Ensure the shared fullscreen-quad scene exists
-function _ensureScene() {
-
-	if ( _scene === null ) {
-
-		_camera = new OrthographicCamera( - 1, 1, 1, - 1, 0, 1 );
-		_mesh = new Mesh( new PlaneGeometry( 2, 2 ) );
-		_scene = new Scene();
-		_scene.add( _mesh );
-
-	}
-
-}
-
-// Internal: Ensure GPU resources for SH projection are created
-function _ensureGPUResources( cubemapSize ) {
-
-	_ensureScene();
-
-	// Recreate material when cubemap size changes
-	if ( cubemapSize !== _lastCubemapSize ) {
-
-		if ( _shMaterial !== null ) _shMaterial.dispose();
-
-		_shMaterial = new ShaderMaterial( {
-			precision: 'highp',
-			defines: {
-				CUBEMAP_SIZE: cubemapSize
-			},
-			uniforms: {
-				envMap: { value: null }
-			},
-			vertexShader: /* glsl */`
-				void main() {
-					gl_Position = vec4( position.xy, 0.0, 1.0 );
-				}
-			`,
-			fragmentShader: /* glsl */`
-				#include <common>
-
-				uniform samplerCube envMap;
-
-				void main() {
-
-					int coefIndex = int( gl_FragCoord.x );
-
-					vec3 accum0 = vec3( 0.0 );
-					vec3 accum1 = vec3( 0.0 );
-					vec3 accum2 = vec3( 0.0 );
-					vec3 accum3 = vec3( 0.0 );
-					vec3 accum4 = vec3( 0.0 );
-					vec3 accum5 = vec3( 0.0 );
-					vec3 accum6 = vec3( 0.0 );
-					vec3 accum7 = vec3( 0.0 );
-					vec3 accum8 = vec3( 0.0 );
-					float totalWeight = 0.0;
-					float pixelSize = 2.0 / float( CUBEMAP_SIZE );
-
-					for ( int face = 0; face < 6; face ++ ) {
-
-						for ( int iy = 0; iy < CUBEMAP_SIZE; iy ++ ) {
-
-							for ( int ix = 0; ix < CUBEMAP_SIZE; ix ++ ) {
-
-								// WebGL cubemaps have a left-handed orientation (flip = -1)
-								float col = ( float( ix ) + 0.5 ) * pixelSize - 1.0;
-								float row = 1.0 - ( float( iy ) + 0.5 ) * pixelSize;
-
-								vec3 coord;
-
-								if ( face == 0 ) coord = vec3( 1.0, row, -col );
-								else if ( face == 1 ) coord = vec3( -1.0, row, col );
-								else if ( face == 2 ) coord = vec3( col, 1.0, -row );
-								else if ( face == 3 ) coord = vec3( col, -1.0, row );
-								else if ( face == 4 ) coord = vec3( col, row, 1.0 );
-								else coord = vec3( -col, row, -1.0 );
-
-								float lengthSq = dot( coord, coord );
-								float weight = 4.0 / ( sqrt( lengthSq ) * lengthSq );
-								totalWeight += weight;
-
-								vec3 dir = normalize( coord );
-								vec3 cw = textureCube( envMap, coord ).rgb * weight;
-
-								// band 0
-								accum0 += cw * 0.282095;
-
-								// band 1
-								accum1 += cw * ( 0.488603 * dir.y );
-								accum2 += cw * ( 0.488603 * dir.z );
-								accum3 += cw * ( 0.488603 * dir.x );
-
-								// band 2
-								accum4 += cw * ( 1.092548 * ( dir.x * dir.y ) );
-								accum5 += cw * ( 1.092548 * ( dir.y * dir.z ) );
-								accum6 += cw * ( 0.315392 * ( 3.0 * dir.z * dir.z - 1.0 ) );
-								accum7 += cw * ( 1.092548 * ( dir.x * dir.z ) );
-								accum8 += cw * ( 0.546274 * ( dir.x * dir.x - dir.y * dir.y ) );
-
-							}
-
-						}
-
-					}
-
-					float norm = 4.0 * PI / totalWeight;
-
-					vec3 accum;
-					if ( coefIndex == 0 ) accum = accum0;
-					else if ( coefIndex == 1 ) accum = accum1;
-					else if ( coefIndex == 2 ) accum = accum2;
-					else if ( coefIndex == 3 ) accum = accum3;
-					else if ( coefIndex == 4 ) accum = accum4;
-					else if ( coefIndex == 5 ) accum = accum5;
-					else if ( coefIndex == 6 ) accum = accum6;
-					else if ( coefIndex == 7 ) accum = accum7;
-					else accum = accum8;
-
-					gl_FragColor = vec4( accum * norm, 1.0 );
-
-				}
-			`
-		} );
-
-		_lastCubemapSize = cubemapSize;
-
-	}
-
-}
-
-// Internal: Ensure GPU resources for repacking SH into the atlas 3D texture
-function _ensureRepackResources() {
-
-	if ( _repackMaterials !== null ) return;
-
-	_ensureScene();
-
-	// Create 7 materials, one per output texture packing
-	// Texture 0: (c0.r, c0.g, c0.b, c1.r)
-	// Texture 1: (c1.g, c1.b, c2.r, c2.g)
-	// Texture 2: (c2.b, c3.r, c3.g, c3.b)
-	// Texture 3: (c4.r, c4.g, c4.b, c5.r)
-	// Texture 4: (c5.g, c5.b, c6.r, c6.g)
-	// Texture 5: (c6.b, c7.r, c7.g, c7.b)
-	// Texture 6: (c8.r, c8.g, c8.b, 0.0)
-
-	const repackVertexShader = /* glsl */`
-		void main() {
-			gl_Position = vec4( position.xy, 0.0, 1.0 );
 		}
-	`;
 
-	_repackMaterials = [];
-
-	for ( let t = 0; t < 7; t ++ ) {
-
-		_repackMaterials[ t ] = new ShaderMaterial( {
-			precision: 'highp',
-			defines: {
-				TEXTURE_INDEX: t
-			},
-			uniforms: {
-				batchTexture: { value: null },
-				resolution: { value: new Vector3() },
-				sliceZ: { value: 0 }
-			},
-			vertexShader: repackVertexShader,
-			fragmentShader: /* glsl */`
-				uniform sampler2D batchTexture;
-				uniform vec3 resolution;
-				uniform int sliceZ;
-
-				void main() {
-
-					int ix = int( gl_FragCoord.x );
-					int iy = int( gl_FragCoord.y );
-					int iz = sliceZ;
-
-					int probeIndex = ix + iy * int( resolution.x ) + iz * int( resolution.x ) * int( resolution.y );
-
-					// Read 9 SH coefficients from the batch texture row
-					vec4 c0 = texelFetch( batchTexture, ivec2( 0, probeIndex ), 0 );
-					vec4 c1 = texelFetch( batchTexture, ivec2( 1, probeIndex ), 0 );
-					vec4 c2 = texelFetch( batchTexture, ivec2( 2, probeIndex ), 0 );
-					vec4 c3 = texelFetch( batchTexture, ivec2( 3, probeIndex ), 0 );
-					vec4 c4 = texelFetch( batchTexture, ivec2( 4, probeIndex ), 0 );
-					vec4 c5 = texelFetch( batchTexture, ivec2( 5, probeIndex ), 0 );
-					vec4 c6 = texelFetch( batchTexture, ivec2( 6, probeIndex ), 0 );
-					vec4 c7 = texelFetch( batchTexture, ivec2( 7, probeIndex ), 0 );
-					vec4 c8 = texelFetch( batchTexture, ivec2( 8, probeIndex ), 0 );
-
-					// Pack into the output format for this texture index
-					#if TEXTURE_INDEX == 0
-						gl_FragColor = vec4( c0.rgb, c1.r );
-					#elif TEXTURE_INDEX == 1
-						gl_FragColor = vec4( c1.gb, c2.rg );
-					#elif TEXTURE_INDEX == 2
-						gl_FragColor = vec4( c2.b, c3.rgb );
-					#elif TEXTURE_INDEX == 3
-						gl_FragColor = vec4( c4.rgb, c5.r );
-					#elif TEXTURE_INDEX == 4
-						gl_FragColor = vec4( c5.gb, c6.rg );
-					#elif TEXTURE_INDEX == 5
-						gl_FragColor = vec4( c6.b, c7.rgb );
-					#else
-						gl_FragColor = vec4( c8.rgb, 0.0 );
-					#endif
-
-				}
-			`
-		} );
+		super.dispose();
 
 	}
-
-}
-
-// Internal: Ensure cube render target and camera exist with the right parameters
-function _ensureBakeResources( options ) {
-
-	const {
-		cubemapSize = 8,
-		near = 0.1,
-		far = 100
-	} = options;
-
-	if ( _cubeRenderTarget === null || cubemapSize !== _cachedCubemapSize || near !== _cachedNear || far !== _cachedFar ) {
-
-		if ( _cubeRenderTarget !== null ) _cubeRenderTarget.dispose();
-
-		_cubeRenderTarget = new WebGLCubeRenderTarget( cubemapSize, { type: HalfFloatType } );
-		_cubeCamera = new CubeCamera( near, far, _cubeRenderTarget );
-		_cachedCubemapSize = cubemapSize;
-		_cachedNear = near;
-		_cachedFar = far;
-
-	}
-
-	_ensureGPUResources( cubemapSize );
-
-	return { cubeRenderTarget: _cubeRenderTarget, cubeCamera: _cubeCamera };
-
-}
-
-// WITH_GENESYS
-function _ensureWebGPUBakeResources( options ) {
-
-	const {
-		cubemapSize = 8,
-		near = 0.1,
-		far = 100
-	} = options;
-
-	if ( _webgpuCubeRenderTarget === null || cubemapSize !== _webgpuCachedCubemapSize || near !== _webgpuCachedNear || far !== _webgpuCachedFar ) {
-
-		if ( _webgpuCubeRenderTarget !== null ) _webgpuCubeRenderTarget.dispose();
-
-		_webgpuCubeRenderTarget = new CubeRenderTarget( cubemapSize, { type: HalfFloatType } );
-		_webgpuCubeCamera = new CubeCamera( near, far, _webgpuCubeRenderTarget );
-		_webgpuCachedCubemapSize = cubemapSize;
-		_webgpuCachedNear = near;
-		_webgpuCachedFar = far;
-
-	}
-
-	return { cubeRenderTarget: _webgpuCubeRenderTarget, cubeCamera: _webgpuCubeCamera };
-
-}
-
-function _ensureWebGPUComputeResources( cubemapSize, envMapTexture, atlasTexture ) {
-
-	if (
-		_webgpuComputeNode !== null &&
-		_webgpuComputeCubemapSize === cubemapSize &&
-		_webgpuComputeAtlas === atlasTexture &&
-		_webgpuComputeEnvMap === envMapTexture
-	) {
-
-		return _webgpuComputeNode;
-
-	}
-
-	_webgpuComputeCubemapSize = cubemapSize;
-	_webgpuComputeAtlas = atlasTexture;
-	_webgpuComputeEnvMap = envMapTexture;
-
-	const probeIx = uniform( 'uint' );
-	const probeIy = uniform( 'uint' );
-	const probeIz = uniform( 'uint' );
-	const paddedSlices = uniform( 'uint' );
-
-	_webgpuProbeUniforms = { probeIx, probeIy, probeIz, paddedSlices };
-
-	const atlas = storageTexture( atlasTexture );
-
-	const projectProbe = Fn( () => {
-
-		const accum0 = vec3( 0 ).toVar();
-		const accum1 = vec3( 0 ).toVar();
-		const accum2 = vec3( 0 ).toVar();
-		const accum3 = vec3( 0 ).toVar();
-		const accum4 = vec3( 0 ).toVar();
-		const accum5 = vec3( 0 ).toVar();
-		const accum6 = vec3( 0 ).toVar();
-		const accum7 = vec3( 0 ).toVar();
-		const accum8 = vec3( 0 ).toVar();
-		const totalWeight = float( 0 ).toVar();
-		const pixelSize = float( 2 ).div( float( cubemapSize ) );
-
-		Loop(
-			{ end: 6, name: 'face', type: 'int' },
-			{ end: cubemapSize, name: 'iy', type: 'int' },
-			{ end: cubemapSize, name: 'ix', type: 'int' },
-			( { face, iy, ix } ) => {
-
-				const col = convert( ix, 'float' ).add( 0.5 ).mul( pixelSize ).sub( 1.0 );
-				const row = float( 1 ).sub( convert( iy, 'float' ).add( 0.5 ).mul( pixelSize ) );
-
-				const dirX = select( face.equal( int( 0 ) ), float( 1 ), select( face.equal( int( 1 ) ), float( - 1 ), select( face.equal( int( 5 ) ), col.negate(), col ) ) );
-				const dirY = select( face.equal( int( 2 ) ), float( 1 ), select( face.equal( int( 3 ) ), float( - 1 ), row ) );
-				const dirZ = select( face.equal( int( 0 ) ), col.negate(), select( face.equal( int( 1 ) ), col, select( face.equal( int( 2 ) ), row.negate(), select( face.equal( int( 3 ) ), row, select( face.equal( int( 4 ) ), float( 1 ), float( - 1 ) ) ) ) ) );
-				const coord = vec3( dirX, dirY, dirZ );
-
-				const lengthSq = coord.dot( coord );
-				const weight = float( 4 ).div( lengthSq.sqrt().mul( lengthSq ) );
-				totalWeight.addAssign( weight );
-
-				const dir = coord.normalize();
-				// Pass explicit direction; omitting UV would default to reflectVector (needs camera).
-				const cw = cubeTexture( envMapTexture, coord ).rgb.mul( weight );
-
-				accum0.addAssign( cw.mul( 0.282095 ) );
-				accum1.addAssign( cw.mul( 0.488603 ).mul( dir.y ) );
-				accum2.addAssign( cw.mul( 0.488603 ).mul( dir.z ) );
-				accum3.addAssign( cw.mul( 0.488603 ).mul( dir.x ) );
-				accum4.addAssign( cw.mul( 1.092548 ).mul( dir.x ).mul( dir.y ) );
-				accum5.addAssign( cw.mul( 1.092548 ).mul( dir.y ).mul( dir.z ) );
-				accum6.addAssign( cw.mul( 0.315392 ).mul( dir.z.mul( dir.z ).mul( 3 ).sub( 1 ) ) );
-				accum7.addAssign( cw.mul( 1.092548 ).mul( dir.x ).mul( dir.z ) );
-				accum8.addAssign( cw.mul( 0.546274 ).mul( dir.x.mul( dir.x ).sub( dir.y.mul( dir.y ) ) ) );
-
-			}
-
-		);
-
-		const norm = float( 4 ).mul( PI ).div( totalWeight );
-		const c0 = accum0.mul( norm );
-		const c1 = accum1.mul( norm );
-		const c2 = accum2.mul( norm );
-		const c3 = accum3.mul( norm );
-		const c4 = accum4.mul( norm );
-		const c5 = accum5.mul( norm );
-		const c6 = accum6.mul( norm );
-		const c7 = accum7.mul( norm );
-		const c8 = accum8.mul( norm );
-
-		Loop( { end: 7, name: 't', type: 'int' }, ( { t } ) => {
-
-			const baseSlice = paddedSlices.mul( t );
-			const atlasZ = baseSlice.add( 1 ).add( probeIz );
-			const trailingSlice = baseSlice.add( paddedSlices ).sub( 1 );
-			const lastDataSlice = paddedSlices.sub( 3 );
-			const storeProbeValue = ( value ) => {
-
-				textureStore( atlas, uvec3( probeIx, probeIy, atlasZ ), value ).toWriteOnly();
-
-				// Write padding during the compute pass; WebGPU validation rejects atlas-to-itself copies.
-				If( probeIz.equal( uint( 0 ) ), () => {
-
-					textureStore( atlas, uvec3( probeIx, probeIy, baseSlice ), value ).toWriteOnly();
-
-				} );
-
-				If( probeIz.equal( lastDataSlice ), () => {
-
-					textureStore( atlas, uvec3( probeIx, probeIy, trailingSlice ), value ).toWriteOnly();
-
-				} );
-
-			};
-
-			If( t.equal( int( 0 ) ), () => {
-
-				storeProbeValue( vec4( c0.x, c0.y, c0.z, c1.x ) );
-
-			} ).ElseIf( t.equal( int( 1 ) ), () => {
-
-				storeProbeValue( vec4( c1.y, c1.z, c2.x, c2.y ) );
-
-			} ).ElseIf( t.equal( int( 2 ) ), () => {
-
-				storeProbeValue( vec4( c2.z, c3.x, c3.y, c3.z ) );
-
-			} ).ElseIf( t.equal( int( 3 ) ), () => {
-
-				storeProbeValue( vec4( c4.x, c4.y, c4.z, c5.x ) );
-
-			} ).ElseIf( t.equal( int( 4 ) ), () => {
-
-				storeProbeValue( vec4( c5.y, c5.z, c6.x, c6.y ) );
-
-			} ).ElseIf( t.equal( int( 5 ) ), () => {
-
-				storeProbeValue( vec4( c6.z, c7.x, c7.y, c7.z ) );
-
-			} ).Else( () => {
-
-				storeProbeValue( vec4( c8.x, c8.y, c8.z, float( 0 ) ) );
-
-			} );
-
-		} );
-
-	} );
-
-	_webgpuComputeNode = projectProbe().compute( 1 );
-
-	return _webgpuComputeNode;
-
-}
-// !WITH_GENESYS
-
-function _ensureBatchTarget( totalProbes ) {
-
-	if ( _batchTarget === null || _batchTargetProbes !== totalProbes ) {
-
-		if ( _batchTarget !== null ) _batchTarget.dispose();
-
-		_batchTarget = new WebGLRenderTarget( 9, totalProbes, {
-			type: FloatType,
-			minFilter: NearestFilter,
-			magFilter: NearestFilter,
-			depthBuffer: false
-		} );
-
-		_batchTargetProbes = totalProbes;
-
-	}
-
-	return _batchTarget;
 
 }
 

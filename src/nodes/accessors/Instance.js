@@ -1,6 +1,6 @@
 
 import { vec3, mat4, Fn } from '../tsl/TSLBase.js';
-import { OnFrameUpdate, OnObjectUpdate } from '../utils/EventNode.js';
+import { OnAfterObjectUpdate, OnBeforeFrameUpdate } from '../utils/EventNode.js';
 import { normalLocal, transformNormal } from './Normal.js';
 import { positionLocal, positionPrevious } from './Position.js';
 import { varyingProperty } from '../core/PropertyNode.js';
@@ -172,34 +172,28 @@ export const instance = /*@__PURE__*/ Fn( ( [ matrices, colors = null ], builder
 
 	}
 
-	// Synchronization of dynamic buffer updates per frame
+	// Synchronization of dynamic buffer updates per frame.
 	if ( interleavedMatrix !== null || interleavedColor !== null ) {
 
-		OnFrameUpdate( () => {
+		OnBeforeFrameUpdate( () => {
 
-			if ( interleavedMatrix !== null ) {
+			if ( interleavedMatrix !== null && interleavedMatrix.version !== matrices.version ) {
 
 				interleavedMatrix.clearUpdateRanges();
 				interleavedMatrix.updateRanges.push( ...matrices.updateRanges );
+				matrices.clearUpdateRanges(); // "matrices" as the source is never uploaded directly. clear to avoid update range accumulation
 
-				if ( matrices.version !== interleavedMatrix.version ) {
-
-					interleavedMatrix.version = matrices.version;
-
-				}
+				interleavedMatrix.version = matrices.version;
 
 			}
 
-			if ( colors && interleavedColor !== null ) {
+			if ( colors && interleavedColor !== null && interleavedColor.version !== colors.version ) {
 
 				interleavedColor.clearUpdateRanges();
 				interleavedColor.updateRanges.push( ...colors.updateRanges );
+				colors.clearUpdateRanges();
 
-				if ( colors.version !== interleavedColor.version ) {
-
-					interleavedColor.version = colors.version;
-
-				}
+				interleavedColor.version = colors.version;
 
 			}
 
@@ -216,11 +210,18 @@ export const instance = /*@__PURE__*/ Fn( ( [ matrices, colors = null ], builder
 
 		const instancedMesh = builder.object;
 
-		OnObjectUpdate( ( { object } ) => {
+		OnAfterObjectUpdate( ( { object } ) => {
 
-			const previousInstanceData = _previousInstanceMatrices.get( object );
+			const { previousInstanceMatrix } = _previousInstanceMatrices.get( object );
 
-			previousInstanceData.previousInstanceMatrix.array.set( matrices.array );
+			previousInstanceMatrix.array.set( matrices.array );
+			previousInstanceMatrix.version = matrices.version;
+
+			// handle interleaved path
+
+			const previousInterleavedMatrix = _matrixBuffers.get( previousInstanceMatrix );
+
+			if ( previousInterleavedMatrix !== undefined ) previousInterleavedMatrix.version = matrices.version;
 
 		} );
 

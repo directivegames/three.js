@@ -7,6 +7,7 @@ import { maxMipLevel } from '../utils/MaxMipLevelNode.js';
 import { nodeProxy, vec3, nodeObject, int, Fn } from '../tsl/TSLBase.js';
 import { step } from '../math/MathNode.js';
 import { NodeUpdateType } from '../core/constants.js';
+import { getTextureType } from '../core/NodeUtils.js';
 
 import { Compatibility, GreaterCompare, GreaterEqualCompare, IntType, LessCompare, LessEqualCompare, NearestFilter, UnsignedIntType } from '../../constants.js';
 
@@ -179,6 +180,15 @@ class TextureNode extends UniformNode {
 		 */
 		this._flipYUniform = null;
 
+		/**
+		 * Whether the node is used as a comparison sampler, e.g. via `samplerComparison()`.
+		 *
+		 * @private
+		 * @type {boolean}
+		 * @default false
+		 */
+		this._samplerComparison = false;
+
 		this.setUpdateMatrix( uvNode === null );
 
 	}
@@ -228,25 +238,13 @@ class TextureNode extends UniformNode {
 	 */
 	generateNodeType( /*builder*/ ) {
 
-		if ( this.value.isDepthTexture === true ) {
-
-			if ( this.gatherNode === null ) return 'float';
+		if ( this.gatherNode !== null ) {
 
 			return 'vec4';
 
 		}
 
-		if ( this.value.type === UnsignedIntType ) {
-
-			return 'uvec4';
-
-		} else if ( this.value.type === IntType ) {
-
-			return 'ivec4';
-
-		}
-
-		return 'vec4';
+		return getTextureType( this.value );
 
 	}
 
@@ -576,6 +574,18 @@ class TextureNode extends UniformNode {
 
 		if ( /^sampler/.test( output ) ) {
 
+			if ( output === 'samplerComparison' ) {
+
+				this._samplerComparison = true;
+
+				// texture nodes with the same texture share a single uniform so it's
+				// important to set the flag on the node the binding refers to as well
+
+				const sharedNode = this.getSharedNode( builder );
+				sharedNode._samplerComparison = true;
+
+			}
+
 			return textureProperty + '_sampler';
 
 		} else if ( builder.isReference( output ) ) {
@@ -586,7 +596,7 @@ class TextureNode extends UniformNode {
 
 			const nodeData = builder.getDataFromNode( this );
 
-			let nodeType = this.getNodeType( builder );
+			const nodeType = this.getNodeType( builder );
 
 			let propertyName = nodeData.propertyName;
 
@@ -605,12 +615,6 @@ class TextureNode extends UniformNode {
 				const offsetSnippet = offsetNode ? this.generateOffset( builder, offsetNode ) : null;
 				const flipYSnippet = this._flipYUniform ? this._flipYUniform.build( builder, 'bool' ) : null;
 
-				if ( gatherSnippet ) {
-
-					nodeType = 'vec4';
-
-				}
-
 				let finalDepthSnippet = depthSnippet;
 
 				if ( finalDepthSnippet === null && texture.isArrayTexture && this.isTexture3DNode !== true ) {
@@ -624,6 +628,20 @@ class TextureNode extends UniformNode {
 				propertyName = builder.getPropertyName( nodeVar );
 
 				let snippet = this.generateSnippet( builder, textureProperty, uvSnippet, levelSnippet, biasSnippet, finalDepthSnippet, compareSnippet, gradSnippet, gatherSnippet, offsetSnippet, flipYSnippet );
+
+				let snippetType;
+
+				if ( texture.isDepthTexture === true && gatherSnippet === null ) {
+
+					snippetType = 'float';
+
+				} else {
+
+					snippetType = texture.type === UnsignedIntType ? 'uvec4' : ( texture.type === IntType ? 'ivec4' : 'vec4' );
+
+				}
+
+				snippet = builder.format( snippet, snippetType, nodeType );
 
 				if ( compareStepSnippet !== null ) {
 
@@ -843,6 +861,18 @@ class TextureNode extends UniformNode {
 		textureNode.referenceNode = this.getBase();
 
 		return nodeObject( textureNode );
+
+	}
+
+	/**
+	 * Returns `true` if the texture is sampled with a depth comparison,
+	 * meaning the node must be bound with a comparison sampler.
+	 *
+	 * @return {boolean} Whether comparison sampling is used or not.
+	 */
+	isSampleCompare() {
+
+		return this.compareNode !== null || this._samplerComparison === true;
 
 	}
 

@@ -92,11 +92,13 @@ export * from './loaders/EXRLoader.js';
 export * from './loaders/FBXLoader.js';
 export * from './loaders/FontLoader.js';
 export * from './loaders/GCodeLoader.js';
+export * from './loaders/GLTFGaussianSplatLoaderExtension.js';
 export * from './loaders/GLTFLoader.js';
 export * from './loaders/HDRLoader.js';
 export * from './loaders/HDRCubeTextureLoader.js';
 export * from './loaders/IESLoader.js';
 export * from './loaders/KMZLoader.js';
+export * from './loaders/KSPLATLoader.js';
 export * from './loaders/KTX2Loader.js';
 export * from './loaders/KTXLoader.js';
 export * from './loaders/LDrawLoader.js';
@@ -104,12 +106,6 @@ export * from './loaders/LUT3dlLoader.js';
 export * from './loaders/LUTCubeLoader.js';
 export * from './loaders/LUTImageLoader.js';
 export * from './loaders/LWOLoader.js';
-// WITH_GENESYS
-// LottieLoader is excluded from the Addons barrel because it imports lottie-web from a CDN URL
-// (https://cdn.jsdelivr.net/npm/lottie-web@5.13.0/+esm), which Node.js/TSX cannot resolve in test
-// environments. The loader is also deprecated in r185 and scheduled for removal in r186.
-// export * from './loaders/LottieLoader.js';
-// !WITH_GENESYS
 export * from './loaders/MD2Loader.js';
 export * from './loaders/MDDLoader.js';
 export * from './loaders/MTLLoader.js';
@@ -120,6 +116,8 @@ export * from './loaders/PDBLoader.js';
 export * from './loaders/PLYLoader.js';
 export * from './loaders/PVRLoader.js';
 export * from './loaders/RGBELoader.js';
+export * from './loaders/SPLATLoader.js';
+export * from './loaders/SPZLoader.js';
 export * from './loaders/UltraHDRLoader.js';
 export * from './loaders/STLLoader.js';
 export * from './loaders/SVGLoader.js';
@@ -155,6 +153,7 @@ export * from './misc/MorphAnimMesh.js';
 export * from './misc/MorphBlendMesh.js';
 export * from './misc/ProgressiveLightMap.js';
 export * from './misc/RollerCoaster.js';
+export * from './misc/Sculptor.js';
 export * from './misc/TileCreasedNormalsPlugin.js';
 export * from './misc/TubePainter.js';
 export * from './misc/Volume.js';
@@ -166,6 +165,7 @@ export * from './modifiers/SimplifyModifier.js';
 export * from './modifiers/TessellateModifier.js';
 
 export * from './objects/GroundedSkybox.js';
+export * from './objects/GaussianSplat.js';
 export * from './objects/Lensflare.js';
 export * from './objects/MarchingCubes.js';
 export * from './objects/Reflector.js';

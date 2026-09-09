@@ -165,6 +165,10 @@ class NodeManager extends DataMap {
 	_createNodeBuilder( renderObject, material ) {
 
 		const nodeBuilder = this.backend.createNodeBuilder( renderObject.object, this.renderer );
+		const onNodeBuilderCreated = this.renderer.debug.onNodeBuilderCreated;
+
+		if ( onNodeBuilderCreated !== null ) onNodeBuilderCreated( nodeBuilder, renderObject );
+
 		nodeBuilder.scene = renderObject.scene;
 		nodeBuilder.material = material;
 		nodeBuilder.camera = renderObject.camera;
@@ -446,9 +450,10 @@ class NodeManager extends DataMap {
 	 * Returns a node builder state for the given compute node.
 	 *
 	 * @param {Node} computeNode - The compute node.
-	 * @return {NodeBuilderState} The node builder state.
+	 * @param {boolean} [useAsync=false] - Whether to use async build with yielding.
+	 * @return {NodeBuilderState|Promise<NodeBuilderState>} The node builder state (or Promise if async).
 	 */
-	getForCompute( computeNode ) {
+	getForCompute( computeNode, useAsync = false ) {
 
 		const computeData = this.get( computeNode );
 
@@ -456,7 +461,28 @@ class NodeManager extends DataMap {
 
 		if ( nodeBuilderState === undefined || computeData.version !== computeNode.version ) {
 
-			const nodeBuilder = this.backend.createNodeBuilder( computeNode, this.renderer );
+			const nodeBuilder = this.backend.createNodeBuilder( null, this.renderer );
+			nodeBuilder.compute = computeNode;
+
+			const onNodeBuilderCreated = this.renderer.debug.onNodeBuilderCreated;
+
+			if ( onNodeBuilderCreated !== null ) onNodeBuilderCreated( nodeBuilder, computeNode );
+
+			if ( useAsync ) {
+
+				return nodeBuilder.buildAsync().then( () => {
+
+					nodeBuilderState = this._createNodeBuilderState( nodeBuilder );
+
+					computeData.nodeBuilderState = nodeBuilderState;
+					computeData.version = computeNode.version;
+
+					return nodeBuilderState;
+
+				} );
+
+			}
+
 			nodeBuilder.build();
 
 			nodeBuilderState = this._createNodeBuilderState( nodeBuilder );
@@ -467,6 +493,27 @@ class NodeManager extends DataMap {
 		}
 
 		return nodeBuilderState;
+
+	}
+
+	/**
+	 * Async version of getForCompute() that yields to main thread during build.
+	 * Use this in compileComputeAsync() to prevent blocking the main thread.
+	 *
+	 * @param {Node} computeNode - The compute node.
+	 * @return {Promise<NodeBuilderState>} A promise that resolves to the node builder state.
+	 */
+	getForComputeAsync( computeNode ) {
+
+		const result = this.getForCompute( computeNode, true );
+
+		if ( result.then ) {
+
+			return result;
+
+		}
+
+		return Promise.resolve( result );
 
 	}
 
@@ -756,6 +803,27 @@ class NodeManager extends DataMap {
 
 		if ( node === undefined || forceUpdate ) {
 
+			if ( node === undefined && object.isTexture === true ) {
+
+				const onTextureDispose = () => {
+
+					object.removeEventListener( 'dispose', onTextureDispose );
+
+					const node = nodeCache.get( object );
+
+					if ( node !== undefined ) {
+
+						nodeCache.delete( object );
+						node.dispose();
+
+					}
+
+				};
+
+				object.addEventListener( 'dispose', onTextureDispose );
+
+			}
+
 			node = callback();
 			nodeCache.set( object, node );
 
@@ -866,7 +934,18 @@ class NodeManager extends DataMap {
 
 	}
 
-	getNodeFrame( renderer = this.renderer, scene = null, object = null, camera = null, material = null ) {
+	/**
+	 * Returns a node frame configured with the given parameters.
+	 *
+	 * @param {Renderer} [renderer=this.renderer] - The renderer.
+	 * @param {?Scene} [scene=null] - The scene.
+	 * @param {?Object3D} [object=null] - The object.
+	 * @param {?Camera} [camera=null] - The camera.
+	 * @param {?Material} [material=null] - The material.
+	 * @param {?Node} [compute=null] - The compute node.
+	 * @return {NodeFrame} The node frame.
+	 */
+	getNodeFrame( renderer = this.renderer, scene = null, object = null, camera = null, material = null, compute = null ) {
 
 		const nodeFrame = this.nodeFrame;
 		nodeFrame.renderer = renderer;
@@ -874,14 +953,33 @@ class NodeManager extends DataMap {
 		nodeFrame.object = object;
 		nodeFrame.camera = camera;
 		nodeFrame.material = material;
+		nodeFrame.compute = compute;
 
 		return nodeFrame;
 
 	}
 
+	/**
+	 * Returns a node frame configured for the given render object.
+	 *
+	 * @param {RenderObject} renderObject - The render object.
+	 * @return {NodeFrame} The node frame.
+	 */
 	getNodeFrameForRender( renderObject ) {
 
 		return this.getNodeFrame( renderObject.renderer, renderObject.scene, renderObject.object, renderObject.camera, renderObject.material );
+
+	}
+
+	/**
+	 * Returns a node frame configured for the given compute node.
+	 *
+	 * @param {Node} computeNode - The compute node.
+	 * @return {NodeFrame} The node frame.
+	 */
+	getNodeFrameForCompute( computeNode ) {
+
+		return this.getNodeFrame( this.renderer, null, null, null, null, computeNode );
 
 	}
 
@@ -986,6 +1084,46 @@ class NodeManager extends DataMap {
 	}
 
 	/**
+	 * Triggers the call of `updateBefore()` methods
+	 * for all nodes of the given compute node.
+	 *
+	 * @param {Node} computeNode - The compute node.
+	 */
+	updateBeforeForCompute( computeNode ) {
+
+		const nodeBuilder = this.getForCompute( computeNode );
+
+		for ( const node of nodeBuilder.updateBeforeNodes ) {
+
+			// update frame state for each node
+
+			this.getNodeFrameForCompute( computeNode ).updateBeforeNode( node );
+
+		}
+
+	}
+
+	/**
+	 * Triggers the call of `updateAfter()` methods
+	 * for all nodes of the given compute node.
+	 *
+	 * @param {Node} computeNode - The compute node.
+	 */
+	updateAfterForCompute( computeNode ) {
+
+		const nodeBuilder = this.getForCompute( computeNode );
+
+		for ( const node of nodeBuilder.updateAfterNodes ) {
+
+			// update frame state for each node
+
+			this.getNodeFrameForCompute( computeNode ).updateAfterNode( node );
+
+		}
+
+	}
+
+	/**
 	 * Triggers the call of `update()` methods
 	 * for all nodes of the given compute node.
 	 *
@@ -1024,10 +1162,10 @@ class NodeManager extends DataMap {
 	}
 
 	/**
-	 * Returns `true` if the given render object requires a refresh.
+	 * Returns the refresh type of the given render object.
 	 *
 	 * @param {RenderObject} renderObject - The render object.
-	 * @return {boolean} Whether the given render object requires a refresh or not.
+	 * @return {number} The refresh type, see `RenderObjectRefreshType`.
 	 */
 	needsRefresh( renderObject ) {
 

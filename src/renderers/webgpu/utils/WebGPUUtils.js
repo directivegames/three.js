@@ -111,10 +111,21 @@ class WebGPUUtils {
 
 		} else if ( texture.isDepthTexture && ! texture.renderTarget ) {
 
-			const renderer = this.backend.renderer;
-			const renderTarget = renderer.getRenderTarget();
+			const textureData = this.backend.get( texture );
 
-			samples = renderTarget ? renderTarget.samples : renderer.currentSamples;
+			if ( textureData.texture !== undefined ) {
+
+				// use the effective sample count of the allocated texture
+
+				samples = textureData.texture.sampleCount;
+
+			} else {
+
+				// otherwise use the current samples of the renderer
+
+				samples = this.backend.renderer.currentSamples;
+
+			}
 
 		} else if ( texture.renderTarget ) {
 
@@ -125,7 +136,8 @@ class WebGPUUtils {
 		samples = this.getSampleCount( samples || 1 );
 
 		const isMSAA = samples > 1 && texture.renderTarget !== null && ( texture.isDepthTexture !== true && texture.isFramebufferTexture !== true );
-		const primarySamples = isMSAA ? 1 : samples;
+		const isMSAAArrayDepthTexture = samples > 1 && texture.renderTarget !== null && texture.isDepthTexture === true && texture.isArrayTexture === true;
+		const primarySamples = isMSAA || isMSAAArrayDepthTexture ? 1 : samples;
 
 		return { samples, primarySamples, isMSAA };
 

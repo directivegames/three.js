@@ -110,6 +110,14 @@ class NodeFrame {
 		 */
 		this.scene = null;
 
+		/**
+		 * A reference to the current compute node.
+		 *
+		 * @type {?ComputeNode}
+		 * @default null
+		 */
+		this.compute = null;
+
 	}
 
 	/**
@@ -155,7 +163,7 @@ class NodeFrame {
 		ProfilerService.begin( label );
 		// !WITH_GENESYS
 
-		const updateType = node.getUpdateBeforeType();
+		const updateType = node.getUpdateBeforeType( this );
 		const reference = node.updateReference( this );
 
 		if ( updateType === NodeUpdateType.FRAME ) {
@@ -221,7 +229,7 @@ class NodeFrame {
 		ProfilerService.begin( label );
 		// !WITH_GENESYS
 
-		const updateType = node.getUpdateAfterType();
+		const updateType = node.getUpdateAfterType( this );
 		const reference = node.updateReference( this );
 
 		if ( updateType === NodeUpdateType.FRAME ) {
@@ -274,7 +282,7 @@ class NodeFrame {
 	 */
 	updateNode( node ) {
 
-		const updateType = node.getUpdateType();
+		const updateType = node.getUpdateType( this );
 		const reference = node.updateReference( this );
 
 		if ( updateType === NodeUpdateType.FRAME ) {

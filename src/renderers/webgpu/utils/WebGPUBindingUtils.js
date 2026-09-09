@@ -3,7 +3,7 @@ import {
 	GPUSamplerBindingType, GPUShaderStage
 } from './WebGPUConstants.js';
 
-import { FloatType, IntType, UnsignedIntType, Compatibility } from '../../../constants.js';
+import { FloatType, IntType, UnsignedIntType, Compatibility, UnsignedShortType, ShortType } from '../../../constants.js';
 import { NodeAccess } from '../../../nodes/core/constants.js';
 import { isTypedArray, error } from '../../../utils.js';
 import { hashString } from '../../../nodes/core/NodeUtils.js';
@@ -137,10 +137,10 @@ class WebGPUBindingUtils {
 	 *
 	 * @param {BindGroup} bindGroup - The bind group.
 	 * @param {Array<BindGroup>} bindings - Array of bind groups.
-	 * @param {number} cacheIndex - The cache index.
+	 * @param {string} cacheKey - The cache key.
 	 * @param {number} version - The version.
 	 */
-	createBindings( bindGroup, bindings, cacheIndex, version = 0 ) {
+	createBindings( bindGroup, bindings, cacheKey, version = 0 ) {
 
 		const { backend } = this;
 		const bindingsData = backend.get( bindGroup );
@@ -151,18 +151,18 @@ class WebGPUBindingUtils {
 
 		let bindGroupGPU;
 
-		if ( cacheIndex > 0 ) {
+		if ( cacheKey !== '' ) {
 
 			if ( bindingsData.groups === undefined ) {
 
-				bindingsData.groups = [];
-				bindingsData.versions = [];
+				bindingsData.groups = {};
+				bindingsData.versions = {};
 
 			}
 
-			if ( bindingsData.versions[ cacheIndex ] === version ) {
+			if ( bindingsData.versions[ cacheKey ] === version ) {
 
-				bindGroupGPU = bindingsData.groups[ cacheIndex ];
+				bindGroupGPU = bindingsData.groups[ cacheKey ];
 
 			}
 
@@ -172,10 +172,10 @@ class WebGPUBindingUtils {
 
 			bindGroupGPU = this.createBindGroup( bindGroup, bindLayoutGPU );
 
-			if ( cacheIndex > 0 ) {
+			if ( cacheKey !== '' ) {
 
-				bindingsData.groups[ cacheIndex ] = bindGroupGPU;
-				bindingsData.versions[ cacheIndex ] = version;
+				bindingsData.groups[ cacheKey ] = bindGroupGPU;
+				bindingsData.versions[ cacheKey ] = version;
 
 			}
 
@@ -439,8 +439,6 @@ class WebGPUBindingUtils {
 
 					if ( binding.visibility & GPUShaderStage.COMPUTE ) {
 
-						// compute
-
 						if ( binding.access === NodeAccess.READ_WRITE || binding.access === NodeAccess.WRITE_ONLY ) {
 
 							buffer.type = GPUBufferBindingType.Storage;
@@ -450,6 +448,14 @@ class WebGPUBindingUtils {
 							buffer.type = GPUBufferBindingType.ReadOnlyStorage;
 
 						}
+
+					} else if ( binding.nodeUniform && binding.nodeUniform.isAtomic && ( binding.visibility & GPUShaderStage.FRAGMENT ) ) {
+
+						// Atomic buffers require a read_write storage binding. Per the WGSL
+						// spec this is only valid in the fragment stage (compute is handled
+						// above), so the vertex stage falls back to read-only storage.
+
+						buffer.type = GPUBufferBindingType.Storage;
 
 					} else {
 
@@ -536,6 +542,10 @@ class WebGPUBindingUtils {
 
 						texture.sampleType = GPUTextureSampleType.UInt;
 
+					} else if ( binding.texture.normalized === true && ( type === ShortType || type === UnsignedShortType ) ) {
+
+						texture.sampleType = GPUTextureSampleType.UnfilterableFloat;
+
 					} else if ( type === FloatType ) {
 
 						if ( this.backend.hasFeature( 'float32-filterable' ) ) {
@@ -574,7 +584,7 @@ class WebGPUBindingUtils {
 
 				if ( binding.texture.isDepthTexture ) {
 
-					if ( binding.texture.compareFunction !== null && binding.textureNode.compareNode !== null && backend.hasCompatibility( Compatibility.TEXTURE_COMPARE ) ) {
+					if ( binding.texture.compareFunction !== null && binding.textureNode.isSampleCompare() && backend.hasCompatibility( Compatibility.TEXTURE_COMPARE ) ) {
 
 						sampler.type = GPUSamplerBindingType.Comparison;
 

@@ -157,10 +157,12 @@ class WebGPUTextureUtils {
 		const texture = binding.texture;
 		const textureNode = binding.textureNode;
 
+		const isComparison = texture.isDepthTexture === true && texture.compareFunction !== null && textureNode.isSampleCompare() && backend.hasCompatibility( Compatibility.TEXTURE_COMPARE );
+
 		const samplerKey = texture.minFilter + '-' + texture.magFilter + '-' +
 			texture.wrapS + '-' + texture.wrapT + '-' + ( texture.wrapR || '0' ) + '-' +
 			texture.anisotropy + '-' + ( texture.isDepthTexture === true ? 1 : 0 ) + '-' +
-			( texture.compareFunction !== null && textureNode.compareNode !== null ? texture.compareFunction : 0 );
+			( isComparison ? texture.compareFunction : 0 );
 
 		let samplerData = this._samplerCache.get( samplerKey );
 
@@ -174,7 +176,7 @@ class WebGPUTextureUtils {
 			_samplerDescriptor.mipmapFilter = this._convertMipmapFilterMode( texture.minFilter );
 
 			// Depth textures without compare function must use non-filtering (nearest) sampling
-			if ( texture.isDepthTexture && ( texture.compareFunction === null || textureNode.compareNode === null ) ) {
+			if ( texture.isDepthTexture && isComparison === false ) {
 
 				_samplerDescriptor.magFilter = GPUFilterMode.Nearest;
 				_samplerDescriptor.minFilter = GPUFilterMode.Nearest;
@@ -190,7 +192,7 @@ class WebGPUTextureUtils {
 
 			}
 
-			if ( texture.isDepthTexture && texture.compareFunction !== null && textureNode.compareNode !== null && backend.hasCompatibility( Compatibility.TEXTURE_COMPARE ) ) {
+			if ( isComparison ) {
 
 				_samplerDescriptor.compare = _compareToWebGPU[ texture.compareFunction ];
 
@@ -361,6 +363,20 @@ class WebGPUTextureUtils {
 		textureData.format = format;
 
 		const { samples, primarySamples, isMSAA } = backend.utils.getTextureSampleData( texture );
+		const renderTarget = texture.renderTarget;
+
+		// WebGPU multisampled 2D textures can only have a single array layer.
+		const useSeparateMSAATextures = samples > 1 && renderTarget !== null && depth > 1 && dimension === GPUTextureDimension.TwoD;
+		const supportsTransientAttachments = GPUTextureUsage.TRANSIENT_ATTACHMENT !== undefined;
+		// Layered rendering can resume after a framebuffer copy, so its attachments must support loading.
+		const useTransientAttachments = supportsTransientAttachments && useSeparateMSAATextures === false;
+		const useTransientDepthAttachment = texture.isDepthTexture === true &&
+			useTransientAttachments &&
+			renderTarget?.storeMultisampledDepthBuffer === false &&
+			( renderTarget.stencilBuffer === false || renderTarget.storeMultisampledStencilBuffer === false );
+		const useTransientColorAttachment = texture.isDepthTexture !== true &&
+			useTransientAttachments &&
+			renderTarget?.storeMultisampledColorBuffer === false;
 
 		let usage = GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC;
 
@@ -373,6 +389,14 @@ class WebGPUTextureUtils {
 		if ( texture.isCompressedTexture !== true && texture.isCompressedArrayTexture !== true && format !== GPUTextureFormat.RGB9E5UFloat ) {
 
 			usage |= GPUTextureUsage.RENDER_ATTACHMENT;
+
+		}
+
+		// when the multisampled data are discarded, try to use a transient attachment if possible
+
+		if ( primarySamples > 1 && useTransientDepthAttachment ) {
+
+			usage = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TRANSIENT_ATTACHMENT;
 
 		}
 
@@ -416,7 +440,7 @@ class WebGPUTextureUtils {
 
 		}
 
-		if ( isMSAA ) {
+		if ( isMSAA || useSeparateMSAATextures ) {
 
 			const msaaTextureDescriptorGPU = Object.assign( {}, textureDescriptorGPU );
 
@@ -424,7 +448,32 @@ class WebGPUTextureUtils {
 			msaaTextureDescriptorGPU.sampleCount = samples;
 			msaaTextureDescriptorGPU.mipLevelCount = 1; // See https://www.w3.org/TR/webgpu/#texture-creation
 
-			textureData.msaaTexture = backend.device.createTexture( msaaTextureDescriptorGPU );
+			// when the multisampled data are discarded, try to use a transient attachment if possible
+
+			if ( useTransientDepthAttachment || useTransientColorAttachment ) {
+
+				msaaTextureDescriptorGPU.usage = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TRANSIENT_ATTACHMENT;
+
+			}
+
+			if ( useSeparateMSAATextures ) {
+
+				msaaTextureDescriptorGPU.size = Object.assign( {}, msaaTextureDescriptorGPU.size, { depthOrArrayLayers: 1 } );
+
+				textureData.msaaTextures = [];
+
+				for ( let i = 0; i < depth; i ++ ) {
+
+					msaaTextureDescriptorGPU.label = textureDescriptorGPU.label + '-msaa-' + i;
+					textureData.msaaTextures.push( backend.device.createTexture( msaaTextureDescriptorGPU ) );
+
+				}
+
+			} else {
+
+				textureData.msaaTexture = backend.device.createTexture( msaaTextureDescriptorGPU );
+
+			}
 
 		}
 
@@ -445,9 +494,15 @@ class WebGPUTextureUtils {
 		const backend = this.backend;
 		const textureData = backend.get( texture );
 
-		if ( textureData.texture !== undefined && isDefaultTexture === false && texture.isExternalTexture !== true ) textureData.texture.destroy();
+		if ( textureData.texture !== undefined && isDefaultTexture === false && texture.isExternalTexture !== true && textureData.externalTexture !== true ) textureData.texture.destroy();
 
 		if ( textureData.msaaTexture !== undefined ) textureData.msaaTexture.destroy();
+
+		if ( textureData.msaaTextures !== undefined ) {
+
+			for ( const msaaTexture of textureData.msaaTextures ) msaaTexture.destroy();
+
+		}
 
 		backend.delete( texture );
 
@@ -753,7 +808,7 @@ class WebGPUTextureUtils {
 	 * @param {number} y - The y coordinate of the copy origin.
 	 * @param {number} width - The width of the copy.
 	 * @param {number} height - The height of the copy.
-	 * @param {number} faceIndex - The face index.
+	 * @param {number} faceIndex - The cube face, depth slice or array layer index.
 	 * @return {Promise<TypedArray>} A Promise that resolves with a typed array when the copy operation has finished.
 	 */
 	async copyTextureToBuffer( texture, x, y, width, height, faceIndex ) {

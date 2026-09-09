@@ -10,8 +10,6 @@ import { DataTexture } from '../../../textures/DataTexture.js';
 import { error } from '../../../utils.js';
 
 const glslPolyfills = {
-	bitcast_int_uint: new CodeNode( /* glsl */'uint tsl_bitcast_int_to_uint ( int x ) { return floatBitsToUint( intBitsToFloat ( x ) ); }' ),
-	bitcast_uint_int: new CodeNode( /* glsl */'uint tsl_bitcast_uint_to_int ( uint x ) { return floatBitsToInt( uintBitsToFloat ( x ) ); }' ),
 	textureGather: new CodeNode( /* glsl */`
 vec4 tsl_textureGather( const int comp, sampler2D map, vec2 coord, ivec2 offset, bool flipY ) {
 	if ( flipY ) offset.y = - offset.y;
@@ -71,24 +69,29 @@ vec4 tsl_textureGatherCompare_array( sampler2DArrayShadow map, vec3 coord, ivec2
 	);
 	return flipY ? ret.wzyx : ret;
 }
-` )
+` ),
+	floatpack_snorm_4x8: new CodeNode( /* glsl */'uint tsl_packSnorm4x8( vec4 v ) { uvec4 u = uvec4( ivec4( round( clamp( v, -1.0, 1.0 ) * 127.0 ) ) & 0xff ); return u.x | u.y << 8 | u.z << 16 | u.w << 24; }' ),
+	floatpack_unorm_4x8: new CodeNode( /* glsl */'uint tsl_packUnorm4x8( vec4 v ) { uvec4 u = uvec4( round( clamp( v, 0.0, 1.0 ) * 255.0 ) ); return u.x | u.y << 8 | u.z << 16 | u.w << 24; }' ),
+	floatunpack_snorm_4x8: new CodeNode( /* glsl */'vec4 tsl_unpackSnorm4x8( uint x ) { return max( vec4( ivec4( x << 24, x << 16, x << 8, x ) >> 24 ) / 127.0, -1.0 ); }' ),
+	floatunpack_unorm_4x8: new CodeNode( /* glsl */'vec4 tsl_unpackUnorm4x8( uint x ) { return vec4( uvec4( x, x >> 8, x >> 16, x >> 24 ) & 0xffu ) / 255.0; }' )
 };
 
 const glslMethods = {
-	textureDimensions: 'textureSize',
 	equals: 'equal',
 	bitcast_float_int: 'floatBitsToInt',
 	bitcast_int_float: 'intBitsToFloat',
 	bitcast_uint_float: 'uintBitsToFloat',
 	bitcast_float_uint: 'floatBitsToUint',
-	bitcast_uint_int: 'tsl_bitcast_uint_to_int',
-	bitcast_int_uint: 'tsl_bitcast_int_to_uint',
 	floatpack_snorm_2x16: 'packSnorm2x16',
 	floatpack_unorm_2x16: 'packUnorm2x16',
 	floatpack_float16_2x16: 'packHalf2x16',
+	floatpack_snorm_4x8: 'tsl_packSnorm4x8',
+	floatpack_unorm_4x8: 'tsl_packUnorm4x8',
 	floatunpack_snorm_2x16: 'unpackSnorm2x16',
 	floatunpack_unorm_2x16: 'unpackUnorm2x16',
-	floatunpack_float16_2x16: 'unpackHalf2x16'
+	floatunpack_float16_2x16: 'unpackHalf2x16',
+	floatunpack_snorm_4x8: 'tsl_unpackSnorm4x8',
+	floatunpack_unorm_4x8: 'tsl_unpackUnorm4x8'
 };
 
 const precisionLib = {
@@ -133,6 +136,30 @@ precision highp sampler2DShadow;
 precision highp sampler2DArrayShadow;
 precision highp samplerCubeShadow;
 `;
+
+const glslReservedKeywords = new Set( [
+	// keywords
+	'const', 'uniform', 'buffer', 'shared', 'attribute', 'varying', 'coherent', 'volatile', 'restrict',
+	'readonly', 'writeonly', 'atomic_uint', 'layout', 'centroid', 'flat', 'smooth', 'noperspective',
+	'patch', 'sample', 'invariant', 'precise', 'break', 'continue', 'do', 'for', 'while', 'switch',
+	'case', 'default', 'if', 'else', 'subroutine', 'in', 'out', 'inout', 'int', 'void', 'bool', 'true',
+	'false', 'float', 'double', 'discard', 'return', 'vec2', 'vec3', 'vec4', 'ivec2', 'ivec3', 'ivec4',
+	'bvec2', 'bvec3', 'bvec4', 'uint', 'uvec2', 'uvec3', 'uvec4', 'dvec2', 'dvec3', 'dvec4', 'mat2',
+	'mat3', 'mat4', 'mat2x2', 'mat2x3', 'mat2x4', 'mat3x2', 'mat3x3', 'mat3x4', 'mat4x2', 'mat4x3',
+	'mat4x4', 'dmat2', 'dmat3', 'dmat4', 'dmat2x2', 'dmat2x3', 'dmat2x4', 'dmat3x2', 'dmat3x3',
+	'dmat3x4', 'dmat4x2', 'dmat4x3', 'dmat4x4', 'lowp', 'mediump', 'highp', 'precision', 'sampler2D',
+	'sampler3D', 'samplerCube', 'sampler2DShadow', 'samplerCubeShadow', 'sampler2DArray',
+	'sampler2DArrayShadow', 'isampler2D', 'isampler3D', 'isamplerCube', 'isampler2DArray', 'usampler2D',
+	'usampler3D', 'usamplerCube', 'usampler2DArray', 'struct',
+	// reserved for future use
+	'common', 'partition', 'active', 'asm', 'class', 'union', 'enum', 'typedef', 'template', 'this',
+	'resource', 'goto', 'inline', 'noinline', 'public', 'static', 'extern', 'external', 'interface',
+	'long', 'short', 'half', 'fixed', 'unsigned', 'superp', 'input', 'output', 'hvec2', 'hvec3',
+	'hvec4', 'fvec2', 'fvec3', 'fvec4', 'sampler3DRect', 'filter', 'sizeof', 'cast', 'namespace',
+	'using',
+	// generated entry points
+	'main'
+] );
 
 /**
  * A node builder targeting GLSL.
@@ -246,7 +273,19 @@ class GLSLNodeBuilder extends NodeBuilder {
 	 */
 	getBitcastMethod( type, inputType ) {
 
-		return this.getMethod( `bitcast_${ inputType }_${ type }` );
+		const inputComponentType = this.getComponentType( inputType );
+		const componentType = this.getComponentType( type );
+
+		// integer types support bitcast implicitly via the type constructor
+
+		if ( inputComponentType !== 'float' && componentType !== 'float' &&
+			this.getTypeLength( inputType ) === this.getTypeLength( type ) ) {
+
+			return this.getType( type );
+
+		}
+
+		return this.getMethod( `bitcast_${ inputComponentType }_${ componentType }` );
 
 	}
 
@@ -254,11 +293,12 @@ class GLSLNodeBuilder extends NodeBuilder {
 	 * Returns the float packing method name for a given numeric encoding.
 	 *
 	 * @param {string} encoding - The numeric encoding that describes how the float values are mapped to the integer range.
+	 * @param {string} [layout='2x16'] - The component layout of the packed integer.
 	 * @returns {string} The resolved GLSL float packing method name.
 	 */
-	getFloatPackingMethod( encoding ) {
+	getFloatPackingMethod( encoding, layout = '2x16' ) {
 
-		return this.getMethod( `floatpack_${ encoding }_2x16` );
+		return this.getMethod( `floatpack_${ encoding }_${ layout }` );
 
 	}
 
@@ -266,11 +306,12 @@ class GLSLNodeBuilder extends NodeBuilder {
 	 * Returns the float unpacking method name for a given numeric encoding.
 	 *
 	 * @param {string} encoding - The numeric encoding that describes how the integer values are mapped to the float range.
+	 * @param {string} [layout='2x16'] - The component layout of the packed integer.
 	 * @returns {string} The resolved GLSL float unpacking method name.
 	 */
-	getFloatUnpackingMethod( encoding ) {
+	getFloatUnpackingMethod( encoding, layout = '2x16' ) {
 
-		return this.getMethod( `floatunpack_${ encoding }_2x16` );
+		return this.getMethod( `floatunpack_${ encoding }_${ layout }` );
 
 	}
 
@@ -425,6 +466,18 @@ ${ flowData.code }
 		}
 
 		return super.getPropertyName( node, shaderStage );
+
+	}
+
+	/**
+	 * Returns whether the given name is a reserved keyword of GLSL.
+	 *
+	 * @param {string} name - The name to test.
+	 * @return {boolean} Whether the name is a reserved keyword or not.
+	 */
+	isReservedKeyword( name ) {
+
+		return glslReservedKeywords.has( name );
 
 	}
 
@@ -595,6 +648,20 @@ ${ flowData.code }
 		if ( offsetSnippet ) return `textureOffset( ${ textureProperty }, ${ uvSnippet }, ${ offsetSnippet } )`;
 
 		return `texture( ${ textureProperty }, ${ uvSnippet } )`;
+
+	}
+
+	/**
+	 * Generates the GLSL snippet that resolves the dimensions of the given texture.
+	 *
+	 * @param {Texture} texture - The texture.
+	 * @param {string} textureProperty - The name of the texture uniform in the shader.
+	 * @param {string} levelSnippet - A GLSL snippet that represents the mip level.
+	 * @return {string} The GLSL snippet.
+	 */
+	generateTextureSize( texture, textureProperty, levelSnippet ) {
+
+		return `textureSize( ${ textureProperty }, ${ levelSnippet } )`;
 
 	}
 
@@ -814,27 +881,14 @@ ${ flowData.code }
 				const textureNode = uniform.node;
 				const texture = textureNode.value;
 
-				let typePrefix = '';
-
-				if ( texture.isDataTexture === true || texture.isData3DTexture === true ) {
-
-					if ( texture.type === UnsignedIntType ) {
-
-						typePrefix = 'u';
-
-					} else if ( texture.type === IntType ) {
-
-						typePrefix = 'i';
-
-					}
-
-				}
+				const componentType = this.getComponentTypeFromTexture( texture );
+				const typePrefix = componentType === 'float' ? '' : componentType.charAt( 0 );
 
 				if ( uniform.type === 'texture3D' && texture.isArrayTexture === false ) {
 
 					snippet = `${typePrefix}sampler3D ${ uniform.name };`;
 
-				} else if ( texture.compareFunction && textureNode.compareNode !== null ) {
+				} else if ( texture.compareFunction && textureNode.isSampleCompare() ) {
 
 					if ( texture.isArrayTexture === true ) {
 
@@ -1198,7 +1252,7 @@ ${ flowData.code }
 	 */
 	getInvocationLocalIndex() {
 
-		const workgroupSize = this.object.workgroupSize;
+		const workgroupSize = this.compute.workgroupSize;
 
 		const size = workgroupSize.reduce( ( acc, curr ) => acc * curr, 1 );
 

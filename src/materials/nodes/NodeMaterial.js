@@ -339,9 +339,11 @@ class NodeMaterial extends Material {
 		this.castShadowNode = null;
 
 		/**
-		 * This node can be used to define the final output of the material.
+		 * This node can be used to overwrite the final output of the material.
 		 *
-		 * TODO: Explain the differences to `fragmentNode`.
+		 * Unlike {@link NodeMaterial#fragmentNode}, the built-in material logic
+		 * (diffuse color, lighting, etc.) is still evaluated; assigning a node
+		 * only replaces the resulting output color.
 		 *
 		 * @type {?Node<vec4>}
 		 * @default null
@@ -813,7 +815,6 @@ class NodeMaterial extends Material {
 	 * Setups the computation of the material's diffuse color.
 	 *
 	 * @param {NodeBuilder} builder - The current node builder.
-	 * @param {BufferGeometry} geometry - The geometry.
 	 */
 	setupDiffuseColor( builder ) {
 
@@ -992,14 +993,6 @@ class NodeMaterial extends Material {
 
 		const materialLightsNode = [];
 
-		if ( builder.renderer.lighting.enabled === false ) {
-
-			return materialLightsNode;
-
-		}
-
-		//
-
 		const envNode = this.setupEnvironment( builder );
 
 		if ( envNode && envNode.isLightingNode ) {
@@ -1019,6 +1012,18 @@ class NodeMaterial extends Material {
 		if ( builder.context.ambientOcclusion ) {
 
 			materialLightsNode.push( new AONode( builder.context.ambientOcclusion ) );
+
+		}
+
+		if ( builder.context.getGI ) {
+
+			const giNode = builder.context.getGI( null, builder );
+
+			if ( giNode !== null ) {
+
+				materialLightsNode.push( new IrradianceNode( giNode ) );
+
+			}
 
 		}
 
@@ -1085,9 +1090,10 @@ class NodeMaterial extends Material {
 
 		// OUTGOING LIGHT
 
-		const lights = this.lights === true || this.lightsNode !== null;
+		const sceneLighting = this.lights === true && builder.renderer.lighting.enabled;
+		const lights = sceneLighting || this.lightsNode !== null;
 
-		const materialLightings = this.lights === true ? this.setupMaterialLightings( builder ) : [];
+		const materialLightings = sceneLighting ? this.setupMaterialLightings( builder ) : [];
 		const lightsNode = lights ? ( this.lightsNode || builder.lightsNode ) : null;
 
 		let outgoingLightNode = this.setupOutgoingLight( builder );

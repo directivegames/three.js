@@ -1,5 +1,3 @@
-import { BlendColorFactor, OneMinusBlendColorFactor, } from '../../common/Constants.js';
-
 import {
 	GPUFrontFace, GPUCullMode, GPUColorWriteFlags, GPUCompareFunction, GPUBlendFactor, GPUBlendOperation, GPUIndexFormat, GPUStencilOperation, GPUPrimitiveTopology
 } from './WebGPUConstants.js';
@@ -10,6 +8,7 @@ import {
 	NoBlending, NormalBlending, AdditiveBlending, SubtractiveBlending, MultiplyBlending, CustomBlending, MaterialBlending,
 	ZeroFactor, OneFactor, SrcColorFactor, OneMinusSrcColorFactor, SrcAlphaFactor, OneMinusSrcAlphaFactor, DstColorFactor,
 	OneMinusDstColorFactor, DstAlphaFactor, OneMinusDstAlphaFactor, SrcAlphaSaturateFactor,
+	ConstantColorFactor, OneMinusConstantColorFactor, ConstantAlphaFactor, OneMinusConstantAlphaFactor,
 	AddEquation, SubtractEquation, ReverseSubtractEquation, MinEquation, MaxEquation,
 	KeepStencilOp, ZeroStencilOp, ReplaceStencilOp, InvertStencilOp, IncrementStencilOp, DecrementStencilOp, IncrementWrapStencilOp, DecrementWrapStencilOp,
 	NeverStencilFunc, AlwaysStencilFunc, LessStencilFunc, LessEqualStencilFunc, EqualStencilFunc, GreaterEqualStencilFunc, GreaterStencilFunc, NotEqualStencilFunc
@@ -376,8 +375,9 @@ class WebGPUPipelineUtils {
 	 *
 	 * @param {ComputePipeline} pipeline - The compute pipeline.
 	 * @param {Array<BindGroup>} bindings - The bindings.
+	 * @param {?Array<Promise>} [promises=null] - Optional compilation promises.
 	 */
-	createComputePipeline( pipeline, bindings ) {
+	createComputePipeline( pipeline, bindings, promises = null ) {
 
 		const backend = this.backend;
 		const device = backend.device;
@@ -414,23 +414,87 @@ class WebGPUPipelineUtils {
 		_computePipelineDescriptor.compute = computeProgram;
 		_computePipelineDescriptor.layout = pipelineLayout;
 
-		pipelineGPU.pipeline = device.createComputePipeline( _computePipelineDescriptor );
+		if ( promises === null ) {
 
-		_computePipelineDescriptor.reset();
+			pipelineGPU.pipeline = device.createComputePipeline( _computePipelineDescriptor );
 
-		device.popErrorScope().then( ( err ) => {
+			_computePipelineDescriptor.reset();
 
-			if ( err !== null ) {
+			device.popErrorScope().then( ( err ) => {
 
-				pipelineGPU.error = true;
+				if ( err !== null ) {
 
-				error( `WebGPURenderer: Compute pipeline creation failed (${ pipelineLabel }): ${ err.message }` );
+					pipelineGPU.error = true;
 
-				this._reportShaderDiagnostics( [ { program: computeStage, module: computeProgram.module } ], pipelineLabel );
+					error( `WebGPURenderer: Compute pipeline creation failed (${ pipelineLabel }): ${ err.message }` );
 
-			}
+					this._reportShaderDiagnostics( [ { program: computeStage, module: computeProgram.module } ], pipelineLabel );
 
-		} );
+				}
+
+			} );
+
+		} else {
+
+			const promise = new Promise( async ( resolve /*, reject*/ ) => {
+
+				try {
+
+					let asyncError = null;
+					let pipelinePromise = null;
+
+					try {
+
+						pipelinePromise = device.createComputePipelineAsync( _computePipelineDescriptor );
+
+					} catch ( err ) {
+
+						asyncError = err;
+
+					}
+
+					_computePipelineDescriptor.reset();
+
+					if ( pipelinePromise !== null ) {
+
+						try {
+
+							pipelineGPU.pipeline = await pipelinePromise;
+
+						} catch ( err ) {
+
+							asyncError = err;
+
+						}
+
+					}
+
+					const errorScope = await device.popErrorScope();
+
+					if ( errorScope !== null || asyncError !== null ) {
+
+						pipelineGPU.error = true;
+
+						const reason = ( errorScope && errorScope.message ) || ( asyncError && asyncError.message ) || 'unknown';
+						error( `WebGPURenderer: Async compute pipeline creation failed (${ pipelineLabel }): ${ reason }` );
+
+						await this._reportShaderDiagnostics( [ { program: computeStage, module: computeProgram.module } ], pipelineLabel );
+
+					}
+
+				} finally {
+
+					// Guarantee resolution so `compileComputeAsync`'s Promise.all cannot hang on an
+					// unexpected throw from any await above.
+					resolve();
+
+				}
+
+			} );
+
+			promises.push( promise );
+
+		}
 
 	}
 
@@ -649,11 +713,13 @@ class WebGPUPipelineUtils {
 				blendFactor = GPUBlendFactor.SrcAlphaSaturated;
 				break;
 
-			case BlendColorFactor:
+			case ConstantColorFactor:
+			case ConstantAlphaFactor: // WebGPU has no dedicated constant alpha blend factors
 				blendFactor = GPUBlendFactor.Constant;
 				break;
 
-			case OneMinusBlendColorFactor:
+			case OneMinusConstantColorFactor:
+			case OneMinusConstantAlphaFactor: // WebGPU has no dedicated constant alpha blend factors
 				blendFactor = GPUBlendFactor.OneMinusConstant;
 				break;
 

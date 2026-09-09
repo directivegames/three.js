@@ -2,7 +2,7 @@ import TempNode from '../core/TempNode.js';
 import { sub, mul, div, mod } from './OperatorNode.js';
 import { addMethodChaining, nodeObject, nodeProxyIntent, float, vec2, vec3, vec4, Fn } from '../tsl/TSLCore.js';
 import { WebGLCoordinateSystem, WebGPUCoordinateSystem } from '../../constants.js';
-import { warn } from '../../utils.js';
+import { error } from '../../utils.js';
 
 /**
  * This node represents a variety of mathematical methods available in shaders.
@@ -137,7 +137,7 @@ class MathNode extends TempNode {
 
 		const method = this.method;
 
-		if ( method === MathNode.LENGTH || method === MathNode.DISTANCE || method === MathNode.DOT ) {
+		if ( method === MathNode.LENGTH || method === MathNode.DISTANCE || method === MathNode.DOT || method === MathNode.DETERMINANT ) {
 
 			return 'float';
 
@@ -260,7 +260,7 @@ class MathNode extends TempNode {
 
 				params.push(
 					a.build( builder, inputType ),
-					b.build( builder, builder.getTypeLength( b.getNodeType( builder ) ) === 1 ? 'float' : inputType )
+					b.build( builder, builder.getTypeLength( b.getNodeType( builder ) ) === 1 ? builder.getComponentType( inputType ) : inputType )
 				);
 
 			} else if ( method === MathNode.REFRACT ) {
@@ -289,7 +289,7 @@ class MathNode extends TempNode {
 
 				if ( builder.shaderStage !== 'fragment' && ( method === MathNode.DFDX || method === MathNode.DFDY ) ) {
 
-					warn( `TSL: '${ method }' is not supported in the ${ builder.shaderStage } stage.`, this.stackTrace );
+					error( `TSL: '${ method }' is not supported in the ${ builder.shaderStage } stage.`, this.stackTrace );
 
 					method = '/*' + method + '*/';
 

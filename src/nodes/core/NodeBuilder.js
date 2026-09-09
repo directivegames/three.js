@@ -8,7 +8,7 @@ import ParameterNode from './ParameterNode.js';
 import StructType from './StructType.js';
 import FunctionNode from '../code/FunctionNode.js';
 import NodeMaterial from '../../materials/nodes/NodeMaterial.js';
-import { getDataFromObject, getTypeFromLength, hashString } from './NodeUtils.js';
+import { getDataFromObject, getTypeFromLength, getTextureType, hashString } from './NodeUtils.js';
 import { NodeUpdateType, defaultBuildStages, shaderStages } from './constants.js';
 
 import {
@@ -23,7 +23,7 @@ import CubeRenderTarget from '../../renderers/common/CubeRenderTarget.js';
 
 import BindGroup from '../../renderers/common/BindGroup.js';
 
-import { REVISION, IntType, UnsignedIntType, LinearFilter, LinearMipmapNearestFilter, NearestMipmapLinearFilter, LinearMipmapLinearFilter, NormalBlending, RedFormat, RGFormat, RGBFormat, RedIntegerFormat, RGIntegerFormat, RGBIntegerFormat } from '../../constants.js';
+import { REVISION, IntType, UnsignedIntType, LinearFilter, LinearMipmapNearestFilter, NearestMipmapLinearFilter, LinearMipmapLinearFilter, NormalBlending } from '../../constants.js';
 import { RenderTarget } from '../../core/RenderTarget.js';
 import { Color } from '../../math/Color.js';
 import { Vector2 } from '../../math/Vector2.js';
@@ -122,6 +122,14 @@ class NodeBuilder {
 		 * @type {?BufferGeometry}
 		 */
 		this.geometry = ( object && object.geometry ) || null;
+
+		/**
+		 * The compute node, if building for compute.
+		 *
+		 * @type {?ComputeNode}
+		 * @default null
+		 */
+		this.compute = null;
 
 		/**
 		 * The current renderer.
@@ -573,50 +581,15 @@ class NodeBuilder {
 	 */
 	getOutputType( index = 0 ) {
 
-		let type = 'vec4';
-
 		const renderTarget = this.renderer.getRenderTarget();
 
 		if ( renderTarget !== null ) {
 
-			const renderTargetType = renderTarget.textures[ index ].type;
-			const renderTargetFormat = renderTarget.textures[ index ].format;
-
-			let typeStr = 'vec';
-
-			if ( renderTargetType === IntType ) {
-
-				typeStr = 'ivec';
-
-			} else if ( renderTargetType === UnsignedIntType ) {
-
-				typeStr = 'uvec';
-
-			}
-
-			if ( renderTargetFormat === RedFormat || renderTargetFormat === RedIntegerFormat ) {
-
-				if ( renderTargetType === IntType ) type = 'int';
-				else if ( renderTargetType === UnsignedIntType ) type = 'uint';
-				else type = 'float';
-
-			} else if ( renderTargetFormat === RGFormat || renderTargetFormat === RGIntegerFormat ) {
-
-				type = `${ typeStr }2`;
-
-			} else if ( renderTargetFormat === RGBFormat || renderTargetFormat === RGBIntegerFormat ) {
-
-				type = `${ typeStr }3`;
-
-			} else {
-
-				type = `${ typeStr }4`;
-
-			}
+			return getTextureType( renderTarget.textures[ index ] );
 
 		}
 
-		return type;
+		return 'vec4';
 
 	}
 
@@ -865,8 +838,8 @@ class NodeBuilder {
 	 */
 	addSequentialNode( node ) {
 
-		const updateBeforeType = node.getUpdateBeforeType();
-		const updateAfterType = node.getUpdateAfterType();
+		const updateBeforeType = node.updateBeforeType;
+		const updateAfterType = node.updateAfterType;
 
 		if ( updateBeforeType !== NodeUpdateType.NONE || updateAfterType !== NodeUpdateType.NONE ) {
 
@@ -883,7 +856,7 @@ class NodeBuilder {
 
 		for ( const node of this.nodes ) {
 
-			const updateType = node.getUpdateType();
+			const updateType = node.updateType;
 
 			if ( updateType !== NodeUpdateType.NONE ) {
 
@@ -895,8 +868,8 @@ class NodeBuilder {
 
 		for ( const node of this.sequentialNodes ) {
 
-			const updateBeforeType = node.getUpdateBeforeType();
-			const updateAfterType = node.getUpdateAfterType();
+			const updateBeforeType = node.updateBeforeType;
+			const updateAfterType = node.updateAfterType;
 
 			if ( updateBeforeType !== NodeUpdateType.NONE ) {
 
@@ -923,6 +896,17 @@ class NodeBuilder {
 	get currentNode() {
 
 		return this.chaining[ this.chaining.length - 1 ];
+
+	}
+
+	/**
+	 * A reference to the render pipeline.
+	 *
+	 * @type {RenderPipeline}
+	 */
+	get renderPipeline() {
+
+		return this.context.renderPipeline;
 
 	}
 
@@ -1098,6 +1082,7 @@ class NodeBuilder {
 		delete context.getOutput;
 		delete context.getTextureLevel;
 		delete context.getAO;
+		delete context.getGI;
 		delete context.getShadow;
 
 		return context;
@@ -1329,6 +1314,21 @@ class NodeBuilder {
 	}
 
 	/**
+	 * Generates a texture size shader string for the given texture data.
+	 *
+	 * @abstract
+	 * @param {Texture} texture - The texture.
+	 * @param {string} textureProperty - The texture property name.
+	 * @param {string} levelSnippet - Snippet defining the mip level.
+	 * @return {string} The generated shader string.
+	 */
+	generateTextureSize( /* texture, textureProperty, levelSnippet */ ) {
+
+		warn( 'Abstract function.' );
+
+	}
+
+	/**
 	 * Generates the array declaration string.
 	 *
 	 * @param {string} type - The type.
@@ -1539,6 +1539,20 @@ class NodeBuilder {
 	getPropertyName( node/*, shaderStage*/ ) {
 
 		return node.name;
+
+	}
+
+	/**
+	 * Returns whether the given name is a reserved keyword of the backend's
+	 * shading language. Backends override this method to provide their
+	 * language-specific keywords.
+	 *
+	 * @param {string} name - The name to test.
+	 * @return {boolean} Whether the name is a reserved keyword or not.
+	 */
+	isReservedKeyword( /* name */ ) {
+
+		return false;
 
 	}
 
@@ -2267,6 +2281,7 @@ class NodeBuilder {
 
 		const shaderStage = this.shaderStage;
 		const declarations = this.declarations[ shaderStage ] || ( this.declarations[ shaderStage ] = {} );
+		const checkKeywords = this.renderer.debug.diagnostics.keywords;
 
 		const baseName = node.name;
 
@@ -2274,9 +2289,9 @@ class NodeBuilder {
 		let property = this.getPropertyName( node );
 		let index = 1;
 
-		// Automatically renames the property if the name is already in use.
+		// Automatically renames the property if the name is already in use or reserved.
 
-		while ( declarations[ property ] !== undefined ) {
+		while ( ( checkKeywords && this.isReservedKeyword( name ) ) || declarations[ property ] !== undefined ) {
 
 			name = baseName + '_' + index ++;
 			node.name = name;
@@ -2286,7 +2301,7 @@ class NodeBuilder {
 
 		if ( name !== baseName ) {
 
-			warn( `TSL: Declaration name '${ baseName }' of '${ node.type }' already in use. Renamed to '${ name }'.` );
+			warn( `TSL: Declaration name '${ baseName }' of '${ node.type }' is a reserved keyword or already in use. Renamed to '${ name }'.` );
 
 		}
 
@@ -3104,7 +3119,7 @@ class NodeBuilder {
 	 */
 	prebuild() {
 
-		const { object, renderer, material } = this;
+		const { renderer, material } = this;
 
 		// < renderer.contextNode >
 
@@ -3152,7 +3167,7 @@ class NodeBuilder {
 
 		} else {
 
-			this.addFlow( 'compute', object );
+			this.addFlow( 'compute', this.compute );
 
 		}
 
@@ -3450,7 +3465,7 @@ class NodeBuilder {
 
 		const mrt = this.renderer.getMRT();
 
-		return ( mrt && mrt.has( 'velocity' ) ) || getDataFromObject( this.object ).useVelocity === true;
+		return ( mrt && mrt.has( 'velocity' ) ) || ( this.object !== null && getDataFromObject( this.object ).useVelocity === true );
 
 	}
 

@@ -1257,6 +1257,17 @@ class Object3D extends EventDispatcher {
 	raycast( /* raycaster, intersects */ ) {}
 
 	/**
+	 * Abstract method to test whether this 3D object intersects the given frustum.
+	 * Renderable 3D objects such as {@link Mesh}, {@link Line} or {@link Points}
+	 * implement this method in order to use frustum culling.
+	 *
+	 * @abstract
+	 * @param {Frustum|FrustumArray} frustum - The frustum to test.
+	 * @return {boolean|undefined} Whether this 3D object intersects the given frustum or not.
+	 */
+	intersectsFrustum( /* frustum */ ) {}
+
+	/**
 	 * Executes the callback on this 3D object and all descendants.
 	 *
 	 * Note: Modifying the scene graph inside the callback is discouraged.
@@ -1505,20 +1516,18 @@ class Object3D extends EventDispatcher {
 		object.uuid = this.uuid;
 		object.type = this.type;
 
+		object.name = this.name;
+		object.castShadow = this.castShadow;
+		object.receiveShadow = this.receiveShadow;
+		object.visible = this.visible;
+		object.frustumCulled = this.frustumCulled;
+		object.renderOrder = this.renderOrder;
+		object.static = this.static;
+		object.matrixAutoUpdate = this.matrixAutoUpdate;
 		// WITH_GENESYS
 		object.nodeId = this.nodeId;
-		// !WITH_GENESYS
-
-		if ( this.name !== '' ) object.name = this.name;
-		if ( this.castShadow === true ) object.castShadow = true;
-		if ( this.receiveShadow === true ) object.receiveShadow = true;
-		if ( this.visible === false ) object.visible = false;
-		// WITH_GENESYS
 		if ( this.selfHidden === true ) object.selfHidden = true;
 		// !WITH_GENESYS
-		if ( this.frustumCulled === false ) object.frustumCulled = false;
-		if ( this.renderOrder !== 0 ) object.renderOrder = this.renderOrder;
-		if ( this.static !== false ) object.static = this.static;
 		if ( Object.keys( this.userData ).length > 0 ) object.userData = this.userData;
 
 		object.layers = this.layers.mask;
@@ -1526,8 +1535,6 @@ class Object3D extends EventDispatcher {
 		object.up = this.up.toArray();
 
 		if ( this.pivot !== null ) object.pivot = this.pivot.toArray();
-
-		if ( this.matrixAutoUpdate === false ) object.matrixAutoUpdate = false;
 
 		if ( this.morphTargetDictionary !== undefined ) object.morphTargetDictionary = Object.assign( {}, this.morphTargetDictionary );
 		if ( this.morphTargetInfluences !== undefined ) object.morphTargetInfluences = this.morphTargetInfluences.slice();
@@ -1847,6 +1854,27 @@ class Object3D extends EventDispatcher {
 		}
 
 		return this;
+
+	}
+
+	/**
+	 * Frees the GPU-related resources allocated by this instance. Call this
+	 * method whenever this instance is no longer used in your app.
+	 *
+	 * Geometries, materials and textures are potentially shared with other
+	 * 3D objects and must be disposed of separately.
+	 *
+	 * @fires Object3D#dispose
+	 */
+	dispose() {
+
+		/**
+		 * Fires when the 3D object has been disposed of.
+		 *
+		 * @event Object3D#dispose
+		 * @type {Object}
+		 */
+		this.dispatchEvent( { type: 'dispose' } );
 
 	}
 
