@@ -1,0 +1,75 @@
+# WITH_GENESYS
+# Keep in sync with genesys-monorepo .github/actions/push-git-tag/action.yml
+# Copied into this nested repo so Publish can tag {package}/{version} after npm publish.
+name: Push git tag
+description: Create an annotated git tag for a published artifact via the GitHub API
+
+inputs:
+  tag:
+    description: Full git tag name
+    required: true
+  message:
+    description: Annotated tag message
+    required: true
+  force:
+    description: Move the tag if it already exists on a different commit
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - name: Create and push git tag
+      shell: bash
+      env:
+        TAG: ${{ inputs.tag }}
+        MESSAGE: ${{ inputs.message }}
+        FORCE: ${{ inputs.force }}
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+        if [ -z "$TAG" ] || [ -z "$MESSAGE" ]; then
+          echo "::error::tag and message are required"
+          exit 1
+        fi
+
+        HEAD_SHA=$(git rev-parse HEAD)
+        REMOTE_COMMIT=$(git ls-remote --tags origin "refs/tags/${TAG}^{}" | awk '{print $1}')
+        if [ -z "$REMOTE_COMMIT" ]; then
+          REMOTE_COMMIT=$(git ls-remote --tags origin "refs/tags/${TAG}" | awk '{print $1}')
+        fi
+
+        if [ -n "$REMOTE_COMMIT" ]; then
+          if [ "$REMOTE_COMMIT" = "$HEAD_SHA" ]; then
+            echo "Tag ${TAG} already points at HEAD (${HEAD_SHA})"
+            exit 0
+          fi
+          if [ "$FORCE" != "true" ]; then
+            echo "::error::Tag ${TAG} already exists on ${REMOTE_COMMIT}, not ${HEAD_SHA}"
+            exit 1
+          fi
+          echo "Moving tag ${TAG} from ${REMOTE_COMMIT} to ${HEAD_SHA}"
+        fi
+
+        # Create the tag object through the API so the push does not upload
+        # commit trees. GitHub App tokens without `workflows` cannot git-push
+        # tags that point at commits which changed workflow files.
+        TAG_SHA=$(gh api --method POST "repos/${GITHUB_REPOSITORY}/git/tags" \
+          -f tag="$TAG" \
+          -f message="$MESSAGE" \
+          -f object="$HEAD_SHA" \
+          -f type="commit" \
+          --jq .sha)
+
+        if [ -n "${REMOTE_COMMIT:-}" ] && [ "$FORCE" = "true" ]; then
+          ENCODED_REF=$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote("tags/" + os.environ["TAG"], safe=""))')
+          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/git/refs/${ENCODED_REF}" \
+            -f sha="$TAG_SHA" \
+            -F force=true
+        else
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+            -f ref="refs/tags/${TAG}" \
+            -f sha="$TAG_SHA"
+        fi
+        echo "Pushed git tag ${TAG} -> ${HEAD_SHA}"
+# !WITH_GENESYS

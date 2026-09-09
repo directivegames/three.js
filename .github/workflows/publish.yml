@@ -3,6 +3,19 @@ name: Publish
 on:
   workflow_dispatch:
     inputs:
+      bump_type:
+        description: 'Type of version bump (ignored when next_version is set)'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      next_version:
+        description: 'Optional next version (major, major.minor, or major.minor.patch). Overrides bump_type when set. Use 0.NNN.1 after merging upstream rNNN.'
+        required: false
+        type: string
       tag:
         description: 'npm dist-tag (leave empty for latest)'
         required: false
@@ -32,17 +45,33 @@ jobs:
           registry-url: 'https://registry.npmjs.org/'
           provenance: false
 
-      - name: Configure Git
+      - name: Update npm to latest
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: npm ci
+
+      # WITH_GENESYS
+      - name: Install bump CLI
         run: |
-          git config --global user.name "GitHub Actions Bot"
-          git config --global user.email "actions@github.com"
+          npm install --prefix "$RUNNER_TEMP/bump-cli" --silent commander tsx
+          ln -sfn "$RUNNER_TEMP/bump-cli/node_modules" "$GITHUB_WORKSPACE/scripts/node_modules"
 
       - name: Bump version
         id: bump-version
+        env:
+          NEXT_VERSION: ${{ github.event.inputs.next_version }}
+          BUMP_TYPE: ${{ github.event.inputs.bump_type }}
         run: |
-          npm version patch --no-git-tag-version
-          echo "new_version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
-          echo "package_name=$(node -p "require('./package.json').name")" >> $GITHUB_OUTPUT
+          set -euo pipefail
+          ARGS=(".")
+          if [ -n "${NEXT_VERSION:-}" ]; then
+            ARGS+=(--next-version "$NEXT_VERSION")
+          else
+            ARGS+=("$BUMP_TYPE")
+          fi
+          "$RUNNER_TEMP/bump-cli/node_modules/.bin/tsx" scripts/bump-package-version.ts "${ARGS[@]}"
+      # !WITH_GENESYS
 
       - name: Resolve npm dist-tag
         id: dist-tag
@@ -53,12 +82,6 @@ jobs:
           else
             echo "tag=" >> $GITHUB_OUTPUT
           fi
-
-      - name: Update npm to latest
-        run: npm install -g npm@latest
-
-      - name: Install dependencies
-        run: npm ci
 
       - name: Build package
         run: npm run build
@@ -72,30 +95,44 @@ jobs:
       # WITH_GENESYS
       # Publish from a staging directory so package self-import rewrites never dirty the checkout.
       - name: Prepare and publish package
+        id: publish-package
         run: |
-          STAGING_DIR="$RUNNER_TEMP/three-publish"
-          rm -rf "$STAGING_DIR"
-          mkdir -p "$STAGING_DIR"
+          set -euo pipefail
+          attempt=1
+          while true; do
+            STAGING_DIR="$RUNNER_TEMP/three-publish"
+            rm -rf "$STAGING_DIR"
+            mkdir -p "$STAGING_DIR"
 
-          npm pack --pack-destination "$STAGING_DIR"
-          TARBALL=$(printf '%s\n' "$STAGING_DIR"/*.tgz)
-          tar -xzf "$TARBALL" -C "$STAGING_DIR"
+            npm pack --pack-destination "$STAGING_DIR"
+            TARBALL=$(printf '%s\n' "$STAGING_DIR"/*.tgz)
+            tar -xzf "$TARBALL" -C "$STAGING_DIR"
 
-          node utils/publish/rewrite-addon-imports.js "$STAGING_DIR/package"
-          npm publish "$STAGING_DIR/package" --access public --provenance=false ${{ steps.dist-tag.outputs.tag }}
+            node utils/publish/rewrite-addon-imports.js "$STAGING_DIR/package"
+            if npm publish "$STAGING_DIR/package" --access public --provenance=false ${{ steps.dist-tag.outputs.tag }}; then
+              break
+            fi
+            if [ "$attempt" -ge 3 ]; then
+              echo "Publish failed after ${attempt} attempts"
+              exit 1
+            fi
+            echo "Publish failed; bumping patch from local version (attempt ${attempt})"
+            "$RUNNER_TEMP/bump-cli/node_modules/.bin/tsx" scripts/bump-package-version.ts . patch --from-local
+            attempt=$((attempt + 1))
+          done
+          echo "published_version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Tag published version
+        uses: ./.github/actions/push-git-tag
+        with:
+          tag: ${{ steps.bump-version.outputs.package_name }}/${{ steps.publish-package.outputs.published_version }}
+          message: Publish ${{ steps.bump-version.outputs.package_name }}@${{ steps.publish-package.outputs.published_version }} to npm
       # !WITH_GENESYS
-
-      - name: Commit and push version bump
-        run: |
-          git add package.json package-lock.json
-          git commit -m "Bump version to ${{ steps.bump-version.outputs.new_version }} [skip ci]"
-          git pull --rebase --autostash
-          git push
 
       - name: Verify published package
         run: |
           PACKAGE_NAME="${{ steps.bump-version.outputs.package_name }}"
-          PACKAGE_VERSION="${{ steps.bump-version.outputs.new_version }}"
+          PACKAGE_VERSION="${{ steps.publish-package.outputs.published_version }}"
 
           # Create temp directory and try installing
           TEMP_DIR=$(mktemp -d)
@@ -172,7 +209,10 @@ jobs:
           # Determine overall status
           JOB_STATUS="${{ job.status }}"
           PACKAGE_NAME="${{ steps.bump-version.outputs.package_name }}"
-          PACKAGE_VERSION="${{ steps.bump-version.outputs.new_version }}"
+          PACKAGE_VERSION="${{ steps.publish-package.outputs.published_version }}"
+          if [ -z "$PACKAGE_VERSION" ]; then
+            PACKAGE_VERSION="${{ steps.bump-version.outputs.new_version }}"
+          fi
 
           if [ "$JOB_STATUS" == "success" ]; then
             OVERALL_STATUS="✅ *$PACKAGE_NAME Publish Succeeded!*"
