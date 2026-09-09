@@ -11960,7 +11960,7 @@ function nodeIdFromKey( key ) {
 /**
  * Collects nodeId values from a sibling set.
  * @param {Iterable<{nodeId?: ?number}>} nodes
- * @param {object} [except]
+ * @param {Object} [except]
  * @return {Set<number>}
  */
 function collectSiblingNodeIds( nodes, except ) {
