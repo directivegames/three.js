@@ -13,7 +13,7 @@ on:
           - minor
           - major
       next_version:
-        description: 'Optional next version (major, major.minor, or major.minor.patch). Overrides bump_type when set. Use 0.NNN.1 after merging upstream rNNN. For a hotfix of an older line, set this to 0.NNN.x (must be greater than that line's last tag, not latest).'
+        description: 'Optional next version (major, major.minor, or major.minor.patch). Overrides bump_type when set. Use 0.NNN.1 after merging upstream rNNN. For a hotfix of an older line, set this to 0.NNN.x (must be greater than the last tag on that line, not latest).'
         required: false
         type: string
       tag:
