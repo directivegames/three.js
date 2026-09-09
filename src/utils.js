@@ -347,9 +347,79 @@ function warnOnce( ...params ) {
 
 }
 
+// WITH_GENESYS
+/**
+ * Shared MessageChannel used by {@link yieldToTask}. One pair of ports is
+ * owned for the lifetime of this module so compileAsync does not allocate a
+ * channel per yield.
+ *
+ * @private
+ * @type {MessageChannel|null}
+ */
+let _taskYieldChannel = null;
+
+/**
+ * Resolvers waiting for the next MessageChannel task. Sequential
+ * `await yieldToMain()` callers queue at most one entry; the array still
+ * preserves ordering if several yields overlap.
+ *
+ * @private
+ * @type {Array<Function>}
+ */
+const _taskYieldResolvers = [];
+
+/**
+ * Yields to a new event-loop task without waiting for a display frame.
+ *
+ * @private
+ * @return {Promise<void>}
+ */
+function yieldToTask() {
+
+	return new Promise( resolve => {
+
+		if ( typeof MessageChannel === 'function' ) {
+
+			if ( _taskYieldChannel === null ) {
+
+				_taskYieldChannel = new MessageChannel();
+				_taskYieldChannel.port1.onmessage = function () {
+
+					const next = _taskYieldResolvers.shift();
+					if ( next !== undefined ) next();
+
+				};
+
+			}
+
+			_taskYieldResolvers.push( resolve );
+			_taskYieldChannel.port2.postMessage( null );
+			return;
+
+		}
+
+		if ( typeof setTimeout === 'function' ) {
+
+			setTimeout( resolve, 0 );
+			return;
+
+		}
+
+		resolve();
+
+	} );
+
+}
+// !WITH_GENESYS
+
 /**
  * Yields execution to the main thread to allow rendering and other tasks.
- * Uses scheduler.yield() when available (Chrome 115+), falls back to requestAnimationFrame.
+ * Uses scheduler.yield() when available (Chrome 115+).
+ * WITH_GENESYS
+ * Falls back to a MessageChannel (or setTimeout) task continuation so browsers
+ * without the Scheduler API do not wait one animation frame per yield.
+ * !WITH_GENESYS
+ * Falls back to requestAnimationFrame.
  *
  * @return {Promise<void>}
  */
@@ -361,11 +431,14 @@ function yieldToMain() {
 
 	}
 
-	return new Promise( resolve => {
-
-		requestAnimationFrame( resolve );
-
-	} );
+	// WITH_GENESYS
+	return yieldToTask();
+	// !WITH_GENESYS
+	// return new Promise( resolve => {
+	//
+	// 	requestAnimationFrame( resolve );
+	//
+	// } );
 
 }
 
