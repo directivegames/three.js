@@ -272,8 +272,10 @@ export class Profiler extends EventDispatcher {
 	<span class="fps-counter">-</span>
 	<span class="fps-label">FPS</span>
 	<!-- WITH_GENESYS -->
-	<span class="heap-counter">-</span>
-	<span class="heap-label">MB</span>
+	<span class="gpu-counter" title="GPU memory (MB)">-</span>
+	<span class="gpu-label">GPU</span>
+	<span class="heap-counter" title="JS heap used (MB)">-</span>
+	<span class="heap-label">JS</span>
 	<!-- !WITH_GENESYS -->
 </span>
 <span class="toggle-icon">
