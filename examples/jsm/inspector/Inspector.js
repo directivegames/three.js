@@ -8,7 +8,14 @@ import { Parameters } from './tabs/Parameters.js';
 import { Settings } from './tabs/Settings.js';
 import { Viewer } from './tabs/Viewer.js';
 import { Timeline } from './tabs/Timeline.js';
-import { setText } from './ui/utils.js';
+import {
+	setText,
+	// WITH_GENESYS
+	getJSHeapBytes,
+	startJSHeapSampling,
+	stopJSHeapSampling
+	// !WITH_GENESYS
+} from './ui/utils.js';
 
 import { setConsoleFunction, getConsoleFunction, REVISION } from 'three/webgpu';
 
@@ -23,6 +30,10 @@ class Inspector extends RendererInspector {
 		} = options;
 
 		this.nonce = nonce;
+
+		// WITH_GENESYS
+		startJSHeapSampling();
+		// !WITH_GENESYS
 
 		// init profiler
 
@@ -589,6 +600,29 @@ class Inspector extends RendererInspector {
 
 			setText( this.profiler.toggleButton.querySelector( '.fps-counter' ), this.fps.toFixed() );
 
+			// WITH_GENESYS
+			const heapCounter = this.profiler.toggleButton.querySelector( '.heap-counter' );
+			const heapLabel = this.profiler.toggleButton.querySelector( '.heap-label' );
+			const heap = getJSHeapBytes();
+
+			if ( heapCounter ) {
+
+				if ( heap ) {
+
+					setText( heapCounter, ( heap.used / ( 1024 * 1024 ) ).toFixed( 0 ) );
+					heapCounter.style.display = '';
+					if ( heapLabel ) heapLabel.style.display = '';
+
+				} else {
+
+					heapCounter.style.display = 'none';
+					if ( heapLabel ) heapLabel.style.display = 'none';
+
+				}
+
+			}
+			// !WITH_GENESYS
+
 			this.performance.updateText( this, frame );
 			this.memory.updateText( this );
 
@@ -632,6 +666,10 @@ class Inspector extends RendererInspector {
 	}
 
 	dispose() {
+
+		// WITH_GENESYS
+		stopJSHeapSampling();
+		// !WITH_GENESYS
 
 		super.dispose();
 
