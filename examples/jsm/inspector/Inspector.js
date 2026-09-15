@@ -505,9 +505,30 @@ class Inspector extends RendererInspector {
 			setText( this.profiler.toggleButton.querySelector( '.fps-counter' ), this.fps.toFixed() );
 
 			// WITH_GENESYS
-			const heapCounter = this.profiler.toggleButton.querySelector( '.heap-counter' );
-			const heapLabel = this.profiler.toggleButton.querySelector( '.heap-label' );
+			const toggle = this.profiler.toggleButton;
+			const gpuCounter = toggle.querySelector( '.gpu-counter' );
+			const gpuLabel = toggle.querySelector( '.gpu-label' );
+			const heapCounter = toggle.querySelector( '.heap-counter' );
+			const heapLabel = toggle.querySelector( '.heap-label' );
+			const gpuBytes = this.getRenderer()?.info?.memory?.total;
 			const heap = getJSHeapBytes();
+
+			if ( gpuCounter ) {
+
+				if ( typeof gpuBytes === 'number' ) {
+
+					setText( gpuCounter, ( gpuBytes / ( 1024 * 1024 ) ).toFixed( 0 ) );
+					gpuCounter.style.display = '';
+					if ( gpuLabel ) gpuLabel.style.display = '';
+
+				} else {
+
+					gpuCounter.style.display = 'none';
+					if ( gpuLabel ) gpuLabel.style.display = 'none';
+
+				}
+
+			}
 
 			if ( heapCounter ) {
 

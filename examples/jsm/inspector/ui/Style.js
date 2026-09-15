@@ -166,7 +166,7 @@ export class Style {
 		align-items: baseline;
 		padding: 8px 14px;
 		/* WITH_GENESYS */
-		min-width: 128px;
+		min-width: 196px;
 		/* !WITH_GENESYS */
 		/* min-width: 80px; */
 		justify-content: right;
@@ -179,10 +179,12 @@ export class Style {
 	}
 
 	/* WITH_GENESYS */
+	.toggle-text .gpu-counter,
 	.toggle-text .heap-counter {
 		margin-left: 12px;
 	}
 
+	.toggle-text .gpu-label,
 	.toggle-text .heap-label {
 		font-size: 0.7em;
 		margin-left: 6px;
