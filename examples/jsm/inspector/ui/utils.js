@@ -62,6 +62,127 @@ export function formatBytes( bytes, decimals = 2 ) {
 
 }
 
+// WITH_GENESYS
+/**
+ * Best-effort JS / page memory sample for the inspector.
+ *
+ * Chromium exposes a sync V8 heap via `performance.memory`. The spec method
+ * `performance.measureUserAgentSpecificMemory()` is async, may include more
+ * than JS heap, and requires a cross-origin isolated document. Firefox and
+ * Safari do not expose JS heap size to web content as of 2026.
+ *
+ * @returns {{ used: number, total?: number, limit?: number } | null}
+ */
+let _specMemoryBytes = null;
+let _specMemoryTimer = 0;
+let _specMemorySampling = false;
+
+function readPerformanceMemory() {
+
+	const memory = performance.memory;
+
+	if ( memory === undefined || typeof memory.usedJSHeapSize !== 'number' ) {
+
+		return null;
+
+	}
+
+	return {
+		used: memory.usedJSHeapSize,
+		total: memory.totalJSHeapSize,
+		limit: memory.jsHeapSizeLimit
+	};
+
+}
+
+async function sampleSpecMemory() {
+
+	const measure = performance.measureUserAgentSpecificMemory;
+
+	if ( typeof measure !== 'function' ) {
+
+		return;
+
+	}
+
+	try {
+
+		const result = await measure.call( performance );
+
+		if ( result && typeof result.bytes === 'number' ) {
+
+			_specMemoryBytes = result.bytes;
+
+		}
+
+	} catch {
+
+		// SecurityError when the document is not cross-origin isolated.
+
+	}
+
+}
+
+function scheduleSpecMemorySample() {
+
+	if ( _specMemorySampling === false ) {
+
+		return;
+
+	}
+
+	// Spec guidance: poll on a randomized interval; the call may wait on GC.
+	_specMemoryTimer = setTimeout( () => {
+
+		sampleSpecMemory().finally( scheduleSpecMemorySample );
+
+	}, 8000 + Math.random() * 7000 );
+
+}
+
+export function startJSHeapSampling() {
+
+	if ( _specMemorySampling ) {
+
+		return;
+
+	}
+
+	_specMemorySampling = true;
+	sampleSpecMemory();
+	scheduleSpecMemorySample();
+
+}
+
+export function stopJSHeapSampling() {
+
+	_specMemorySampling = false;
+	clearTimeout( _specMemoryTimer );
+	_specMemoryTimer = 0;
+
+}
+
+export function getJSHeapBytes() {
+
+	const chromeHeap = readPerformanceMemory();
+
+	if ( chromeHeap ) {
+
+		return chromeHeap;
+
+	}
+
+	if ( typeof _specMemoryBytes === 'number' ) {
+
+		return { used: _specMemoryBytes };
+
+	}
+
+	return null;
+
+}
+// !WITH_GENESYS
+
 export function info( parentNode, text ) {
 
 	let infoIcon = parentNode.querySelector( '.info-icon' );

@@ -165,7 +165,10 @@ export class Style {
 		display: flex;
 		align-items: baseline;
 		padding: 8px 14px;
-		min-width: 80px;
+		/* WITH_GENESYS */
+		min-width: 128px;
+		/* !WITH_GENESYS */
+		/* min-width: 80px; */
 		justify-content: right;
 	}
 
@@ -174,6 +177,18 @@ export class Style {
 		margin-left: 10px;
 		color: #999;
 	}
+
+	/* WITH_GENESYS */
+	.toggle-text .heap-counter {
+		margin-left: 12px;
+	}
+
+	.toggle-text .heap-label {
+		font-size: 0.7em;
+		margin-left: 6px;
+		color: #999;
+	}
+	/* !WITH_GENESYS */
 
 	.builtin-tabs-container {
 		position: relative;
@@ -1236,6 +1251,41 @@ export class Style {
 		padding: 8px 0;
 		position: relative;
 	}
+
+	/* WITH_GENESYS */
+	.graph-caption {
+		font-size: 11px;
+		color: var(--text-secondary);
+		margin-bottom: 4px;
+	}
+
+	.graph-legend {
+		display: flex;
+		gap: 12px;
+	}
+
+	.graph-legend-item {
+		display: inline-flex;
+		align-items: center;
+	}
+
+	.graph-legend-item::before {
+		content: '';
+		display: inline-block;
+		width: 8px;
+		height: 8px;
+		border-radius: 2px;
+		margin-right: 6px;
+	}
+
+	.graph-legend-gpu::before {
+		background: var(--color-yellow);
+	}
+
+	.graph-legend-heap::before {
+		background: var(--color-accent);
+	}
+	/* !WITH_GENESYS */
 
 	.graph-svg, .graph-canvas {
 		width: 0;
