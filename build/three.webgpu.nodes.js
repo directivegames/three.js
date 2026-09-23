@@ -21642,27 +21642,20 @@ const DEBUG_VIEW_LIGHTING_COMPLEXITY = 'lightingComplexity';
 
 /**
  * Proxy budget that fills the shader-complexity ramp.
- * A plain lit material stays in the green stops. Transmission plus several
- * texture samples climbs toward red.
+ * Unlit and basic stay green. Phong and standard move through yellow into red.
+ * Transmission plus several texture samples climbs toward white.
  *
  * @type {number}
  */
 const DEFAULT_SHADER_COMPLEXITY_BUDGET = 800;
 
-/** @type {number} */
-const SHADER_COMPLEXITY_BASE_UNLIT = 20;
-
-/** @type {number} */
-const SHADER_COMPLEXITY_BASE_LIT = 40;
-
-/** @type {number} */
+/**
+ * Added for each fragment texture sample. Lighting-model costs are returned
+ * directly by {@link NodeMaterial#getShaderComplexity}.
+ *
+ * @type {number}
+ */
 const SHADER_COMPLEXITY_TEXTURE_COST = 16;
-
-/** @type {number} */
-const SHADER_COMPLEXITY_FEATURE_COST = 30;
-
-/** @type {number} */
-const SHADER_COMPLEXITY_TRANSMISSION_COST = 60;
 
 /**
  * Attenuation above this counts as a light that shades the pixel.
@@ -21843,30 +21836,6 @@ class ShaderComplexityRatioNode extends Node {
 		return ratio.toFixed( 6 );
 
 	}
-
-}
-
-/**
- * Static fragment proxy for a material. Texture samples are counted later, during generation.
- *
- * @param {NodeMaterial} material - The material being built.
- * @return {number} The base cost, excluding texture samples.
- */
-function getShaderComplexityBase( material ) {
-
-	let cost = material.lights === true ? SHADER_COMPLEXITY_BASE_LIT : SHADER_COMPLEXITY_BASE_UNLIT;
-
-	if ( material.useClearcoat === true ) cost += SHADER_COMPLEXITY_FEATURE_COST;
-
-	if ( material.useSheen === true ) cost += SHADER_COMPLEXITY_FEATURE_COST;
-
-	if ( material.useIridescence === true ) cost += SHADER_COMPLEXITY_FEATURE_COST;
-
-	if ( material.useAnisotropy === true ) cost += SHADER_COMPLEXITY_FEATURE_COST;
-
-	if ( material.useTransmission === true ) cost += SHADER_COMPLEXITY_TRANSMISSION_COST;
-
-	return cost;
 
 }
 
@@ -22468,7 +22437,7 @@ class NodeMaterial extends Material {
 		// would replace the heatmap with this material's own constant cost.
 		if ( renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY && this.isShadowPassMaterial !== true && renderer.isOutputTarget !== true ) {
 
-			builder.shaderComplexityBase = getShaderComplexityBase( this );
+			builder.shaderComplexityBase = this.getShaderComplexity();
 			resultNode = shaderComplexityOutput( resultNode );
 
 		}
@@ -22483,6 +22452,21 @@ class NodeMaterial extends Material {
 		builder.observer = this.setupObserver( builder );
 
 	}
+
+	// WITH_GENESYS
+	/**
+	 * Static shader-complexity proxy for this material's lighting model.
+	 * Fragment texture samples are counted later, while the shader is generated.
+	 * Derived materials override this instead of registering a type flag.
+	 *
+	 * @return {number} The base cost, excluding texture samples.
+	 */
+	getShaderComplexity() {
+
+		return this.lights === true ? 40 : 20;
+
+	}
+	// !WITH_GENESYS
 
 	/**
 	 * Setups the clipping node.
@@ -24881,6 +24865,19 @@ class MeshBasicNodeMaterial extends NodeMaterial {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Shader-complexity proxy for {@link BasicLightingModel}.
+	 *
+	 * @return {number} The base cost, excluding texture samples.
+	 */
+	getShaderComplexity() {
+
+		return 80;
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * Setups the lighting model.
 	 *
@@ -25064,6 +25061,19 @@ class MeshLambertNodeMaterial extends NodeMaterial {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Shader-complexity proxy for Lambert. Specular is forced off.
+	 *
+	 * @return {number} The base cost, excluding texture samples.
+	 */
+	getShaderComplexity() {
+
+		return 140;
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * Setups the lighting model.
 	 *
@@ -25164,6 +25174,19 @@ class MeshPhongNodeMaterial extends NodeMaterial {
 		return envNode ? new BasicEnvironmentNode( envNode ) : null;
 
 	}
+
+	// WITH_GENESYS
+	/**
+	 * Shader-complexity proxy for Blinn-Phong.
+	 *
+	 * @return {number} The base cost, excluding texture samples.
+	 */
+	getShaderComplexity() {
+
+		return 200;
+
+	}
+	// !WITH_GENESYS
 
 	/**
 	 * Setups the lighting model.
@@ -28653,6 +28676,19 @@ class MeshStandardNodeMaterial extends NodeMaterial {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Shader-complexity proxy for the Cook-Torrance GGX model.
+	 *
+	 * @return {number} The base cost, excluding texture samples.
+	 */
+	getShaderComplexity() {
+
+		return 240;
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * Setups the lighting model.
 	 *
@@ -29082,6 +29118,31 @@ class MeshPhysicalNodeMaterial extends MeshStandardNodeMaterial {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * GGX base from {@link MeshStandardNodeMaterial}, plus each enabled physical feature.
+	 *
+	 * @return {number} The base cost, excluding texture samples.
+	 */
+	getShaderComplexity() {
+
+		let cost = super.getShaderComplexity();
+
+		if ( this.useClearcoat === true ) cost += 30;
+
+		if ( this.useSheen === true ) cost += 30;
+
+		if ( this.useIridescence === true ) cost += 30;
+
+		if ( this.useAnisotropy === true ) cost += 30;
+
+		if ( this.useTransmission === true ) cost += 60;
+
+		return cost;
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * Setups the lighting model.
 	 *
@@ -29366,6 +29427,21 @@ class MeshSSSNodeMaterial extends MeshPhysicalNodeMaterial {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Physical complexity, plus the subsurface term when it is evaluated.
+	 *
+	 * @return {number} The base cost, excluding texture samples.
+	 */
+	getShaderComplexity() {
+
+		const cost = super.getShaderComplexity();
+
+		return this.useSSS === true ? cost + 40 : cost;
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * Setups the lighting model.
 	 *
@@ -29487,6 +29563,19 @@ class MeshToonNodeMaterial extends NodeMaterial {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Shader-complexity proxy for toon banding.
+	 *
+	 * @return {number} The base cost, excluding texture samples.
+	 */
+	getShaderComplexity() {
+
+		return 170;
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * Setups the lighting model.
 	 *
@@ -29557,6 +29646,19 @@ class MeshMatcapNodeMaterial extends NodeMaterial {
 		this.setValues( parameters );
 
 	}
+
+	// WITH_GENESYS
+	/**
+	 * Shader-complexity proxy for matcap UV shading.
+	 *
+	 * @return {number} The base cost, excluding texture samples.
+	 */
+	getShaderComplexity() {
+
+		return 50;
+
+	}
+	// !WITH_GENESYS
 
 	/**
 	 * Setups the matcap specific node variables.
@@ -30233,6 +30335,19 @@ class ShadowNodeMaterial extends NodeMaterial {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Shader-complexity proxy for the shadow mask.
+	 *
+	 * @return {number} The base cost, excluding texture samples.
+	 */
+	getShaderComplexity() {
+
+		return 110;
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * Setups the lighting model.
 	 *
@@ -30518,6 +30633,19 @@ class VolumeNodeMaterial extends NodeMaterial {
 		this.setValues( parameters );
 
 	}
+
+	// WITH_GENESYS
+	/**
+	 * Shader-complexity proxy for volumetric ray integration.
+	 *
+	 * @return {number} The base cost, excluding texture samples.
+	 */
+	getShaderComplexity() {
+
+		return 280;
+
+	}
+	// !WITH_GENESYS
 
 	setupLightingModel() {
 

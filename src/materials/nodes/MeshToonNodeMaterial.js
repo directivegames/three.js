@@ -50,6 +50,19 @@ class MeshToonNodeMaterial extends NodeMaterial {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Shader-complexity proxy for toon banding.
+	 *
+	 * @return {number} The base cost, excluding texture samples.
+	 */
+	getShaderComplexity() {
+
+		return 170;
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * Setups the lighting model.
 	 *

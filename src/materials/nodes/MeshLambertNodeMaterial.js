@@ -66,6 +66,19 @@ class MeshLambertNodeMaterial extends NodeMaterial {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Shader-complexity proxy for Lambert. Specular is forced off.
+	 *
+	 * @return {number} The base cost, excluding texture samples.
+	 */
+	getShaderComplexity() {
+
+		return 140;
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * Setups the lighting model.
 	 *

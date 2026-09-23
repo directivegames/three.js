@@ -383,6 +383,31 @@ class MeshPhysicalNodeMaterial extends MeshStandardNodeMaterial {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * GGX base from {@link MeshStandardNodeMaterial}, plus each enabled physical feature.
+	 *
+	 * @return {number} The base cost, excluding texture samples.
+	 */
+	getShaderComplexity() {
+
+		let cost = super.getShaderComplexity();
+
+		if ( this.useClearcoat === true ) cost += 30;
+
+		if ( this.useSheen === true ) cost += 30;
+
+		if ( this.useIridescence === true ) cost += 30;
+
+		if ( this.useAnisotropy === true ) cost += 30;
+
+		if ( this.useTransmission === true ) cost += 60;
+
+		return cost;
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * Setups the lighting model.
 	 *

@@ -95,6 +95,19 @@ class MeshPhongNodeMaterial extends NodeMaterial {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Shader-complexity proxy for Blinn-Phong.
+	 *
+	 * @return {number} The base cost, excluding texture samples.
+	 */
+	getShaderComplexity() {
+
+		return 200;
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * Setups the lighting model.
 	 *

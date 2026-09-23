@@ -118,6 +118,19 @@ class MeshBasicNodeMaterial extends NodeMaterial {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Shader-complexity proxy for {@link BasicLightingModel}.
+	 *
+	 * @return {number} The base cost, excluding texture samples.
+	 */
+	getShaderComplexity() {
+
+		return 80;
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * Setups the lighting model.
 	 *

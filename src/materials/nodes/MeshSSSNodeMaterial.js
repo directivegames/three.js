@@ -146,6 +146,21 @@ class MeshSSSNodeMaterial extends MeshPhysicalNodeMaterial {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Physical complexity, plus the subsurface term when it is evaluated.
+	 *
+	 * @return {number} The base cost, excluding texture samples.
+	 */
+	getShaderComplexity() {
+
+		const cost = super.getShaderComplexity();
+
+		return this.useSSS === true ? cost + 40 : cost;
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * Setups the lighting model.
 	 *

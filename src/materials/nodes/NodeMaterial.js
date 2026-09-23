@@ -26,7 +26,7 @@ import { vertexColor } from '../../nodes/accessors/VertexColorNode.js';
 import { premultiplyAlpha } from '../../nodes/display/PremultiplyAlphaFunctions.js';
 import { subBuild } from '../../nodes/core/SubBuildNode.js';
 // WITH_GENESYS
-import { DEBUG_VIEW_LIGHTING_COMPLEXITY, DEBUG_VIEW_SHADER_COMPLEXITY, getShaderComplexityBase, shaderComplexityOutput } from '../../nodes/display/ComplexityDebug.js';
+import { DEBUG_VIEW_LIGHTING_COMPLEXITY, DEBUG_VIEW_SHADER_COMPLEXITY, shaderComplexityOutput } from '../../nodes/display/ComplexityDebug.js';
 // !WITH_GENESYS
 
 /**
@@ -605,7 +605,7 @@ class NodeMaterial extends Material {
 		// would replace the heatmap with this material's own constant cost.
 		if ( renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY && this.isShadowPassMaterial !== true && renderer.isOutputTarget !== true ) {
 
-			builder.shaderComplexityBase = getShaderComplexityBase( this );
+			builder.shaderComplexityBase = this.getShaderComplexity();
 			resultNode = shaderComplexityOutput( resultNode );
 
 		}
@@ -620,6 +620,21 @@ class NodeMaterial extends Material {
 		builder.observer = this.setupObserver( builder );
 
 	}
+
+	// WITH_GENESYS
+	/**
+	 * Static shader-complexity proxy for this material's lighting model.
+	 * Fragment texture samples are counted later, while the shader is generated.
+	 * Derived materials override this instead of registering a type flag.
+	 *
+	 * @return {number} The base cost, excluding texture samples.
+	 */
+	getShaderComplexity() {
+
+		return this.lights === true ? 40 : 20;
+
+	}
+	// !WITH_GENESYS
 
 	/**
 	 * Setups the clipping node.

@@ -46,6 +46,19 @@ class MeshMatcapNodeMaterial extends NodeMaterial {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Shader-complexity proxy for matcap UV shading.
+	 *
+	 * @return {number} The base cost, excluding texture samples.
+	 */
+	getShaderComplexity() {
+
+		return 50;
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * Setups the matcap specific node variables.
 	 *

@@ -29,27 +29,20 @@ export const DEBUG_VIEW_LIGHTING_COMPLEXITY = 'lightingComplexity';
 
 /**
  * Proxy budget that fills the shader-complexity ramp.
- * A plain lit material stays in the green stops. Transmission plus several
- * texture samples climbs toward red.
+ * Unlit and basic stay green. Phong and standard move through yellow into red.
+ * Transmission plus several texture samples climbs toward white.
  *
  * @type {number}
  */
 export const DEFAULT_SHADER_COMPLEXITY_BUDGET = 800;
 
-/** @type {number} */
-export const SHADER_COMPLEXITY_BASE_UNLIT = 20;
-
-/** @type {number} */
-export const SHADER_COMPLEXITY_BASE_LIT = 40;
-
-/** @type {number} */
+/**
+ * Added for each fragment texture sample. Lighting-model costs are returned
+ * directly by {@link NodeMaterial#getShaderComplexity}.
+ *
+ * @type {number}
+ */
 export const SHADER_COMPLEXITY_TEXTURE_COST = 16;
-
-/** @type {number} */
-export const SHADER_COMPLEXITY_FEATURE_COST = 30;
-
-/** @type {number} */
-export const SHADER_COMPLEXITY_TRANSMISSION_COST = 60;
 
 /**
  * Attenuation above this counts as a light that shades the pixel.
@@ -230,30 +223,6 @@ class ShaderComplexityRatioNode extends Node {
 		return ratio.toFixed( 6 );
 
 	}
-
-}
-
-/**
- * Static fragment proxy for a material. Texture samples are counted later, during generation.
- *
- * @param {NodeMaterial} material - The material being built.
- * @return {number} The base cost, excluding texture samples.
- */
-export function getShaderComplexityBase( material ) {
-
-	let cost = material.lights === true ? SHADER_COMPLEXITY_BASE_LIT : SHADER_COMPLEXITY_BASE_UNLIT;
-
-	if ( material.useClearcoat === true ) cost += SHADER_COMPLEXITY_FEATURE_COST;
-
-	if ( material.useSheen === true ) cost += SHADER_COMPLEXITY_FEATURE_COST;
-
-	if ( material.useIridescence === true ) cost += SHADER_COMPLEXITY_FEATURE_COST;
-
-	if ( material.useAnisotropy === true ) cost += SHADER_COMPLEXITY_FEATURE_COST;
-
-	if ( material.useTransmission === true ) cost += SHADER_COMPLEXITY_TRANSMISSION_COST;
-
-	return cost;
 
 }
 

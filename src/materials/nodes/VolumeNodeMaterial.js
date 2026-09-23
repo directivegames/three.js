@@ -70,6 +70,19 @@ class VolumeNodeMaterial extends NodeMaterial {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Shader-complexity proxy for volumetric ray integration.
+	 *
+	 * @return {number} The base cost, excluding texture samples.
+	 */
+	getShaderComplexity() {
+
+		return 280;
+
+	}
+	// !WITH_GENESYS
+
 	setupLightingModel() {
 
 		return new VolumetricLightingModel();
