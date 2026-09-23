@@ -27,6 +27,7 @@ import { premultiplyAlpha } from '../../nodes/display/PremultiplyAlphaFunctions.
 import { subBuild } from '../../nodes/core/SubBuildNode.js';
 // WITH_GENESYS
 import { DEBUG_VIEW_LIGHTING_COMPLEXITY, DEBUG_VIEW_QUAD_OVERDRAW, DEBUG_VIEW_SHADER_COMPLEXITY, quadOverdrawOutput, shaderComplexityOutput } from '../../nodes/display/ComplexityDebug.js';
+import { DEBUG_VIEW_BUFFER, assignBufferDefaults, bufferVisualizationOutput } from '../../nodes/display/BufferDebug.js';
 // !WITH_GENESYS
 
 /**
@@ -527,6 +528,15 @@ class NodeMaterial extends Material {
 
 		if ( this.fragmentNode === null ) {
 
+			// WITH_GENESYS
+			// Fallback for materials that never write the channel. Lit materials overwrite these.
+			if ( renderer.debug.view === DEBUG_VIEW_BUFFER && this.isShadowPassMaterial !== true ) {
+
+				assignBufferDefaults( renderer.debug.buffer );
+
+			}
+			// !WITH_GENESYS
+
 			this.setupDiffuseColor( builder );
 			this.setupAmbientOcclusion( builder );
 			this.setupVariants( builder );
@@ -611,6 +621,12 @@ class NodeMaterial extends Material {
 		} else if ( renderer.debug.view === DEBUG_VIEW_QUAD_OVERDRAW && this.isShadowPassMaterial !== true && renderer.isOutputTarget !== true ) {
 
 			resultNode = quadOverdrawOutput( resultNode );
+
+		} else if ( renderer.debug.view === DEBUG_VIEW_BUFFER && this.isShadowPassMaterial !== true && this.fragmentNode === null ) {
+
+			// The fullscreen output pass sets fragmentNode. Scene materials do not, including
+			// when the scene is drawn straight to the canvas.
+			resultNode = bufferVisualizationOutput( renderer.debug.buffer );
 
 		}
 		// !WITH_GENESYS

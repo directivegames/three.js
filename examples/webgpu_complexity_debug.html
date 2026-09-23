@@ -20,8 +20,6 @@
 			</div>
 
 			<small>
-				<span id="view-label">Shaded</span><br/>
-				Keys: 1 shaded, 2 shader complexity, 3 lighting complexity, 4 quad overdraw.<br/>
 				Back: basic, standard, physical, 8 cheap layers, 4 physical layers, light overlap.<br/>
 				Middle: RGB, rough/smooth, metal/plastic, emissive, normal/flat, AO.<br/>
 				Front: near LOD, far LOD, open box, caster / non-caster, separate meshes.
@@ -46,16 +44,26 @@
 
 			import { Inspector } from 'three/addons/inspector/Inspector.js';
 			import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+			import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 
 			let camera, scene, renderer;
-			const viewLabel = document.getElementById( 'view-label' );
+			let viewController, shaderBudget, overdrawBudget;
 
-			const views = {
-				'1': { view: 'none', label: 'Shaded' },
-				'2': { view: 'shaderComplexity', label: 'Shader complexity' },
-				'3': { view: 'lightingComplexity', label: 'Lighting complexity' },
-				'4': { view: 'quadOverdraw', label: 'Quad overdraw' }
-			};
+			// New views are added here. `key` is optional.
+			const modes = [
+				{ id: 'shaded', view: 'none', label: 'Shaded', key: '1' },
+				{ id: 'shaderComplexity', view: 'shaderComplexity', label: 'Shader complexity', key: '2' },
+				{ id: 'lightingComplexity', view: 'lightingComplexity', label: 'Lighting complexity', key: '3' },
+				{ id: 'quadOverdraw', view: 'quadOverdraw', label: 'Quad overdraw', key: '4' },
+				{ id: 'baseColor', view: 'bufferVisualization', buffer: 'baseColor', label: 'Base color', key: '5' },
+				{ id: 'worldNormal', view: 'bufferVisualization', buffer: 'worldNormal', label: 'World normal', key: '6' },
+				{ id: 'roughness', view: 'bufferVisualization', buffer: 'roughness', label: 'Roughness', key: '7' },
+				{ id: 'metallic', view: 'bufferVisualization', buffer: 'metallic', label: 'Metallic', key: '8' },
+				{ id: 'ambientOcclusion', view: 'bufferVisualization', buffer: 'ambientOcclusion', label: 'Ambient occlusion', key: '9' },
+				{ id: 'emissive', view: 'bufferVisualization', buffer: 'emissive', label: 'Emissive', key: '0' }
+			];
+
+			const params = { view: 'shaded' };
 
 			init();
 
@@ -404,6 +412,8 @@
 				controls.target.set( 0, 0.5, 0.4 );
 				controls.update();
 
+				createDebugUI();
+
 				window.addEventListener( 'resize', onWindowResize );
 				window.addEventListener( 'keydown', onKeyDown );
 				window.addEventListener( 'genesys-debug-view', onDebugView );
@@ -412,22 +422,86 @@
 
 			}
 
+			function modeById( id ) {
+
+				return modes.find( ( mode ) => mode.id === id );
+
+			}
+
+			function modeFromRenderer() {
+
+				return modes.find( ( mode ) => {
+
+					if ( mode.view !== renderer.debug.view ) return false;
+
+					if ( mode.buffer !== undefined ) return mode.buffer === renderer.debug.buffer;
+
+					return true;
+
+				} );
+
+			}
+
+			function syncOptionRows() {
+
+				if ( shaderBudget === undefined || renderer === undefined ) return;
+
+				shaderBudget.show( renderer.debug.view === 'shaderComplexity' );
+				overdrawBudget.show( renderer.debug.view === 'quadOverdraw' );
+
+			}
+
+			function applyMode( id ) {
+
+				const mode = modeById( id );
+
+				if ( mode === undefined || renderer === undefined ) return;
+
+				renderer.debug.view = mode.view;
+
+				if ( mode.buffer !== undefined ) renderer.debug.buffer = mode.buffer;
+
+				params.view = mode.id;
+				viewController.updateDisplay();
+				syncOptionRows();
+
+			}
+
+			function createDebugUI() {
+
+				const gui = new GUI( { title: 'Debug' } );
+				const labels = {};
+
+				for ( const mode of modes ) labels[ mode.label ] = mode.id;
+
+				viewController = gui.add( params, 'view', labels ).name( 'View' ).onChange( applyMode );
+				shaderBudget = gui.add( renderer.debug, 'shaderComplexityBudget', 50, 4000, 10 ).name( 'Shader budget' );
+				overdrawBudget = gui.add( renderer.debug, 'quadOverdrawBudget', 1, 40, 1 ).name( 'Overdraw budget' );
+				syncOptionRows();
+
+			}
+
 			function onDebugView() {
 
-				const match = Object.values( views ).find( ( entry ) => entry.view === renderer.debug.view );
+				const mode = modeFromRenderer();
 
-				if ( match !== undefined ) viewLabel.textContent = match.label;
+				if ( mode === undefined ) return;
+
+				params.view = mode.id;
+				viewController.updateDisplay();
+				syncOptionRows();
 
 			}
 
 			function onKeyDown( event ) {
 
-				const next = views[ event.key ];
+				if ( event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement ) return;
 
-				if ( next === undefined || renderer === undefined ) return;
+				const mode = modes.find( ( entry ) => entry.key === event.key );
 
-				renderer.debug.view = next.view;
-				viewLabel.textContent = next.label;
+				if ( mode === undefined ) return;
+
+				applyMode( mode.id );
 
 			}
 

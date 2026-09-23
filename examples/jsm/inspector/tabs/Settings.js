@@ -137,13 +137,16 @@ class Settings extends Parameters {
 		// WITH_GENESYS
 		// Values match Renderer.debug.view. Not stored with inspector settings.
 		const debugViewState = { view: 'none' };
+		const bufferState = { buffer: 'baseColor' };
 
 		this._debugViewState = debugViewState;
+		this._bufferState = bufferState;
 		this._debugViewControl = modesGroup.add( debugViewState, 'view', {
 			'Shaded': 'none',
 			'Shader Complexity': 'shaderComplexity',
 			'Lighting Complexity': 'lightingComplexity',
-			'Quad Overdraw': 'quadOverdraw'
+			'Quad Overdraw': 'quadOverdraw',
+			'Buffer Visualization': 'bufferVisualization'
 		} ).name( 'Debug View' ).onChange( ( view ) => {
 
 			const renderer = this.inspector.getRenderer();
@@ -151,9 +154,30 @@ class Settings extends Parameters {
 			if ( renderer === null || renderer.debug === undefined ) return;
 
 			renderer.debug.view = view;
+			this._syncBufferRow( view );
 			window.dispatchEvent( new Event( 'genesys-debug-view' ) );
 
-		} ).info( 'Shaded color, a shader-cost heatmap, a direct-light count, or per-pixel overdraw. The Overdraw toggle above draws on top when both are enabled.' );
+		} ).info( 'Shaded color, a cost heatmap, per-pixel overdraw, or one material channel. The Overdraw toggle above draws on top when both are enabled.' );
+
+		this._bufferControl = modesGroup.add( bufferState, 'buffer', {
+			'Base Color': 'baseColor',
+			'World Normal': 'worldNormal',
+			'Roughness': 'roughness',
+			'Metallic': 'metallic',
+			'Ambient Occlusion': 'ambientOcclusion',
+			'Emissive': 'emissive'
+		} ).name( 'Buffer' ).onChange( ( buffer ) => {
+
+			const renderer = this.inspector.getRenderer();
+
+			if ( renderer === null || renderer.debug === undefined ) return;
+
+			renderer.debug.buffer = buffer;
+			window.dispatchEvent( new Event( 'genesys-debug-view' ) );
+
+		} ).info( 'Channel drawn by Buffer Visualization. Base color, world normal, roughness, metallic, ambient occlusion, or emissive.' );
+
+		this._bufferControl.hide();
 		// !WITH_GENESYS
 
 	}
@@ -164,13 +188,24 @@ class Settings extends Parameters {
 		const renderer = this.inspector.getRenderer();
 		const view = renderer !== null && renderer.debug !== undefined ? renderer.debug.view : null;
 
-		if ( view === 'none' || view === 'shaderComplexity' || view === 'lightingComplexity' || view === 'quadOverdraw' ) {
+		if ( view === 'none' || view === 'shaderComplexity' || view === 'lightingComplexity' || view === 'quadOverdraw' || view === 'bufferVisualization' ) {
 
 			if ( this._debugViewState.view !== view ) {
 
 				this._debugViewControl.setValue( view );
 
 			}
+
+			this._syncBufferRow( view );
+
+		}
+
+		const buffer = renderer !== null && renderer.debug !== undefined ? renderer.debug.buffer : null;
+		const buffers = [ 'baseColor', 'worldNormal', 'roughness', 'metallic', 'ambientOcclusion', 'emissive' ];
+
+		if ( buffers.includes( buffer ) && this._bufferState.buffer !== buffer ) {
+
+			this._bufferControl.setValue( buffer );
 
 		}
 		// !WITH_GENESYS
@@ -257,6 +292,27 @@ Shares the same state across any page within the current origin.` );
 		} );
 
 	}
+
+	// WITH_GENESYS
+	/**
+	 * Shows the buffer channel row only while buffer visualization is the debug view.
+	 *
+	 * @param {string} view - `renderer.debug.view`.
+	 */
+	_syncBufferRow( view ) {
+
+		if ( view === 'bufferVisualization' ) {
+
+			this._bufferControl.show();
+
+		} else {
+
+			this._bufferControl.hide();
+
+		}
+
+	}
+	// !WITH_GENESYS
 
 	async setActiveExtension( name, value ) {
 

@@ -952,7 +952,7 @@ class RenderObject {
 
 		// WITH_GENESYS
 		// hash() xors each argument as a number, so a view name has to be hashed first.
-		cacheKey = hash( cacheKey, hashString( this.renderer.debug.view ), this.renderer.debug.shaderComplexityBudget, this.renderer.debug.quadOverdrawBudget );
+		cacheKey = hash( cacheKey, hashString( this.renderer.debug.view ), hashString( this.renderer.debug.buffer ), this.renderer.debug.shaderComplexityBudget, this.renderer.debug.quadOverdrawBudget );
 		// !WITH_GENESYS
 
 		return cacheKey;
