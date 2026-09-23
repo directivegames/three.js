@@ -59,11 +59,12 @@ export const lightingOnlyNormal = /*@__PURE__*/ Fn( ( builder ) => {
  * Lit materials become a dielectric gray. Unlit materials become flat gray.
  *
  * @param {NodeBuilder} builder - The current node builder.
+ * @param {NodeMaterial} material - The node material being set up. `builder.material` can be the
+ * source material of a converted one, such as a glTF `MeshStandardMaterial`.
  * @param {string} view - `renderer.debug.view`.
  */
-export function applyLightingDebug( builder, view ) {
+export function applyLightingDebug( builder, material, view ) {
 
-	const material = builder.material;
 	const gray = vec3( LIGHTING_ONLY_BRIGHTNESS );
 
 	diffuseColor.rgb.assign( gray );

@@ -77,10 +77,11 @@ function writeDrawCallColor( color, object, material ) {
  * The color is an object uniform, so meshes that share a material still differ.
  *
  * @param {NodeBuilder} builder - The current node builder.
+ * @param {NodeMaterial} material - The node material being set up. `builder.material` can be the
+ * source material of a converted one, such as a glTF `MeshStandardMaterial`.
  */
-export function applyDrawCallDebug( builder ) {
+export function applyDrawCallDebug( builder, material ) {
 
-	const material = builder.material;
 	const colorNode = uniform( new Color() ).onObjectUpdate( ( { object, material: drawnMaterial }, self ) => {
 
 		if ( object === null || drawnMaterial === null ) return;

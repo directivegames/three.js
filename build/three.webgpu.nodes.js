@@ -22801,11 +22801,12 @@ const lightingOnlyNormal = /*@__PURE__*/ Fn( ( builder ) => {
  * Lit materials become a dielectric gray. Unlit materials become flat gray.
  *
  * @param {NodeBuilder} builder - The current node builder.
+ * @param {NodeMaterial} material - The node material being set up. `builder.material` can be the
+ * source material of a converted one, such as a glTF `MeshStandardMaterial`.
  * @param {string} view - `renderer.debug.view`.
  */
-function applyLightingDebug( builder, view ) {
+function applyLightingDebug( builder, material, view ) {
 
-	const material = builder.material;
 	const gray = vec3( LIGHTING_ONLY_BRIGHTNESS );
 
 	diffuseColor.rgb.assign( gray );
@@ -22924,10 +22925,11 @@ function writeDrawCallColor( color, object, material ) {
  * The color is an object uniform, so meshes that share a material still differ.
  *
  * @param {NodeBuilder} builder - The current node builder.
+ * @param {NodeMaterial} material - The node material being set up. `builder.material` can be the
+ * source material of a converted one, such as a glTF `MeshStandardMaterial`.
  */
-function applyDrawCallDebug( builder ) {
+function applyDrawCallDebug( builder, material ) {
 
-	const material = builder.material;
 	const colorNode = uniform( new Color() ).onObjectUpdate( ( { object, material: drawnMaterial }, self ) => {
 
 		if ( object === null || drawnMaterial === null ) return;
@@ -23500,11 +23502,11 @@ class NodeMaterial extends Material {
 			// for detail lighting and can be replaced for lighting only.
 			if ( ( renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY || renderer.debug.view === DEBUG_VIEW_DETAIL_LIGHTING ) && this.isShadowPassMaterial !== true ) {
 
-				applyLightingDebug( builder, renderer.debug.view );
+				applyLightingDebug( builder, this, renderer.debug.view );
 
 			} else if ( renderer.debug.view === DEBUG_VIEW_DRAW_CALL && this.isShadowPassMaterial !== true ) {
 
-				applyDrawCallDebug( builder );
+				applyDrawCallDebug( builder, this );
 
 			}
 			// !WITH_GENESYS

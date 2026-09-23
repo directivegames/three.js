@@ -568,11 +568,11 @@ class NodeMaterial extends Material {
 			// for detail lighting and can be replaced for lighting only.
 			if ( ( renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY || renderer.debug.view === DEBUG_VIEW_DETAIL_LIGHTING ) && this.isShadowPassMaterial !== true ) {
 
-				applyLightingDebug( builder, renderer.debug.view );
+				applyLightingDebug( builder, this, renderer.debug.view );
 
 			} else if ( renderer.debug.view === DEBUG_VIEW_DRAW_CALL && this.isShadowPassMaterial !== true ) {
 
-				applyDrawCallDebug( builder );
+				applyDrawCallDebug( builder, this );
 
 			}
 			// !WITH_GENESYS
