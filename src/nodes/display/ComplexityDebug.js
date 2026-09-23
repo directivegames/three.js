@@ -36,6 +36,15 @@ export const DEBUG_VIEW_LIGHTING_COMPLEXITY = 'lightingComplexity';
 export const DEBUG_VIEW_QUAD_OVERDRAW = 'quadOverdraw';
 
 /**
+ * Shader cost multiplied by the number of fragments that shaded the pixel, then the shader-complexity ramp.
+ * One opaque surface matches {@link DEBUG_VIEW_SHADER_COMPLEXITY}. Each extra overlapping fragment scales the summed cost.
+ * WebGPU cannot count wasted lanes in a 2×2 quad, so the count is fragments that pass the depth test.
+ *
+ * @type {string}
+ */
+export const DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS = 'shaderComplexityAndQuads';
+
+/**
  * Proxy budget that fills the shader-complexity ramp.
  * Unlit and basic stay green. Phong and standard move through yellow into red.
  * Transmission plus several texture samples climbs toward white.
@@ -51,6 +60,15 @@ export const DEFAULT_SHADER_COMPLEXITY_BUDGET = 800;
  * @type {number}
  */
 export const DEFAULT_QUAD_OVERDRAW_BUDGET = 10;
+
+/**
+ * Storage scale for the overdraw count in {@link DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS}.
+ * Each fragment adds `1 / scale`, so an 8-bit target can hold this many layers.
+ * The output pass multiplies that channel back to a count. Half-float targets hold the same count exactly.
+ *
+ * @type {number}
+ */
+export const SHADER_COMPLEXITY_QUAD_COUNT_SCALE = 16;
 
 /**
  * Added for each fragment texture sample. Lighting-model costs are returned
@@ -202,7 +220,7 @@ export const colorizeQuadOverdraw = ( cost ) => {
  */
 export function debugViewAccumulates( view ) {
 
-	return view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_QUAD_OVERDRAW;
+	return view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_QUAD_OVERDRAW || view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS;
 
 }
 
@@ -315,6 +333,23 @@ export function shaderComplexityOutput( resultNode ) {
 	const ratio = new ShaderComplexityRatioNode();
 
 	return vec4( ratio, 0, 0, 1 ).add( shaded.mul( 0 ) );
+
+}
+
+/**
+ * Same cost as {@link shaderComplexityOutput}, plus one overdraw step in green.
+ * The output pass multiplies red by the accumulated green count.
+ *
+ * @param {Node} resultNode - The material's shaded output.
+ * @return {Node<vec4>} Cost ratio in red, one scaled fragment in green.
+ */
+export function shaderComplexityAndQuadsOutput( resultNode ) {
+
+	const shaded = vec4( resultNode ).toVar();
+	const ratio = new ShaderComplexityRatioNode();
+	const step = float( 1 / SHADER_COMPLEXITY_QUAD_COUNT_SCALE );
+
+	return vec4( ratio, step, 0, 1 ).add( shaded.mul( 0 ) );
 
 }
 

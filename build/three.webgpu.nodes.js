@@ -21649,6 +21649,15 @@ const DEBUG_VIEW_LIGHTING_COMPLEXITY = 'lightingComplexity';
 const DEBUG_VIEW_QUAD_OVERDRAW = 'quadOverdraw';
 
 /**
+ * Shader cost multiplied by the number of fragments that shaded the pixel, then the shader-complexity ramp.
+ * One opaque surface matches {@link DEBUG_VIEW_SHADER_COMPLEXITY}. Each extra overlapping fragment scales the summed cost.
+ * WebGPU cannot count wasted lanes in a 2×2 quad, so the count is fragments that pass the depth test.
+ *
+ * @type {string}
+ */
+const DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS = 'shaderComplexityAndQuads';
+
+/**
  * Proxy budget that fills the shader-complexity ramp.
  * Unlit and basic stay green. Phong and standard move through yellow into red.
  * Transmission plus several texture samples climbs toward white.
@@ -21664,6 +21673,15 @@ const DEFAULT_SHADER_COMPLEXITY_BUDGET = 800;
  * @type {number}
  */
 const DEFAULT_QUAD_OVERDRAW_BUDGET = 10;
+
+/**
+ * Storage scale for the overdraw count in {@link DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS}.
+ * Each fragment adds `1 / scale`, so an 8-bit target can hold this many layers.
+ * The output pass multiplies that channel back to a count. Half-float targets hold the same count exactly.
+ *
+ * @type {number}
+ */
+const SHADER_COMPLEXITY_QUAD_COUNT_SCALE = 16;
 
 /**
  * Added for each fragment texture sample. Lighting-model costs are returned
@@ -21815,7 +21833,7 @@ const colorizeQuadOverdraw = ( cost ) => {
  */
 function debugViewAccumulates( view ) {
 
-	return view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_QUAD_OVERDRAW;
+	return view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_QUAD_OVERDRAW || view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS;
 
 }
 
@@ -21928,6 +21946,23 @@ function shaderComplexityOutput( resultNode ) {
 	const ratio = new ShaderComplexityRatioNode();
 
 	return vec4( ratio, 0, 0, 1 ).add( shaded.mul( 0 ) );
+
+}
+
+/**
+ * Same cost as {@link shaderComplexityOutput}, plus one overdraw step in green.
+ * The output pass multiplies red by the accumulated green count.
+ *
+ * @param {Node} resultNode - The material's shaded output.
+ * @return {Node<vec4>} Cost ratio in red, one scaled fragment in green.
+ */
+function shaderComplexityAndQuadsOutput( resultNode ) {
+
+	const shaded = vec4( resultNode ).toVar();
+	const ratio = new ShaderComplexityRatioNode();
+	const step = float( 1 / SHADER_COMPLEXITY_QUAD_COUNT_SCALE );
+
+	return vec4( ratio, step, 0, 1 ).add( shaded.mul( 0 ) );
 
 }
 
@@ -22941,6 +22976,11 @@ class NodeMaterial extends Material {
 
 			builder.shaderComplexityBase = this.getShaderComplexity();
 			resultNode = shaderComplexityOutput( resultNode );
+
+		} else if ( renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS && this.isShadowPassMaterial !== true && renderer.isOutputTarget !== true ) {
+
+			builder.shaderComplexityBase = this.getShaderComplexity();
+			resultNode = shaderComplexityAndQuadsOutput( resultNode );
 
 		} else if ( renderer.debug.view === DEBUG_VIEW_QUAD_OVERDRAW && this.isShadowPassMaterial !== true && renderer.isOutputTarget !== true ) {
 
@@ -60388,9 +60428,13 @@ class NodeManager extends DataMap {
 		}
 
 		// WITH_GENESYS
-		if ( renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY ) {
+		if ( renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY || renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS ) {
 
-			return vec4( colorizeShaderComplexity( sampled.r ), 1 ).renderOutput( NoToneMapping, renderer.currentColorSpace );
+			const complexity = renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS
+				? sampled.r.mul( sampled.g ).mul( SHADER_COMPLEXITY_QUAD_COUNT_SCALE )
+				: sampled.r;
+
+			return vec4( colorizeShaderComplexity( complexity ), 1 ).renderOutput( NoToneMapping, renderer.currentColorSpace );
 
 		}
 
@@ -64359,7 +64403,7 @@ class Renderer {
 		 * @property {?Function} onNodeBuilderCreated - A callback function that is executed after a node builder has been created and before it is built.
 		 * @property {?Function} onShaderError - A callback function that is executed when a shader error happens. Only supported with WebGL 2 right now.
 		 * @property {Function} getShaderAsync - Allows the get the raw shader code for the given scene, camera and 3D object.
-		 * @property {string} view - Debug view. `shaderComplexity`, `lightingComplexity`, and `quadOverdraw` replace the shaded color with a heatmap. `bufferVisualization` shows one material channel. `lightingOnly` and `detailLighting` light a flat gray surface. `drawCall` lights each submitted draw with its own diffuse color.
+		 * @property {string} view - Debug view. `shaderComplexity`, `lightingComplexity`, `quadOverdraw`, and `shaderComplexityAndQuads` replace the shaded color with a heatmap. `shaderComplexityAndQuads` multiplies the shader cost by the overdraw count. `bufferVisualization` shows one material channel. `lightingOnly` and `detailLighting` light a flat gray surface. `drawCall` lights each submitted draw with its own diffuse color.
 		 * @property {string} buffer - Channel drawn by `bufferVisualization`: `baseColor`, `worldNormal`, `roughness`, `metallic`, `ambientOcclusion`, or `emissive`.
 		 * @property {number} shaderComplexityBudget - Proxy budget that fills the shader-complexity ramp.
 		 * @property {number} quadOverdrawBudget - Overlapping fragments that fill the quad-overdraw ramp.
@@ -66375,7 +66419,7 @@ class Renderer {
 		// WITH_GENESYS
 		const view = this.debug.view;
 
-		if ( view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_LIGHTING_COMPLEXITY || view === DEBUG_VIEW_QUAD_OVERDRAW || view === DEBUG_VIEW_BUFFER ) {
+		if ( view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS || view === DEBUG_VIEW_LIGHTING_COMPLEXITY || view === DEBUG_VIEW_QUAD_OVERDRAW || view === DEBUG_VIEW_BUFFER ) {
 
 			return NoToneMapping;
 

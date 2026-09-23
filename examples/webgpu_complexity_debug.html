@@ -20,7 +20,7 @@
 			</div>
 
 			<small>
-				Back: basic, standard, physical, 8 cheap layers, 4 physical layers, light overlap.<br/>
+				Back: basic, standard, physical, 8 cheap layers, 4 physical layers, 2 Lambert layers, light overlap.<br/>
 				Middle: RGB, rough/smooth, metal/plastic, emissive, normal/flat, AO.<br/>
 				Front: near LOD, far LOD, open box, caster / non-caster, separate meshes, one instanced mesh.
 			</small>
@@ -55,6 +55,7 @@
 				{ id: 'shaderComplexity', view: 'shaderComplexity', label: 'Shader complexity', key: '2' },
 				{ id: 'lightingComplexity', view: 'lightingComplexity', label: 'Lighting complexity', key: '3' },
 				{ id: 'quadOverdraw', view: 'quadOverdraw', label: 'Quad overdraw', key: '4' },
+				{ id: 'shaderComplexityAndQuads', view: 'shaderComplexityAndQuads', label: 'Shader complexity and quads' },
 				{ id: 'baseColor', view: 'bufferVisualization', buffer: 'baseColor', label: 'Buffer: Base color', key: '5' },
 				{ id: 'worldNormal', view: 'bufferVisualization', buffer: 'worldNormal', label: 'Buffer: World normal', key: '6' },
 				{ id: 'roughness', view: 'bufferVisualization', buffer: 'roughness', label: 'Buffer: Roughness', key: '7' },
@@ -299,7 +300,7 @@
 				physical.castShadow = true;
 				physical.receiveShadow = true;
 
-				// Quad overdraw: many cheap layers. Shader complexity with quads: fewer expensive layers.
+				// Quad overdraw: many cheap layers. The physical stack is the expensive overdraw case.
 				addOverdrawStack( new THREE.MeshStandardNodeMaterial( {
 					color: 0xffffff,
 					transparent: true,
@@ -319,6 +320,15 @@
 					depthWrite: false,
 					map: makeMap( 140, 200, 255 )
 				} ), 0.9, - 1.6, 4 );
+
+				// Two Lambert layers over the ground. Shader complexity stays on the ramp.
+				// This view multiplies by the fragment count, so the same pixels go white.
+				addOverdrawStack( new THREE.MeshLambertNodeMaterial( {
+					color: 0xffcc88,
+					transparent: true,
+					opacity: 0.45,
+					depthWrite: false
+				} ), 2.5, - 1.6, 2 );
 
 				// Lighting complexity: four short-range points over one pad. The rest of the ground has the sun only.
 				const pad = addMesh(
@@ -464,7 +474,7 @@
 
 				if ( shaderBudget === undefined || renderer === undefined ) return;
 
-				shaderBudget.show( renderer.debug.view === 'shaderComplexity' );
+				shaderBudget.show( renderer.debug.view === 'shaderComplexity' || renderer.debug.view === 'shaderComplexityAndQuads' );
 				overdrawBudget.show( renderer.debug.view === 'quadOverdraw' );
 
 			}

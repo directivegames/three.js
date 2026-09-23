@@ -10,7 +10,7 @@ import { builtin } from '../../../nodes/accessors/BuiltinNode.js';
 import { CubeUVReflectionMapping, EquirectangularReflectionMapping, EquirectangularRefractionMapping, NoToneMapping } from '../../../constants.js';
 // WITH_GENESYS
 import { vec4 } from '../../../nodes/tsl/TSLCore.js';
-import { colorizeQuadOverdraw, colorizeShaderComplexity, DEBUG_VIEW_QUAD_OVERDRAW, DEBUG_VIEW_SHADER_COMPLEXITY } from '../../../nodes/display/ComplexityDebug.js';
+import { colorizeQuadOverdraw, colorizeShaderComplexity, DEBUG_VIEW_QUAD_OVERDRAW, DEBUG_VIEW_SHADER_COMPLEXITY, DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS, SHADER_COMPLEXITY_QUAD_COUNT_SCALE } from '../../../nodes/display/ComplexityDebug.js';
 // !WITH_GENESYS
 import { hashArray } from '../../../nodes/core/NodeUtils.js';
 import { error } from '../../../utils.js';
@@ -1035,9 +1035,13 @@ class NodeManager extends DataMap {
 		}
 
 		// WITH_GENESYS
-		if ( renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY ) {
+		if ( renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY || renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS ) {
 
-			return vec4( colorizeShaderComplexity( sampled.r ), 1 ).renderOutput( NoToneMapping, renderer.currentColorSpace );
+			const complexity = renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS
+				? sampled.r.mul( sampled.g ).mul( SHADER_COMPLEXITY_QUAD_COUNT_SCALE )
+				: sampled.r;
+
+			return vec4( colorizeShaderComplexity( complexity ), 1 ).renderOutput( NoToneMapping, renderer.currentColorSpace );
 
 		}
 

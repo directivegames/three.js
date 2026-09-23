@@ -26,7 +26,7 @@ import { vertexColor } from '../../nodes/accessors/VertexColorNode.js';
 import { premultiplyAlpha } from '../../nodes/display/PremultiplyAlphaFunctions.js';
 import { subBuild } from '../../nodes/core/SubBuildNode.js';
 // WITH_GENESYS
-import { DEBUG_VIEW_LIGHTING_COMPLEXITY, DEBUG_VIEW_QUAD_OVERDRAW, DEBUG_VIEW_SHADER_COMPLEXITY, quadOverdrawOutput, shaderComplexityOutput } from '../../nodes/display/ComplexityDebug.js';
+import { DEBUG_VIEW_LIGHTING_COMPLEXITY, DEBUG_VIEW_QUAD_OVERDRAW, DEBUG_VIEW_SHADER_COMPLEXITY, DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS, quadOverdrawOutput, shaderComplexityAndQuadsOutput, shaderComplexityOutput } from '../../nodes/display/ComplexityDebug.js';
 import { DEBUG_VIEW_BUFFER, assignBufferDefaults, bufferVisualizationOutput } from '../../nodes/display/BufferDebug.js';
 import { DEBUG_VIEW_DETAIL_LIGHTING, DEBUG_VIEW_LIGHTING_ONLY, applyLightingDebug, lightingOnlyNormal } from '../../nodes/display/LightingDebug.js';
 import { DEBUG_VIEW_DRAW_CALL, applyDrawCallDebug } from '../../nodes/display/DrawCallDebug.js';
@@ -633,6 +633,11 @@ class NodeMaterial extends Material {
 
 			builder.shaderComplexityBase = this.getShaderComplexity();
 			resultNode = shaderComplexityOutput( resultNode );
+
+		} else if ( renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS && this.isShadowPassMaterial !== true && renderer.isOutputTarget !== true ) {
+
+			builder.shaderComplexityBase = this.getShaderComplexity();
+			resultNode = shaderComplexityAndQuadsOutput( resultNode );
 
 		} else if ( renderer.debug.view === DEBUG_VIEW_QUAD_OVERDRAW && this.isShadowPassMaterial !== true && renderer.isOutputTarget !== true ) {
 

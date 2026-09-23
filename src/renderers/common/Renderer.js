@@ -37,7 +37,7 @@ import { float, vec3, vec4, Fn } from '../../nodes/tsl/TSLCore.js';
 import { detachRendererReference } from '../../nodes/accessors/RendererReferenceNode.js';
 import { toneMappingExposure } from '../../nodes/display/ToneMappingNode.js';
 import { ProfilerService } from '../../profiler/ProfilerService.js';
-import { DEBUG_VIEW_LIGHTING_COMPLEXITY, DEBUG_VIEW_NONE, DEBUG_VIEW_QUAD_OVERDRAW, DEBUG_VIEW_SHADER_COMPLEXITY, DEFAULT_QUAD_OVERDRAW_BUDGET, DEFAULT_SHADER_COMPLEXITY_BUDGET, debugViewAccumulates } from '../../nodes/display/ComplexityDebug.js';
+import { DEBUG_VIEW_LIGHTING_COMPLEXITY, DEBUG_VIEW_NONE, DEBUG_VIEW_QUAD_OVERDRAW, DEBUG_VIEW_SHADER_COMPLEXITY, DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS, DEFAULT_QUAD_OVERDRAW_BUDGET, DEFAULT_SHADER_COMPLEXITY_BUDGET, debugViewAccumulates } from '../../nodes/display/ComplexityDebug.js';
 import { DEBUG_VIEW_BUFFER, DEFAULT_BUFFER } from '../../nodes/display/BufferDebug.js';
 // !WITH_GENESYS
 import { reference } from '../../nodes/accessors/ReferenceNode.js';
@@ -745,7 +745,7 @@ class Renderer {
 		 * @property {?Function} onNodeBuilderCreated - A callback function that is executed after a node builder has been created and before it is built.
 		 * @property {?Function} onShaderError - A callback function that is executed when a shader error happens. Only supported with WebGL 2 right now.
 		 * @property {Function} getShaderAsync - Allows the get the raw shader code for the given scene, camera and 3D object.
-		 * @property {string} view - Debug view. `shaderComplexity`, `lightingComplexity`, and `quadOverdraw` replace the shaded color with a heatmap. `bufferVisualization` shows one material channel. `lightingOnly` and `detailLighting` light a flat gray surface. `drawCall` lights each submitted draw with its own diffuse color.
+		 * @property {string} view - Debug view. `shaderComplexity`, `lightingComplexity`, `quadOverdraw`, and `shaderComplexityAndQuads` replace the shaded color with a heatmap. `shaderComplexityAndQuads` multiplies the shader cost by the overdraw count. `bufferVisualization` shows one material channel. `lightingOnly` and `detailLighting` light a flat gray surface. `drawCall` lights each submitted draw with its own diffuse color.
 		 * @property {string} buffer - Channel drawn by `bufferVisualization`: `baseColor`, `worldNormal`, `roughness`, `metallic`, `ambientOcclusion`, or `emissive`.
 		 * @property {number} shaderComplexityBudget - Proxy budget that fills the shader-complexity ramp.
 		 * @property {number} quadOverdrawBudget - Overlapping fragments that fill the quad-overdraw ramp.
@@ -2761,7 +2761,7 @@ class Renderer {
 		// WITH_GENESYS
 		const view = this.debug.view;
 
-		if ( view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_LIGHTING_COMPLEXITY || view === DEBUG_VIEW_QUAD_OVERDRAW || view === DEBUG_VIEW_BUFFER ) {
+		if ( view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS || view === DEBUG_VIEW_LIGHTING_COMPLEXITY || view === DEBUG_VIEW_QUAD_OVERDRAW || view === DEBUG_VIEW_BUFFER ) {
 
 			return NoToneMapping;
 
