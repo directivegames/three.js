@@ -1,0 +1,239 @@
+<!DOCTYPE html><html lang="en"><head>
+    <meta charset="utf-8">
+    <title>Debug Views</title>
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@threejs">
+    <meta name="twitter:title" content="Three.js – Debug Views">
+    <meta property="og:image" content="https://threejs.org/files/share.png">
+    <link rel="shortcut icon" href="../../files/favicon_white.ico" media="(prefers-color-scheme: dark)">
+    <link rel="shortcut icon" href="../../files/favicon.ico" media="(prefers-color-scheme: light)">
+
+    <link rel="stylesheet" href="../resources/lesson.css">
+    <link rel="stylesheet" href="../resources/lang.css">
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "../../build/three.module.js"
+      }
+    }
+    </script>
+    </head>
+    <body>
+      <div class="container">
+        <div class="lesson-title">
+          <h1>Debug Views</h1>
+        </div>
+        <div class="lesson">
+          <div class="lesson-main">
+
+            <!-- WITH_GENESYS -->
+            <p>
+              `WebGPURenderer` can replace the shaded image with a diagnostic.
+              Set `renderer.debug.view` to one of the names below.
+              `WebGLRenderer` does not support these views. The WebGL 2 backend of `WebGPURenderer` does.
+            </p>
+
+<pre class="prettyprint showlinemods notranslate lang-js" translate="no">import * as THREE from 'three/webgpu';
+
+const renderer = new THREE.WebGPURenderer();
+
+renderer.debug.view = 'shaderComplexity';
+
+renderer.debug.view = 'bufferVisualization';
+renderer.debug.buffer = 'worldNormal';
+
+renderer.debug.view = 'none';
+</pre>
+
+            <p>
+              The <a href="https://threejs.org/examples/?q=inspector#webgpu_inspector" target="_blank" rel="noopener">WebGPU inspector</a>
+              has the same list under Settings. The pictures on this page are
+              <a href="../../examples/webgpu_complexity_debug.html">the complexity example</a>,
+              one scene with every view turned on in turn.
+            </p>
+
+            <p>
+              Back row, left to right: a basic material, a standard material, a physical material with transmission,
+              stacks of transparent layers, and a pad under four point lights.
+              Middle row: color, roughness, metal, emissive, a normal map, and ambient occlusion.
+              Front: an open box, separate meshes, and one instanced mesh.
+            </p>
+
+            <h2 id="shader-complexity">Shader complexity</h2>
+
+            <p>
+              Estimates how expensive each material is to shade, then colors that cost.
+              The estimate is a stand-in for a GPU instruction count, which the browser does not report.
+              It grows with the lighting model (unlit, Lambert, Phong, standard, then physical features such as transmission)
+              and with each fragment texture sample.
+            </p>
+            <p>
+              Overlapping surfaces add. A stack of transparent cards costs more than one card of the same material.
+              The background is left empty, so it stays on the cheapest stop.
+            </p>
+            <p>
+              The ramp runs from green, through yellow and red, to white.
+              White means the accumulated cost has reached `renderer.debug.shaderComplexityBudget` (default `800`).
+              A plain standard material already sits in the red band at that budget, which is why the floor in the picture is red.
+              Raise the budget when a whole scene collapses into one color and you still need to tell materials apart.
+            </p>
+            <p>
+              Use it when a frame is slow and you need to see which materials are heavy, or where transparent layers stack that cost up.
+            </p>
+            <div class="threejs_center"><img src="../resources/images/debug-views/shader-complexity.jpg" alt="Shader complexity. The floor is red, cheap surfaces are green, and the heaviest materials are white." style="width: 100%;"></div>
+
+            <h2 id="lighting-complexity">Lighting complexity</h2>
+
+            <p>
+              Colors each pixel by how many direct lights shade it.
+              A light counts only where its attenuation is still in range.
+              A directional light counts everywhere. A shadow-casting light that the object receives counts as one and a half, even in the shadowed part.
+              The front-most surface wins, so transparent layers do not add.
+            </p>
+            <p>
+              The ramp starts at black for no lights, then blue, green, yellow, red, and white.
+              White is about ten lights. In the picture the floor is blue because of the sun, and the pad on the right turns yellow where the four point lights overlap.
+            </p>
+            <p>
+              Use it to find pixels touched by too many lights, and to check that a light's radius is as small as you think.
+            </p>
+            <div class="threejs_center"><img src="../resources/images/debug-views/lighting-complexity.jpg" alt="Lighting complexity. Most of the scene is blue from one sun. A yellow ring marks where several point lights overlap." style="width: 100%;"></div>
+
+            <h2 id="quad-overdraw">Quad overdraw</h2>
+
+            <p>
+              Counts how many fragments shaded each pixel. Every fragment that passes the depth test adds one.
+              This is the portable stand-in for a GPU quad-occupancy count. The browser cannot see wasted lanes inside a 2×2 quad.
+            </p>
+            <p>
+              The ramp is a stair from black, through blue and green, to white.
+              White means the count has reached `renderer.debug.quadOverdrawBudget` (default `10`).
+            </p>
+            <p>
+              Use it to find stacked transparent cards, particles, or UI that shade the same pixel many times.
+              A single opaque surface stays on the first stop.
+            </p>
+            <div class="threejs_center"><img src="../resources/images/debug-views/quad-overdraw.jpg" alt="Quad overdraw. Opaque surfaces stay dark. Stacked transparent layers step up the color ramp." style="width: 100%;"></div>
+
+            <h2 id="shader-complexity-and-quads">Shader complexity and quads</h2>
+
+            <p>
+              Multiplies the shader-complexity cost by the number of fragments that shaded the pixel, then uses the shader-complexity ramp.
+              One opaque surface matches shader complexity.
+              Each extra overlapping fragment scales that cost, so a cheap material drawn many times can still go white.
+            </p>
+            <p>
+              `renderer.debug.shaderComplexityBudget` scales this view as well.
+            </p>
+            <p>
+              Use it when shader complexity looks fine but the frame is still fill-rate bound.
+              The two Lambert cards in the example stay on the ramp in shader complexity and jump toward white here, because the same pixels are shaded twice.
+            </p>
+            <div class="threejs_center"><img src="../resources/images/debug-views/shader-complexity-and-quads.jpg" alt="Shader complexity multiplied by overdraw. Overlapping layers are brighter than in the shader complexity view." style="width: 100%;"></div>
+
+            <h2 id="buffer-visualization">Buffer visualization</h2>
+
+            <p>
+              Draws one material channel instead of the lit color.
+              The visible surface wins, and tone mapping is off.
+              Set `renderer.debug.view` to `'bufferVisualization'` and pick the channel with `renderer.debug.buffer`.
+            </p>
+            <p>
+              Use these when a surface looks wrong and you need to see the input to lighting, not the lit result.
+            </p>
+
+            <h3 id="buffer-base-color">Base color</h3>
+            <p>
+              Albedo before lighting, including maps and vertex colors.
+              Use it to check that a color map is assigned and is not being hidden by the light.
+            </p>
+            <div class="threejs_center"><img src="../resources/images/debug-views/buffer-base-color.jpg" alt="Base color. Surfaces show their albedo with no lighting." style="width: 100%;"></div>
+
+            <h3 id="buffer-world-normal">World normal</h3>
+            <p>
+              The shading normal in world space, stored as `normal * 0.5 + 0.5`.
+              Up is green, and a normal map shows up as extra color on an otherwise flat face.
+              Use it to check normal-map direction and strength.
+            </p>
+            <div class="threejs_center"><img src="../resources/images/debug-views/buffer-world-normal.jpg" alt="World normals. The ground is a flat green. Spheres show a normal gradient, and one card shows a normal map." style="width: 100%;"></div>
+
+            <h3 id="buffer-roughness">Roughness</h3>
+            <p>
+              The roughness the lighting model uses. Black is smooth, white is rough.
+              Use it to check a roughness map and whether a surface is smoother than it looks under the current lights.
+            </p>
+            <div class="threejs_center"><img src="../resources/images/debug-views/buffer-roughness.jpg" alt="Roughness. Smooth surfaces are dark and rough surfaces are light." style="width: 100%;"></div>
+
+            <h3 id="buffer-metallic">Metallic</h3>
+            <p>
+              Metalness. White is metal, black is dielectric.
+              A material that never sets metalness stays black.
+              Use it to check that a metalness map is connected and is not inverted.
+            </p>
+            <div class="threejs_center"><img src="../resources/images/debug-views/buffer-metallic.jpg" alt="Metallic. Most surfaces are black. Metal surfaces are white." style="width: 100%;"></div>
+
+            <h3 id="buffer-ambient-occlusion">Ambient occlusion</h3>
+            <p>
+              The material's ambient-occlusion map. White means no extra occlusion.
+              A material without an occlusion map stays white.
+              Use it to see whether the occlusion map is sampled, and how strong it is, without the rest of the lighting.
+            </p>
+            <div class="threejs_center"><img src="../resources/images/debug-views/buffer-ambient-occlusion.jpg" alt="Ambient occlusion. Most surfaces are white. The occlusion swatch is darker where the map bites." style="width: 100%;"></div>
+
+            <h3 id="buffer-emissive">Emissive</h3>
+            <p>
+              Emissive color before it is added to the lit result. Black means the material has no emissive.
+              Use it to check an emissive map on its own. Lighting is not added on top.
+            </p>
+            <div class="threejs_center"><img src="../resources/images/debug-views/buffer-emissive.jpg" alt="Emissive. The scene is black except the card that has an emissive color." style="width: 100%;"></div>
+
+            <h2 id="lighting-only">Lighting only</h2>
+
+            <p>
+              Replaces every lit material with the same flat gray (`0.3`), fully rough, with no specular.
+              Normal maps, ambient occlusion, emissive, clearcoat, and transmission are dropped, and the geometric normal is used.
+              Unlit materials become flat gray with no lights.
+            </p>
+            <p>
+              Use it to judge light placement, brightness, and shadows when albedo and material detail are hiding them.
+            </p>
+            <div class="threejs_center"><img src="../resources/images/debug-views/lighting-only.jpg" alt="Lighting only. Every surface is flat gray. Shadows and the point lights remain." style="width: 100%;"></div>
+
+            <h2 id="detail-lighting">Detail lighting</h2>
+
+            <p>
+              Also replaces albedo with flat gray (`0.3`), and forces specular to `0.1`.
+              Normal maps, roughness, ambient occlusion, emissive, clearcoat, and transmission stay.
+              The gray removes color so surface detail is easier to read.
+            </p>
+            <p>
+              Use it when a normal map or a roughness change is hard to see on a busy albedo.
+              Switch to lighting only if you want those details gone and only the lights left.
+            </p>
+            <div class="threejs_center"><img src="../resources/images/debug-views/detail-lighting.jpg" alt="Detail lighting. Surfaces are gray but normal maps, roughness, and emissive still show." style="width: 100%;"></div>
+
+            <h2 id="draw-call">Draw call</h2>
+
+            <p>
+              Gives each submitted draw its own diffuse color, then lights that color.
+              Shadows stay visible. Unlit materials stay flat.
+              An instanced mesh is one draw, so every instance shares a color.
+              Separate meshes get different colors even when they share a material.
+              A multi-material group is its own draw.
+            </p>
+            <p>
+              Use it to see how a cluster is batched.
+              In the picture, the six separate boxes on the right are six colors, and the instanced boxes beside them are one color.
+            </p>
+            <div class="threejs_center"><img src="../resources/images/debug-views/draw-call.jpg" alt="Draw call colors. Separate meshes differ. The instanced boxes share one color." style="width: 100%;"></div>
+            <!-- !WITH_GENESYS -->
+
+          </div>
+        </div>
+      </div>
+
+    <script src="../resources/prettify.js"></script>
+    <script src="../resources/lesson.js"></script>
+  </body>
+</html>

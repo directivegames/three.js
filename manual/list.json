@@ -74,7 +74,8 @@
 	},
 	"WebGPU": {
 		"WebGPURenderer": "webgpurenderer",
-		"Post-Processing": "webgpu-postprocessing"
+		"Post-Processing": "webgpu-postprocessing",
+		"Debug Views": "debug-views"
 	},
 	"WebXR": {
 		"VR - Basics": "webxr-basics",

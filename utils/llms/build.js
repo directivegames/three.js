@@ -181,6 +181,7 @@ When using TSL, use node-based materials:
 ## Renderer Guides
 
 - [WebGPURenderer](https://threejs.org/manual/#webgpurenderer)
+- [Debug Views](https://threejs.org/manual/#debug-views)
 
 ## Core Concepts
 
