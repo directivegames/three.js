@@ -635,6 +635,10 @@ ${ flowData.code }
 	 */
 	generateTexture( texture, textureProperty, uvSnippet, depthSnippet, offsetSnippet ) {
 
+		// WITH_GENESYS
+		this.recordFragmentTextureSample( texture, this.shaderStage, textureProperty + '|' + uvSnippet );
+		// !WITH_GENESYS
+
 		if ( depthSnippet ) uvSnippet = `vec3( ${ uvSnippet }, ${ depthSnippet } )`;
 
 		if ( texture.isDepthTexture ) {
@@ -677,6 +681,10 @@ ${ flowData.code }
 	 * @return {string} The GLSL snippet.
 	 */
 	generateTextureLevel( texture, textureProperty, uvSnippet, levelSnippet, depthSnippet, offsetSnippet ) {
+
+		// WITH_GENESYS
+		this.recordFragmentTextureSample( texture, this.shaderStage, textureProperty + '|' + uvSnippet + '|' + levelSnippet );
+		// !WITH_GENESYS
 
 		if ( depthSnippet ) uvSnippet = `vec3( ${ uvSnippet }, ${ depthSnippet } )`;
 

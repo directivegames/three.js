@@ -7,7 +7,11 @@ import { NodeFrame, NodeUpdateType, StackTrace } from '../../../nodes/Nodes.js';
 import { renderGroup, cubeTexture, texture, fog, rangeFogFactor, densityFogFactor, reference, pmremTexture, screenUV, uniform } from '../../../nodes/TSL.js';
 import { builtin } from '../../../nodes/accessors/BuiltinNode.js';
 
-import { CubeUVReflectionMapping, EquirectangularReflectionMapping, EquirectangularRefractionMapping } from '../../../constants.js';
+import { CubeUVReflectionMapping, EquirectangularReflectionMapping, EquirectangularRefractionMapping, NoToneMapping } from '../../../constants.js';
+// WITH_GENESYS
+import { vec4 } from '../../../nodes/tsl/TSLCore.js';
+import { colorizeShaderComplexity, DEBUG_VIEW_SHADER_COMPLEXITY } from '../../../nodes/display/ComplexityDebug.js';
+// !WITH_GENESYS
 import { hashArray } from '../../../nodes/core/NodeUtils.js';
 import { error } from '../../../utils.js';
 
@@ -992,7 +996,10 @@ class NodeManager extends DataMap {
 
 		const renderer = this.renderer;
 
-		return renderer.toneMapping + ',' + renderer.currentColorSpace + ',' + renderer.xr.isPresenting;
+		// WITH_GENESYS
+		return renderer.toneMapping + ',' + renderer.currentColorSpace + ',' + renderer.xr.isPresenting + ',' + renderer.debug.view;
+		// !WITH_GENESYS
+		// return renderer.toneMapping + ',' + renderer.currentColorSpace + ',' + renderer.xr.isPresenting;
 
 	}
 
@@ -1007,27 +1014,35 @@ class NodeManager extends DataMap {
 
 		const renderer = this.renderer;
 
-		let output;
+		let sampled;
 
 		if ( outputTarget.isArrayTexture ) {
 
 			if ( this.backend.isWebGLBackend ) {
 
-				output = texture( outputTarget, screenUV ).depth( builtin( 'gl_ViewID_OVR' ) ).renderOutput( renderer.toneMapping, renderer.currentColorSpace );
+				sampled = texture( outputTarget, screenUV ).depth( builtin( 'gl_ViewID_OVR' ) );
 
 			} else {
 
-				output = texture( outputTarget, screenUV ).depth( _outputLayerIndex ).renderOutput( renderer.toneMapping, renderer.currentColorSpace );
+				sampled = texture( outputTarget, screenUV ).depth( _outputLayerIndex );
 
 			}
 
 		} else {
 
-			output = texture( outputTarget, screenUV ).renderOutput( renderer.toneMapping, renderer.currentColorSpace );
+			sampled = texture( outputTarget, screenUV );
 
 		}
 
-		return output;
+		// WITH_GENESYS
+		if ( renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY ) {
+
+			return vec4( colorizeShaderComplexity( sampled.r ), 1 ).renderOutput( NoToneMapping, renderer.currentColorSpace );
+
+		}
+		// !WITH_GENESYS
+
+		return sampled.renderOutput( renderer.toneMapping, renderer.currentColorSpace );
 
 	}
 

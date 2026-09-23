@@ -25,6 +25,9 @@ import { modelViewMatrix } from '../../nodes/accessors/ModelNode.js';
 import { vertexColor } from '../../nodes/accessors/VertexColorNode.js';
 import { premultiplyAlpha } from '../../nodes/display/PremultiplyAlphaFunctions.js';
 import { subBuild } from '../../nodes/core/SubBuildNode.js';
+// WITH_GENESYS
+import { DEBUG_VIEW_LIGHTING_COMPLEXITY, DEBUG_VIEW_SHADER_COMPLEXITY, getShaderComplexityBase, shaderComplexityOutput } from '../../nodes/display/ComplexityDebug.js';
+// !WITH_GENESYS
 
 /**
  * Base class for all node materials.
@@ -597,6 +600,17 @@ class NodeMaterial extends Material {
 
 		}
 
+		// WITH_GENESYS
+		// The screen output pass colorizes the accumulated ratio. Wrapping that pass
+		// would replace the heatmap with this material's own constant cost.
+		if ( renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY && this.isShadowPassMaterial !== true && renderer.isOutputTarget !== true ) {
+
+			builder.shaderComplexityBase = getShaderComplexityBase( this );
+			resultNode = shaderComplexityOutput( resultNode );
+
+		}
+		// !WITH_GENESYS
+
 		builder.stack.outputNode = resultNode;
 
 		builder.addFlow( 'fragment', builder.removeStack() );
@@ -1109,6 +1123,22 @@ class NodeMaterial extends Material {
 			outgoingLightNode = vec3( backdropAlphaNode !== null ? mix( outgoingLightNode, backdropNode, backdropAlphaNode ) : backdropNode );
 
 		}
+
+		// WITH_GENESYS
+		if ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_COMPLEXITY && this.isShadowPassMaterial !== true ) {
+
+			const hasLightLoop = lightsNode && ( materialLightings.length > 0 || lightsNode.getScope().hasLights );
+
+			if ( hasLightLoop !== true ) {
+
+				outgoingLightNode = vec3( 0 );
+
+			}
+
+			return outgoingLightNode;
+
+		}
+		// !WITH_GENESYS
 
 		// EMISSIVE
 

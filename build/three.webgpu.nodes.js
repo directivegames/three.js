@@ -21614,6 +21614,284 @@ class VertexColorNode extends AttributeNode {
  */
 const vertexColor = ( index = 0 ) => new VertexColorNode( index );
 
+// WITH_GENESYS
+// Shader and lighting complexity debug views. Costs are a material proxy, not ISA instruction counts.
+// !WITH_GENESYS
+
+
+/**
+ * Shaded output. No complexity debug view.
+ *
+ * @type {string}
+ */
+const DEBUG_VIEW_NONE = 'none';
+
+/**
+ * Material-cost heatmap. Overlapping draws accumulate, then a fullscreen pass applies the ramp.
+ *
+ * @type {string}
+ */
+const DEBUG_VIEW_SHADER_COMPLEXITY = 'shaderComplexity';
+
+/**
+ * Direct-light count heatmap. The visible surface wins.
+ *
+ * @type {string}
+ */
+const DEBUG_VIEW_LIGHTING_COMPLEXITY = 'lightingComplexity';
+
+/**
+ * Proxy budget that fills the shader-complexity ramp.
+ * A plain lit material stays in the green stops. Transmission plus several
+ * texture samples climbs toward red.
+ *
+ * @type {number}
+ */
+const DEFAULT_SHADER_COMPLEXITY_BUDGET = 800;
+
+/** @type {number} */
+const SHADER_COMPLEXITY_BASE_UNLIT = 20;
+
+/** @type {number} */
+const SHADER_COMPLEXITY_BASE_LIT = 40;
+
+/** @type {number} */
+const SHADER_COMPLEXITY_TEXTURE_COST = 16;
+
+/** @type {number} */
+const SHADER_COMPLEXITY_FEATURE_COST = 30;
+
+/** @type {number} */
+const SHADER_COMPLEXITY_TRANSMISSION_COST = 60;
+
+/**
+ * Attenuation above this counts as a light that shades the pixel.
+ *
+ * @type {number}
+ */
+const LIGHTING_COMPLEXITY_EPSILON = 0.001;
+
+/**
+ * Added on top of 1 when a received light casts a shadow.
+ * Applied even where the shadow map is black.
+ *
+ * @type {number}
+ */
+const LIGHTING_COMPLEXITY_SHADOW_WEIGHT = 0.5;
+
+/**
+ * Unreal `ShaderComplexityColors` from `BaseEngine.ini`.
+ *
+ * @type {Array<Array<number>>}
+ */
+const SHADER_COMPLEXITY_COLORS = [
+	[ 0.0, 1.0, 0.127 ],
+	[ 0.0, 1.0, 0.0 ],
+	[ 0.046, 0.52, 0.0 ],
+	[ 0.215, 0.215, 0.0 ],
+	[ 0.52, 0.046, 0.0 ],
+	[ 0.7, 0.0, 0.0 ],
+	[ 1.0, 0.0, 0.0 ],
+	[ 1.0, 0.0, 0.5 ],
+	[ 1.0, 0.9, 0.9 ]
+];
+
+/**
+ * Unreal `LightComplexityColors` from `BaseEngine.ini`.
+ *
+ * @type {Array<Array<number>>}
+ */
+const LIGHT_COMPLEXITY_COLORS = [
+	[ 0.0, 0.0, 0.0 ],
+	[ 0.0, 0.0, 0.4 ],
+	[ 0.0, 0.3, 1.0 ],
+	[ 0.0, 0.7, 0.4 ],
+	[ 0.0, 1.0, 0.0 ],
+	[ 0.8, 0.8, 0.0 ],
+	[ 1.0, 0.3, 0.0 ],
+	[ 0.7, 0.0, 0.0 ],
+	[ 0.5, 0.0, 0.5 ],
+	[ 0.7, 0.3, 0.7 ],
+	[ 1.0, 0.9, 0.9 ]
+];
+
+const rgb = ( colors, index ) => vec3( colors[ index ][ 0 ], colors[ index ][ 1 ], colors[ index ][ 2 ] );
+
+/**
+ * Linear sample of a fixed RGB ramp. `cost` is in steps, and one step is one light.
+ *
+ * @param {Node<float>} cost - Complexity in ramp steps.
+ * @param {Array<Array<number>>} colors - Ramp stops.
+ * @return {Node<vec3>} The ramp color.
+ */
+const colorizeLinear = ( cost, colors ) => {
+
+	const steps = colors.length - 1;
+	const expanded = cost.div( steps ).clamp( 0, 0.999 ).mul( steps );
+	const index = expanded.floor();
+	const frac = fract( expanded );
+
+	let color = rgb( colors, 0 );
+
+	for ( let i = 0; i < steps; i ++ ) {
+
+		const sample = mix( rgb( colors, i ), rgb( colors, i + 1 ), frac );
+
+		color = index.greaterThanEqual( float( i ) ).and( index.lessThan( float( i + 1 ) ) ).select( sample, color );
+
+	}
+
+	return color;
+
+};
+
+/**
+ * Maps a direct-light cost through Unreal's light-complexity ramp.
+ * Ten lights saturate at white.
+ *
+ * @param {Node<float>} cost - Accumulated light weight.
+ * @return {Node<vec3>} The ramp color.
+ */
+const colorizeLightComplexity = ( cost ) => colorizeLinear( cost, LIGHT_COMPLEXITY_COLORS );
+
+/**
+ * Unreal's nonlinear shader-complexity ramp (`ColorizeComplexity`).
+ * The first third of the normalized cost spreads across the first seven stops.
+ *
+ * @param {Node<float>} complexity - Accumulated cost divided by the budget.
+ * @return {Node<vec3>} The ramp color.
+ */
+const colorizeShaderComplexity = /*@__PURE__*/ Fn( ( [ complexity ] ) => {
+
+	const c = complexity.clamp( 0, 0.999 );
+	const expanded = min$1( float( SHADER_COMPLEXITY_COLORS.length - 2 ), c.mul( 18 ) );
+	const color = vec3( 0 ).toVar();
+	const frac = fract( expanded );
+
+	If( expanded.lessThan( 1 ), () => {
+
+		color.assign( mix( rgb( SHADER_COMPLEXITY_COLORS, 0 ), rgb( SHADER_COMPLEXITY_COLORS, 1 ), frac ) );
+
+	} ).ElseIf( expanded.lessThan( 2 ), () => {
+
+		color.assign( mix( rgb( SHADER_COMPLEXITY_COLORS, 1 ), rgb( SHADER_COMPLEXITY_COLORS, 2 ), frac ) );
+
+	} ).ElseIf( expanded.lessThan( 3 ), () => {
+
+		color.assign( mix( rgb( SHADER_COMPLEXITY_COLORS, 2 ), rgb( SHADER_COMPLEXITY_COLORS, 3 ), frac ) );
+
+	} ).ElseIf( expanded.lessThan( 4 ), () => {
+
+		color.assign( mix( rgb( SHADER_COMPLEXITY_COLORS, 3 ), rgb( SHADER_COMPLEXITY_COLORS, 4 ), frac ) );
+
+	} ).ElseIf( expanded.lessThan( 5 ), () => {
+
+		color.assign( mix( rgb( SHADER_COMPLEXITY_COLORS, 4 ), rgb( SHADER_COMPLEXITY_COLORS, 5 ), frac ) );
+
+	} ).ElseIf( expanded.lessThan( 6 ), () => {
+
+		color.assign( mix( rgb( SHADER_COMPLEXITY_COLORS, 5 ), rgb( SHADER_COMPLEXITY_COLORS, 6 ), frac ) );
+
+	} ).Else( () => {
+
+		// Nine stops, so the upper range uses the `count > 8` scale of 3.
+		const upper = c.sub( 0.33333333 ).mul( 3.0 );
+		const upperFrac = fract( upper );
+
+		If( upper.lessThanEqual( 1 ), () => {
+
+			color.assign( mix( rgb( SHADER_COMPLEXITY_COLORS, 6 ), rgb( SHADER_COMPLEXITY_COLORS, 7 ), upperFrac ) );
+
+		} ).Else( () => {
+
+			color.assign( mix( rgb( SHADER_COMPLEXITY_COLORS, 7 ), rgb( SHADER_COMPLEXITY_COLORS, 8 ), upperFrac ) );
+
+		} );
+
+	} );
+
+	return color;
+
+} );
+
+/**
+ * Reads the builder's shader-complexity proxy at code-generation time,
+ * after the real material graph has been generated and texture samples counted.
+ *
+ * @augments Node
+ */
+class ShaderComplexityRatioNode extends Node {
+
+	static get type() {
+
+		return 'ShaderComplexityRatioNode';
+
+	}
+
+	constructor() {
+
+		super( 'float' );
+
+	}
+
+	generate( builder ) {
+
+		const budget = builder.renderer.debug.shaderComplexityBudget;
+		const safeBudget = ( typeof budget === 'number' && budget > 0 ) ? budget : 1;
+		const ratio = builder.getShaderComplexityCost() / safeBudget;
+
+		return ratio.toFixed( 6 );
+
+	}
+
+}
+
+/**
+ * Static fragment proxy for a material. Texture samples are counted later, during generation.
+ *
+ * @param {NodeMaterial} material - The material being built.
+ * @return {number} The base cost, excluding texture samples.
+ */
+function getShaderComplexityBase( material ) {
+
+	let cost = material.lights === true ? SHADER_COMPLEXITY_BASE_LIT : SHADER_COMPLEXITY_BASE_UNLIT;
+
+	if ( material.useClearcoat === true ) cost += SHADER_COMPLEXITY_FEATURE_COST;
+
+	if ( material.useSheen === true ) cost += SHADER_COMPLEXITY_FEATURE_COST;
+
+	if ( material.useIridescence === true ) cost += SHADER_COMPLEXITY_FEATURE_COST;
+
+	if ( material.useAnisotropy === true ) cost += SHADER_COMPLEXITY_FEATURE_COST;
+
+	if ( material.useTransmission === true ) cost += SHADER_COMPLEXITY_TRANSMISSION_COST;
+
+	return cost;
+
+}
+
+/**
+ * Replaces the shaded color with `vec4(cost / budget, 0, 0, 1)`.
+ * The real graph is still generated so texture samples are counted first.
+ *
+ * @param {Node} resultNode - The material's shaded output.
+ * @return {Node<vec4>} The complexity ratio in the red channel.
+ */
+function shaderComplexityOutput( resultNode ) {
+
+	// Generate the shaded graph first so texture samples are counted, then
+	// replace the color. A bypass of a value node emits a bare expression
+	// statement, which WGSL rejects.
+	const shaded = vec4( resultNode ).toVar();
+
+	const ratio = new ShaderComplexityRatioNode();
+
+	return vec4( ratio, 0, 0, 1 ).add( shaded.mul( 0 ) );
+
+}
+
+// !WITH_GENESYS
+
 /**
  * Base class for all node materials.
  *
@@ -22185,6 +22463,17 @@ class NodeMaterial extends Material {
 
 		}
 
+		// WITH_GENESYS
+		// The screen output pass colorizes the accumulated ratio. Wrapping that pass
+		// would replace the heatmap with this material's own constant cost.
+		if ( renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY && this.isShadowPassMaterial !== true && renderer.isOutputTarget !== true ) {
+
+			builder.shaderComplexityBase = getShaderComplexityBase( this );
+			resultNode = shaderComplexityOutput( resultNode );
+
+		}
+		// !WITH_GENESYS
+
 		builder.stack.outputNode = resultNode;
 
 		builder.addFlow( 'fragment', builder.removeStack() );
@@ -22697,6 +22986,22 @@ class NodeMaterial extends Material {
 			outgoingLightNode = vec3( backdropAlphaNode !== null ? mix( outgoingLightNode, backdropNode, backdropAlphaNode ) : backdropNode );
 
 		}
+
+		// WITH_GENESYS
+		if ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_COMPLEXITY && this.isShadowPassMaterial !== true ) {
+
+			const hasLightLoop = lightsNode && ( materialLightings.length > 0 || lightsNode.getScope().hasLights );
+
+			if ( hasLightLoop !== true ) {
+
+				outgoingLightNode = vec3( 0 );
+
+			}
+
+			return outgoingLightNode;
+
+		}
+		// !WITH_GENESYS
 
 		// EMISSIVE
 
@@ -31459,6 +31764,11 @@ class RenderObject {
 		}
 
 		cacheKey = hash$1( cacheKey, this.renderer.contextNode.id, this.renderer.contextNode.version );
+
+		// WITH_GENESYS
+		// hash() xors each argument as a number, so a view name has to be hashed first.
+		cacheKey = hash$1( cacheKey, hashString( this.renderer.debug.view ), this.renderer.debug.shaderComplexityBudget );
+		// !WITH_GENESYS
 
 		return cacheKey;
 
@@ -46355,6 +46665,10 @@ const totalSpecular = property( 'vec3', 'totalSpecular' );
  */
 const outgoingLight = property( 'vec3', 'outgoingLight' );
 
+// WITH_GENESYS
+const lightingComplexity = property( 'float', 'lightingComplexity' );
+// !WITH_GENESYS
+
 /**
  * Sorts an array of lights in ascending order by their IDs.
  *
@@ -46708,6 +47022,10 @@ class LightsNode extends Node {
 			reflectedLight
 		}, builder );
 
+		// WITH_GENESYS
+		this._addLightingComplexity( builder, lightNode, lightData );
+		// !WITH_GENESYS
+
 	}
 
 	/**
@@ -46727,7 +47045,39 @@ class LightsNode extends Node {
 			reflectedLight
 		}, builder );
 
+		// WITH_GENESYS
+		this._addLightingComplexity( builder, lightNode, lightData );
+		// !WITH_GENESYS
+
 	}
+
+	// WITH_GENESYS
+	/**
+	 * Adds this direct light's weight to the lighting-complexity accumulator.
+	 * Point, spot, and rect-area lights count only where attenuation is in range.
+	 * Directional lights have no falloff, so they always count. Shadow-casting
+	 * lights add extra weight even where the shadow map is black.
+	 *
+	 * @private
+	 * @param {NodeBuilder} builder - The current node builder.
+	 * @param {LightingNode} lightNode - The light node being shaded.
+	 * @param {Object} lightData - Direct light terms, including an optional attenuation node.
+	 */
+	_addLightingComplexity( builder, lightNode, lightData ) {
+
+		if ( builder.renderer.debug.view !== DEBUG_VIEW_LIGHTING_COMPLEXITY ) return;
+
+		if ( builder.material && builder.material.isShadowPassMaterial === true ) return;
+
+		const attenuation = lightData.attenuation !== undefined ? lightData.attenuation : float( 1 );
+		const light = lightNode.light;
+		const castsShadow = light !== undefined && light !== null && light.castShadow === true && builder.object.receiveShadow === true;
+		const weight = castsShadow ? float( 1 + LIGHTING_COMPLEXITY_SHADOW_WEIGHT ) : float( 1 );
+
+		lightingComplexity.addAssign( attenuation.greaterThan( LIGHTING_COMPLEXITY_EPSILON ).select( weight, float( 0 ) ) );
+
+	}
+	// !WITH_GENESYS
 
 	/**
 	 * Setups the internal lights by building all respective
@@ -46791,6 +47141,14 @@ class LightsNode extends Node {
 
 			properties.nodes = stack.nodes;
 
+			// WITH_GENESYS
+			if ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_COMPLEXITY && ( builder.material === null || builder.material.isShadowPassMaterial !== true ) ) {
+
+				lightingComplexity.assign( 0 );
+
+			}
+			// !WITH_GENESYS
+
 			lightingModel.start( builder );
 
 			const { backdrop, backdropAlpha } = context;
@@ -46815,9 +47173,27 @@ class LightsNode extends Node {
 			totalDiffuseNode.assign( totalDiffuse );
 			totalSpecularNode.assign( directSpecular.add( indirectSpecular ) );
 
-			outgoingLightNode.assign( totalDiffuseNode.add( totalSpecularNode ) );
+			// WITH_GENESYS
+			const lightingComplexityView = builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_COMPLEXITY && ( builder.material === null || builder.material.isShadowPassMaterial !== true );
+
+			if ( lightingComplexityView !== true ) {
+
+				outgoingLightNode.assign( totalDiffuseNode.add( totalSpecularNode ) );
+
+			}
+			// !WITH_GENESYS
+			// outgoingLightNode.assign( totalDiffuseNode.add( totalSpecularNode ) );
 
 			lightingModel.finish( builder );
+
+			// WITH_GENESYS
+			// After finish(), so clearcoat and sheen cannot draw over the heatmap.
+			if ( lightingComplexityView === true ) {
+
+				outgoingLightNode.assign( colorizeLightComplexity( lightingComplexity ) );
+
+			}
+			// !WITH_GENESYS
 
 			outgoingLightNode = outgoingLightNode.bypass( builder.removeStack() );
 
@@ -48910,7 +49286,10 @@ const directPointLight = ( { color, lightVector, cutoffDistance, decayExponent }
 
 	const lightColor = color.mul( attenuation );
 
-	return { lightDirection, lightColor };
+	// WITH_GENESYS
+	return { lightDirection, lightColor, attenuation };
+	// !WITH_GENESYS
+	// return { lightDirection, lightColor };
 
 };
 
@@ -52025,7 +52404,15 @@ class Background extends DataMap {
 
 			}
 
-			renderList.unshift( backgroundMesh, backgroundMesh.geometry, backgroundMesh.material, 0, 0, null, null );
+			// WITH_GENESYS
+			// The background is depth-tested off, so additive shader complexity would add it to every pixel.
+			if ( renderer.debug.view !== 'shaderComplexity' ) {
+
+				renderList.unshift( backgroundMesh, backgroundMesh.geometry, backgroundMesh.material, 0, 0, null, null );
+
+			}
+			// !WITH_GENESYS
+			// renderList.unshift( backgroundMesh, backgroundMesh.geometry, backgroundMesh.material, 0, 0, null, null );
 
 		} else {
 
@@ -52048,6 +52435,14 @@ class Background extends DataMap {
 		}
 
 		//
+
+		// WITH_GENESYS
+		if ( renderer.debug.view === 'shaderComplexity' ) {
+
+			_clearColor.set( 0, 0, 0, 1 );
+
+		}
+		// !WITH_GENESYS
 
 		if ( renderer.autoClear === true || forceClear === true ) {
 
@@ -53689,6 +54084,31 @@ class NodeBuilder {
 		 */
 		this.fragmentShader = null;
 
+		// WITH_GENESYS
+		/**
+		 * Static material-feature cost for the shader-complexity debug view.
+		 *
+		 * @type {number}
+		 * @default 0
+		 */
+		this.shaderComplexityBase = 0;
+
+		/**
+		 * Fragment texture samples counted while generating the shader.
+		 *
+		 * @type {number}
+		 * @default 0
+		 */
+		this.fragmentTextureSamples = 0;
+
+		/**
+		 * Sample sites already counted, so a node that is generated twice is not double-counted.
+		 *
+		 * @type {Set<string>}
+		 */
+		this.shaderComplexitySampleKeys = new Set();
+		// !WITH_GENESYS
+
 		/**
 		 * The generated compute shader.
 		 *
@@ -54716,6 +55136,46 @@ class NodeBuilder {
 		warn( 'Abstract function.' );
 
 	}
+
+	// WITH_GENESYS
+	/**
+	 * Counts one fragment texture sample toward the shader-complexity proxy.
+	 * Depth and cube textures are shadow maps and environment maps, and rect-area
+	 * LTC tables belong to the light loop, so they are not material cost.
+	 *
+	 * @param {?Texture} texture - The texture being sampled.
+	 * @param {string} [shaderStage=this.shaderStage] - The stage the sample is emitted for.
+	 * @param {string} [key=''] - Stable id for this sample site. Repeated generation of the same site counts once.
+	 */
+	recordFragmentTextureSample( texture, shaderStage = this.shaderStage, key = '' ) {
+
+		if ( shaderStage !== 'fragment' ) return;
+
+		if ( texture && ( texture.isDepthTexture === true || texture.isCubeTexture === true || texture.isRectAreaLTC === true ) ) return;
+
+		if ( key !== '' ) {
+
+			if ( this.shaderComplexitySampleKeys.has( key ) ) return;
+
+			this.shaderComplexitySampleKeys.add( key );
+
+		}
+
+		this.fragmentTextureSamples ++;
+
+	}
+
+	/**
+	 * Returns the shader-complexity proxy for the material currently being built.
+	 *
+	 * @return {number} Base feature cost plus weighted fragment texture samples.
+	 */
+	getShaderComplexityCost() {
+
+		return this.shaderComplexityBase + this.fragmentTextureSamples * SHADER_COMPLEXITY_TEXTURE_COST;
+
+	}
+	// !WITH_GENESYS
 
 	/**
 	 * Generates a texture LOD shader string for the given texture data.
@@ -56540,6 +57000,12 @@ class NodeBuilder {
 	 */
 	prebuild() {
 
+		// WITH_GENESYS
+		this.shaderComplexityBase = 0;
+		this.fragmentTextureSamples = 0;
+		this.shaderComplexitySampleKeys.clear();
+		// !WITH_GENESYS
+
 		const { renderer, material } = this;
 
 		// < renderer.contextNode >
@@ -57564,7 +58030,12 @@ class SpotLightNode extends AnalyticLightNode {
 			decayExponent: decayExponentNode
 		} );
 
-		let lightColor = colorNode.mul( spotAttenuation ).mul( lightAttenuation );
+		// WITH_GENESYS
+		const attenuation = spotAttenuation.mul( lightAttenuation );
+
+		let lightColor = colorNode.mul( attenuation );
+		// !WITH_GENESYS
+		// let lightColor = colorNode.mul( spotAttenuation ).mul( lightAttenuation );
 
 		let projected, lightCoord;
 
@@ -57588,7 +58059,10 @@ class SpotLightNode extends AnalyticLightNode {
 
 		}
 
-		return { lightColor, lightDirection };
+		// WITH_GENESYS
+		return { lightColor, lightDirection, attenuation };
+		// !WITH_GENESYS
+		// return { lightColor, lightDirection };
 
 	}
 
@@ -57903,6 +58377,20 @@ class RectAreaLightNode extends AnalyticLightNode {
 	}
 
 	setupDirectRectArea( builder ) {
+
+		// WITH_GENESYS
+		// LTC lookups are part of the light loop, not the material's shader cost.
+		if ( _ltcLib !== null ) {
+
+			_ltcLib.LTC_FLOAT_1.isRectAreaLTC = true;
+			_ltcLib.LTC_FLOAT_2.isRectAreaLTC = true;
+
+			if ( _ltcLib.LTC_HALF_1 ) _ltcLib.LTC_HALF_1.isRectAreaLTC = true;
+
+			if ( _ltcLib.LTC_HALF_2 ) _ltcLib.LTC_HALF_2.isRectAreaLTC = true;
+
+		}
+		// !WITH_GENESYS
 
 		let ltc_1, ltc_2;
 
@@ -59200,7 +59688,10 @@ class NodeManager extends DataMap {
 
 		const renderer = this.renderer;
 
-		return renderer.toneMapping + ',' + renderer.currentColorSpace + ',' + renderer.xr.isPresenting;
+		// WITH_GENESYS
+		return renderer.toneMapping + ',' + renderer.currentColorSpace + ',' + renderer.xr.isPresenting + ',' + renderer.debug.view;
+		// !WITH_GENESYS
+		// return renderer.toneMapping + ',' + renderer.currentColorSpace + ',' + renderer.xr.isPresenting;
 
 	}
 
@@ -59215,27 +59706,35 @@ class NodeManager extends DataMap {
 
 		const renderer = this.renderer;
 
-		let output;
+		let sampled;
 
 		if ( outputTarget.isArrayTexture ) {
 
 			if ( this.backend.isWebGLBackend ) {
 
-				output = texture( outputTarget, screenUV ).depth( builtin( 'gl_ViewID_OVR' ) ).renderOutput( renderer.toneMapping, renderer.currentColorSpace );
+				sampled = texture( outputTarget, screenUV ).depth( builtin( 'gl_ViewID_OVR' ) );
 
 			} else {
 
-				output = texture( outputTarget, screenUV ).depth( _outputLayerIndex ).renderOutput( renderer.toneMapping, renderer.currentColorSpace );
+				sampled = texture( outputTarget, screenUV ).depth( _outputLayerIndex );
 
 			}
 
 		} else {
 
-			output = texture( outputTarget, screenUV ).renderOutput( renderer.toneMapping, renderer.currentColorSpace );
+			sampled = texture( outputTarget, screenUV );
 
 		}
 
-		return output;
+		// WITH_GENESYS
+		if ( renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY ) {
+
+			return vec4( colorizeShaderComplexity( sampled.r ), 1 ).renderOutput( NoToneMapping, renderer.currentColorSpace );
+
+		}
+		// !WITH_GENESYS
+
+		return sampled.renderOutput( renderer.toneMapping, renderer.currentColorSpace );
 
 	}
 
@@ -63193,6 +63692,8 @@ class Renderer {
 		 * @property {?Function} onNodeBuilderCreated - A callback function that is executed after a node builder has been created and before it is built.
 		 * @property {?Function} onShaderError - A callback function that is executed when a shader error happens. Only supported with WebGL 2 right now.
 		 * @property {Function} getShaderAsync - Allows the get the raw shader code for the given scene, camera and 3D object.
+		 * @property {string} view - Debug view. `shaderComplexity` and `lightingComplexity` replace the shaded color with a heatmap.
+		 * @property {number} shaderComplexityBudget - Proxy budget that fills the shader-complexity ramp.
 		 */
 
 		/**
@@ -63207,6 +63708,10 @@ class Renderer {
 			},
 			onNodeBuilderCreated: null,
 			onShaderError: null,
+			// WITH_GENESYS
+			view: DEBUG_VIEW_NONE,
+			shaderComplexityBudget: DEFAULT_SHADER_COMPLEXITY_BUDGET,
+			// !WITH_GENESYS
 			getShaderAsync: async ( scene, camera, object ) => {
 
 				await this.compileAsync( object, camera, scene );
@@ -65141,7 +65646,13 @@ class Renderer {
 		const useToneMapping = this.currentToneMapping !== NoToneMapping;
 		const useColorSpace = this.currentColorSpace !== ColorManagement.workingColorSpace;
 
-		return useToneMapping || useColorSpace;
+		// WITH_GENESYS
+		// Shader complexity writes a scalar into an intermediate target, then the output pass colorizes it.
+		const shaderComplexity = this.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY;
+
+		return useToneMapping || useColorSpace || shaderComplexity;
+		// !WITH_GENESYS
+		// return useToneMapping || useColorSpace;
 
 	}
 
@@ -65191,6 +65702,16 @@ class Renderer {
 	 * @type {number}
 	 */
 	get currentToneMapping() {
+
+		// WITH_GENESYS
+		const view = this.debug.view;
+
+		if ( view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_LIGHTING_COMPLEXITY ) {
+
+			return NoToneMapping;
+
+		}
+		// !WITH_GENESYS
 
 		return this.isOutputTarget ? this.toneMapping : NoToneMapping;
 
@@ -68508,6 +69029,10 @@ ${ flowData.code }
 	 */
 	generateTexture( texture, textureProperty, uvSnippet, depthSnippet, offsetSnippet ) {
 
+		// WITH_GENESYS
+		this.recordFragmentTextureSample( texture, this.shaderStage, textureProperty + '|' + uvSnippet );
+		// !WITH_GENESYS
+
 		if ( depthSnippet ) uvSnippet = `vec3( ${ uvSnippet }, ${ depthSnippet } )`;
 
 		if ( texture.isDepthTexture ) {
@@ -68550,6 +69075,10 @@ ${ flowData.code }
 	 * @return {string} The GLSL snippet.
 	 */
 	generateTextureLevel( texture, textureProperty, uvSnippet, levelSnippet, depthSnippet, offsetSnippet ) {
+
+		// WITH_GENESYS
+		this.recordFragmentTextureSample( texture, this.shaderStage, textureProperty + '|' + uvSnippet + '|' + levelSnippet );
+		// !WITH_GENESYS
 
 		if ( depthSnippet ) uvSnippet = `vec3( ${ uvSnippet }, ${ depthSnippet } )`;
 
@@ -71903,9 +72432,25 @@ class WebGLState {
 
 		this.setFlipSided( flipSided );
 
-		( material.blending === NormalBlending && material.transparent === false )
-			? this.setBlending( NoBlending )
-			: this.setBlending( material.blending, material.blendEquation, material.blendSrc, material.blendDst, material.blendEquationAlpha, material.blendSrcAlpha, material.blendDstAlpha, material.blendColor, material.blendAlpha, material.premultipliedAlpha );
+		// WITH_GENESYS
+		// WebGL has no cached render pipeline. One+One is applied on each draw instead.
+		if ( this.backend.renderer.debug.view === 'shaderComplexity' && material.isShadowPassMaterial !== true && this.backend.renderer.isOutputTarget !== true ) {
+
+			this.setBlending( AdditiveBlending, AddEquation, OneFactor, OneFactor, AddEquation, OneFactor, OneFactor, material.blendColor, material.blendAlpha, true );
+
+		} else if ( material.blending === NormalBlending && material.transparent === false ) {
+
+			this.setBlending( NoBlending );
+
+		} else {
+
+			this.setBlending( material.blending, material.blendEquation, material.blendSrc, material.blendDst, material.blendEquationAlpha, material.blendSrcAlpha, material.blendDstAlpha, material.blendColor, material.blendAlpha, material.premultipliedAlpha );
+
+		}
+		// !WITH_GENESYS
+		// ( material.blending === NormalBlending && material.transparent === false )
+		// 	? this.setBlending( NoBlending )
+		// 	: this.setBlending( material.blending, material.blendEquation, material.blendSrc, material.blendDst, material.blendEquationAlpha, material.blendSrcAlpha, material.blendDstAlpha, material.blendColor, material.blendAlpha, material.premultipliedAlpha );
 
 		this.setDepthFunc( material.depthFunc );
 		this.setDepthTest( material.depthTest );
@@ -82774,6 +83319,10 @@ class WGSLNodeBuilder extends NodeBuilder {
 	 */
 	_generateTextureSample( texture, textureProperty, uvSnippet, depthSnippet, offsetSnippet, shaderStage = this.shaderStage ) {
 
+		// WITH_GENESYS
+		if ( shaderStage === 'fragment' ) this.recordFragmentTextureSample( texture, shaderStage, textureProperty + '|' + uvSnippet );
+		// !WITH_GENESYS
+
 		if ( shaderStage === 'fragment' ) {
 
 			if ( depthSnippet ) {
@@ -83054,6 +83603,10 @@ class WGSLNodeBuilder extends NodeBuilder {
 	 */
 	generateFilteredTexture( texture, textureProperty, uvSnippet, offsetSnippet, levelSnippet = '0u', depthSnippet ) {
 
+		// WITH_GENESYS
+		this.recordFragmentTextureSample( texture, this.shaderStage, textureProperty + '|' + uvSnippet + '|' + levelSnippet );
+		// !WITH_GENESYS
+
 		const wrapFunction = this.generateWrapFunction( texture );
 		const textureDimension = this.generateTextureDimension( texture, textureProperty, levelSnippet );
 
@@ -83090,6 +83643,10 @@ class WGSLNodeBuilder extends NodeBuilder {
 	 * @return {string} The WGSL snippet.
 	 */
 	generateTextureLod( texture, textureProperty, uvSnippet, depthSnippet, offsetSnippet, levelSnippet = '0u' ) {
+
+		// WITH_GENESYS
+		this.recordFragmentTextureSample( texture, this.shaderStage, textureProperty + '|' + uvSnippet + '|' + levelSnippet );
+		// !WITH_GENESYS
 
 		// Cube textures cannot use textureLoad in WGSL, must use textureSampleLevel
 		if ( texture.isCubeTexture === true ) {
@@ -83468,6 +84025,10 @@ class WGSLNodeBuilder extends NodeBuilder {
 	generateTextureLevel( texture, textureProperty, uvSnippet, levelSnippet, depthSnippet, offsetSnippet ) {
 
 		if ( this.isUnfilterable( texture ) === false ) {
+
+			// WITH_GENESYS
+			this.recordFragmentTextureSample( texture, this.shaderStage, textureProperty + '|' + uvSnippet + '|' + levelSnippet );
+			// !WITH_GENESYS
 
 			if ( depthSnippet ) {
 
@@ -86575,6 +87136,26 @@ class WebGPUPipelineUtils {
 			materialBlending = this._getBlending( material );
 
 		}
+
+		// WITH_GENESYS
+		// Accumulate shader cost with One+One. Opaque materials normally disable blending.
+		if ( backend.renderer.debug.view === 'shaderComplexity' && material.isShadowPassMaterial !== true && backend.renderer.isOutputTarget !== true ) {
+
+			materialBlending = {
+				color: {
+					srcFactor: GPUBlendFactor.One,
+					dstFactor: GPUBlendFactor.One,
+					operation: GPUBlendOperation.Add
+				},
+				alpha: {
+					srcFactor: GPUBlendFactor.One,
+					dstFactor: GPUBlendFactor.One,
+					operation: GPUBlendOperation.Add
+				}
+			};
+
+		}
+		// !WITH_GENESYS
 
 		// stencil
 
@@ -90378,6 +90959,9 @@ class WebGPUBackend extends Backend {
 		const depthStencilFormat = utils.getCurrentDepthStencilFormat( renderObject.context );
 		const primitiveTopology = utils.getPrimitiveTopology( object, material );
 		const frontFaceCW = ( object.isMesh && object.matrixWorld.determinantAffine() < 0 );
+		// WITH_GENESYS
+		const debugView = renderObject.renderer.debug.view;
+		// !WITH_GENESYS
 
 		let needsUpdate = false;
 
@@ -90395,7 +90979,10 @@ class WebGPUBackend extends Backend {
 			data.colorFormat !== colorFormat || data.depthStencilFormat !== depthStencilFormat ||
 			data.primitiveTopology !== primitiveTopology ||
 			data.frontFaceCW !== frontFaceCW ||
-			data.clippingContextCacheKey !== renderObject.clippingContextCacheKey
+			data.clippingContextCacheKey !== renderObject.clippingContextCacheKey ||
+			// WITH_GENESYS
+			data.debugView !== debugView
+			// !WITH_GENESYS
 		) {
 
 			data.material = material; data.materialVersion = material.version;
@@ -90416,6 +91003,9 @@ class WebGPUBackend extends Backend {
 			data.primitiveTopology = primitiveTopology;
 			data.frontFaceCW = frontFaceCW;
 			data.clippingContextCacheKey = renderObject.clippingContextCacheKey;
+			// WITH_GENESYS
+			data.debugView = debugView;
+			// !WITH_GENESYS
 
 			needsUpdate = true;
 
@@ -90459,7 +91049,10 @@ class WebGPUBackend extends Backend {
 			utils.getCurrentColorSpace( renderContext ), utils.getCurrentColorFormat( renderContext ), utils.getCurrentDepthStencilFormat( renderContext ),
 			utils.getPrimitiveTopology( object, material ),
 			renderObject.getGeometryCacheKey(),
-			renderObject.clippingContextCacheKey
+			renderObject.clippingContextCacheKey,
+			// WITH_GENESYS
+			renderObject.renderer.debug.view
+			// !WITH_GENESYS
 		].join();
 
 	}

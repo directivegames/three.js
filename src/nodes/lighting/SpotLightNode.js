@@ -135,7 +135,12 @@ class SpotLightNode extends AnalyticLightNode {
 			decayExponent: decayExponentNode
 		} );
 
-		let lightColor = colorNode.mul( spotAttenuation ).mul( lightAttenuation );
+		// WITH_GENESYS
+		const attenuation = spotAttenuation.mul( lightAttenuation );
+
+		let lightColor = colorNode.mul( attenuation );
+		// !WITH_GENESYS
+		// let lightColor = colorNode.mul( spotAttenuation ).mul( lightAttenuation );
 
 		let projected, lightCoord;
 
@@ -159,7 +164,10 @@ class SpotLightNode extends AnalyticLightNode {
 
 		}
 
-		return { lightColor, lightDirection };
+		// WITH_GENESYS
+		return { lightColor, lightDirection, attenuation };
+		// !WITH_GENESYS
+		// return { lightColor, lightDirection };
 
 	}
 

@@ -950,6 +950,11 @@ class RenderObject {
 
 		cacheKey = hash( cacheKey, this.renderer.contextNode.id, this.renderer.contextNode.version );
 
+		// WITH_GENESYS
+		// hash() xors each argument as a number, so a view name has to be hashed first.
+		cacheKey = hash( cacheKey, hashString( this.renderer.debug.view ), this.renderer.debug.shaderComplexityBudget );
+		// !WITH_GENESYS
+
 		return cacheKey;
 
 	}

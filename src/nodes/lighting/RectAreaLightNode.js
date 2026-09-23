@@ -88,6 +88,20 @@ class RectAreaLightNode extends AnalyticLightNode {
 
 	setupDirectRectArea( builder ) {
 
+		// WITH_GENESYS
+		// LTC lookups are part of the light loop, not the material's shader cost.
+		if ( _ltcLib !== null ) {
+
+			_ltcLib.LTC_FLOAT_1.isRectAreaLTC = true;
+			_ltcLib.LTC_FLOAT_2.isRectAreaLTC = true;
+
+			if ( _ltcLib.LTC_HALF_1 ) _ltcLib.LTC_HALF_1.isRectAreaLTC = true;
+
+			if ( _ltcLib.LTC_HALF_2 ) _ltcLib.LTC_HALF_2.isRectAreaLTC = true;
+
+		}
+		// !WITH_GENESYS
+
 		let ltc_1, ltc_2;
 
 		if ( builder.isAvailable( 'float32Filterable' ) ) {

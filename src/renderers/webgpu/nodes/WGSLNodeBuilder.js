@@ -376,6 +376,10 @@ class WGSLNodeBuilder extends NodeBuilder {
 	 */
 	_generateTextureSample( texture, textureProperty, uvSnippet, depthSnippet, offsetSnippet, shaderStage = this.shaderStage ) {
 
+		// WITH_GENESYS
+		if ( shaderStage === 'fragment' ) this.recordFragmentTextureSample( texture, shaderStage, textureProperty + '|' + uvSnippet );
+		// !WITH_GENESYS
+
 		if ( shaderStage === 'fragment' ) {
 
 			if ( depthSnippet ) {
@@ -656,6 +660,10 @@ class WGSLNodeBuilder extends NodeBuilder {
 	 */
 	generateFilteredTexture( texture, textureProperty, uvSnippet, offsetSnippet, levelSnippet = '0u', depthSnippet ) {
 
+		// WITH_GENESYS
+		this.recordFragmentTextureSample( texture, this.shaderStage, textureProperty + '|' + uvSnippet + '|' + levelSnippet );
+		// !WITH_GENESYS
+
 		const wrapFunction = this.generateWrapFunction( texture );
 		const textureDimension = this.generateTextureDimension( texture, textureProperty, levelSnippet );
 
@@ -692,6 +700,10 @@ class WGSLNodeBuilder extends NodeBuilder {
 	 * @return {string} The WGSL snippet.
 	 */
 	generateTextureLod( texture, textureProperty, uvSnippet, depthSnippet, offsetSnippet, levelSnippet = '0u' ) {
+
+		// WITH_GENESYS
+		this.recordFragmentTextureSample( texture, this.shaderStage, textureProperty + '|' + uvSnippet + '|' + levelSnippet );
+		// !WITH_GENESYS
 
 		// Cube textures cannot use textureLoad in WGSL, must use textureSampleLevel
 		if ( texture.isCubeTexture === true ) {
@@ -1070,6 +1082,10 @@ class WGSLNodeBuilder extends NodeBuilder {
 	generateTextureLevel( texture, textureProperty, uvSnippet, levelSnippet, depthSnippet, offsetSnippet ) {
 
 		if ( this.isUnfilterable( texture ) === false ) {
+
+			// WITH_GENESYS
+			this.recordFragmentTextureSample( texture, this.shaderStage, textureProperty + '|' + uvSnippet + '|' + levelSnippet );
+			// !WITH_GENESYS
 
 			if ( depthSnippet ) {
 

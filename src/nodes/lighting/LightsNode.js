@@ -1,7 +1,10 @@
 import Node from '../core/Node.js';
-import { property, vec3 } from '../tsl/TSLBase.js';
+import { float, property, vec3 } from '../tsl/TSLBase.js';
 import { hashArray } from '../core/NodeUtils.js';
 import { warn } from '../../utils.js';
+// WITH_GENESYS
+import { colorizeLightComplexity, DEBUG_VIEW_LIGHTING_COMPLEXITY, LIGHTING_COMPLEXITY_EPSILON, LIGHTING_COMPLEXITY_SHADOW_WEIGHT } from '../display/ComplexityDebug.js';
+// !WITH_GENESYS
 // WITH_GENESYS
 import LightProbeGridNode from './LightProbeGridNode.js';
 // !WITH_GENESYS
@@ -26,6 +29,10 @@ const totalSpecular = property( 'vec3', 'totalSpecular' );
  * @type {Node<vec3>}
  */
 const outgoingLight = property( 'vec3', 'outgoingLight' );
+
+// WITH_GENESYS
+const lightingComplexity = property( 'float', 'lightingComplexity' );
+// !WITH_GENESYS
 
 /**
  * Sorts an array of lights in ascending order by their IDs.
@@ -380,6 +387,10 @@ class LightsNode extends Node {
 			reflectedLight
 		}, builder );
 
+		// WITH_GENESYS
+		this._addLightingComplexity( builder, lightNode, lightData );
+		// !WITH_GENESYS
+
 	}
 
 	/**
@@ -399,7 +410,39 @@ class LightsNode extends Node {
 			reflectedLight
 		}, builder );
 
+		// WITH_GENESYS
+		this._addLightingComplexity( builder, lightNode, lightData );
+		// !WITH_GENESYS
+
 	}
+
+	// WITH_GENESYS
+	/**
+	 * Adds this direct light's weight to the lighting-complexity accumulator.
+	 * Point, spot, and rect-area lights count only where attenuation is in range.
+	 * Directional lights have no falloff, so they always count. Shadow-casting
+	 * lights add extra weight even where the shadow map is black.
+	 *
+	 * @private
+	 * @param {NodeBuilder} builder - The current node builder.
+	 * @param {LightingNode} lightNode - The light node being shaded.
+	 * @param {Object} lightData - Direct light terms, including an optional attenuation node.
+	 */
+	_addLightingComplexity( builder, lightNode, lightData ) {
+
+		if ( builder.renderer.debug.view !== DEBUG_VIEW_LIGHTING_COMPLEXITY ) return;
+
+		if ( builder.material && builder.material.isShadowPassMaterial === true ) return;
+
+		const attenuation = lightData.attenuation !== undefined ? lightData.attenuation : float( 1 );
+		const light = lightNode.light;
+		const castsShadow = light !== undefined && light !== null && light.castShadow === true && builder.object.receiveShadow === true;
+		const weight = castsShadow ? float( 1 + LIGHTING_COMPLEXITY_SHADOW_WEIGHT ) : float( 1 );
+
+		lightingComplexity.addAssign( attenuation.greaterThan( LIGHTING_COMPLEXITY_EPSILON ).select( weight, float( 0 ) ) );
+
+	}
+	// !WITH_GENESYS
 
 	/**
 	 * Setups the internal lights by building all respective
@@ -463,6 +506,14 @@ class LightsNode extends Node {
 
 			properties.nodes = stack.nodes;
 
+			// WITH_GENESYS
+			if ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_COMPLEXITY && ( builder.material === null || builder.material.isShadowPassMaterial !== true ) ) {
+
+				lightingComplexity.assign( 0 );
+
+			}
+			// !WITH_GENESYS
+
 			lightingModel.start( builder );
 
 			const { backdrop, backdropAlpha } = context;
@@ -487,9 +538,27 @@ class LightsNode extends Node {
 			totalDiffuseNode.assign( totalDiffuse );
 			totalSpecularNode.assign( directSpecular.add( indirectSpecular ) );
 
-			outgoingLightNode.assign( totalDiffuseNode.add( totalSpecularNode ) );
+			// WITH_GENESYS
+			const lightingComplexityView = builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_COMPLEXITY && ( builder.material === null || builder.material.isShadowPassMaterial !== true );
+
+			if ( lightingComplexityView !== true ) {
+
+				outgoingLightNode.assign( totalDiffuseNode.add( totalSpecularNode ) );
+
+			}
+			// !WITH_GENESYS
+			// outgoingLightNode.assign( totalDiffuseNode.add( totalSpecularNode ) );
 
 			lightingModel.finish( builder );
+
+			// WITH_GENESYS
+			// After finish(), so clearcoat and sheen cannot draw over the heatmap.
+			if ( lightingComplexityView === true ) {
+
+				outgoingLightNode.assign( colorizeLightComplexity( lightingComplexity ) );
+
+			}
+			// !WITH_GENESYS
 
 			outgoingLightNode = outgoingLightNode.bypass( builder.removeStack() );
 

@@ -24,6 +24,9 @@ import CubeRenderTarget from '../../renderers/common/CubeRenderTarget.js';
 import BindGroup from '../../renderers/common/BindGroup.js';
 
 import { REVISION, IntType, UnsignedIntType, LinearFilter, LinearMipmapNearestFilter, NearestMipmapLinearFilter, LinearMipmapLinearFilter, NormalBlending } from '../../constants.js';
+// WITH_GENESYS
+import { SHADER_COMPLEXITY_TEXTURE_COST } from '../display/ComplexityDebug.js';
+// !WITH_GENESYS
 import { RenderTarget } from '../../core/RenderTarget.js';
 import { Color } from '../../math/Color.js';
 import { Vector2 } from '../../math/Vector2.js';
@@ -267,6 +270,31 @@ class NodeBuilder {
 		 * @type {?string}
 		 */
 		this.fragmentShader = null;
+
+		// WITH_GENESYS
+		/**
+		 * Static material-feature cost for the shader-complexity debug view.
+		 *
+		 * @type {number}
+		 * @default 0
+		 */
+		this.shaderComplexityBase = 0;
+
+		/**
+		 * Fragment texture samples counted while generating the shader.
+		 *
+		 * @type {number}
+		 * @default 0
+		 */
+		this.fragmentTextureSamples = 0;
+
+		/**
+		 * Sample sites already counted, so a node that is generated twice is not double-counted.
+		 *
+		 * @type {Set<string>}
+		 */
+		this.shaderComplexitySampleKeys = new Set();
+		// !WITH_GENESYS
 
 		/**
 		 * The generated compute shader.
@@ -1295,6 +1323,46 @@ class NodeBuilder {
 		warn( 'Abstract function.' );
 
 	}
+
+	// WITH_GENESYS
+	/**
+	 * Counts one fragment texture sample toward the shader-complexity proxy.
+	 * Depth and cube textures are shadow maps and environment maps, and rect-area
+	 * LTC tables belong to the light loop, so they are not material cost.
+	 *
+	 * @param {?Texture} texture - The texture being sampled.
+	 * @param {string} [shaderStage=this.shaderStage] - The stage the sample is emitted for.
+	 * @param {string} [key=''] - Stable id for this sample site. Repeated generation of the same site counts once.
+	 */
+	recordFragmentTextureSample( texture, shaderStage = this.shaderStage, key = '' ) {
+
+		if ( shaderStage !== 'fragment' ) return;
+
+		if ( texture && ( texture.isDepthTexture === true || texture.isCubeTexture === true || texture.isRectAreaLTC === true ) ) return;
+
+		if ( key !== '' ) {
+
+			if ( this.shaderComplexitySampleKeys.has( key ) ) return;
+
+			this.shaderComplexitySampleKeys.add( key );
+
+		}
+
+		this.fragmentTextureSamples ++;
+
+	}
+
+	/**
+	 * Returns the shader-complexity proxy for the material currently being built.
+	 *
+	 * @return {number} Base feature cost plus weighted fragment texture samples.
+	 */
+	getShaderComplexityCost() {
+
+		return this.shaderComplexityBase + this.fragmentTextureSamples * SHADER_COMPLEXITY_TEXTURE_COST;
+
+	}
+	// !WITH_GENESYS
 
 	/**
 	 * Generates a texture LOD shader string for the given texture data.
@@ -3118,6 +3186,12 @@ class NodeBuilder {
 	 * Prebuild the node builder.
 	 */
 	prebuild() {
+
+		// WITH_GENESYS
+		this.shaderComplexityBase = 0;
+		this.fragmentTextureSamples = 0;
+		this.shaderComplexitySampleKeys.clear();
+		// !WITH_GENESYS
 
 		const { renderer, material } = this;
 

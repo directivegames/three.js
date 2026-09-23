@@ -106,6 +106,26 @@ class WebGPUPipelineUtils {
 
 		}
 
+		// WITH_GENESYS
+		// Accumulate shader cost with One+One. Opaque materials normally disable blending.
+		if ( backend.renderer.debug.view === 'shaderComplexity' && material.isShadowPassMaterial !== true && backend.renderer.isOutputTarget !== true ) {
+
+			materialBlending = {
+				color: {
+					srcFactor: GPUBlendFactor.One,
+					dstFactor: GPUBlendFactor.One,
+					operation: GPUBlendOperation.Add
+				},
+				alpha: {
+					srcFactor: GPUBlendFactor.One,
+					dstFactor: GPUBlendFactor.One,
+					operation: GPUBlendOperation.Add
+				}
+			};
+
+		}
+		// !WITH_GENESYS
+
 		// stencil
 
 		let stencilFront = {};

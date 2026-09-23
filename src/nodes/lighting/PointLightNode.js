@@ -17,7 +17,10 @@ export const directPointLight = ( { color, lightVector, cutoffDistance, decayExp
 
 	const lightColor = color.mul( attenuation );
 
-	return { lightDirection, lightColor };
+	// WITH_GENESYS
+	return { lightDirection, lightColor, attenuation };
+	// !WITH_GENESYS
+	// return { lightDirection, lightColor };
 
 };
 

@@ -191,7 +191,15 @@ class Background extends DataMap {
 
 			}
 
-			renderList.unshift( backgroundMesh, backgroundMesh.geometry, backgroundMesh.material, 0, 0, null, null );
+			// WITH_GENESYS
+			// The background is depth-tested off, so additive shader complexity would add it to every pixel.
+			if ( renderer.debug.view !== 'shaderComplexity' ) {
+
+				renderList.unshift( backgroundMesh, backgroundMesh.geometry, backgroundMesh.material, 0, 0, null, null );
+
+			}
+			// !WITH_GENESYS
+			// renderList.unshift( backgroundMesh, backgroundMesh.geometry, backgroundMesh.material, 0, 0, null, null );
 
 		} else {
 
@@ -214,6 +222,14 @@ class Background extends DataMap {
 		}
 
 		//
+
+		// WITH_GENESYS
+		if ( renderer.debug.view === 'shaderComplexity' ) {
+
+			_clearColor.set( 0, 0, 0, 1 );
+
+		}
+		// !WITH_GENESYS
 
 		if ( renderer.autoClear === true || forceClear === true ) {
 

@@ -934,9 +934,25 @@ class WebGLState {
 
 		this.setFlipSided( flipSided );
 
-		( material.blending === NormalBlending && material.transparent === false )
-			? this.setBlending( NoBlending )
-			: this.setBlending( material.blending, material.blendEquation, material.blendSrc, material.blendDst, material.blendEquationAlpha, material.blendSrcAlpha, material.blendDstAlpha, material.blendColor, material.blendAlpha, material.premultipliedAlpha );
+		// WITH_GENESYS
+		// WebGL has no cached render pipeline. One+One is applied on each draw instead.
+		if ( this.backend.renderer.debug.view === 'shaderComplexity' && material.isShadowPassMaterial !== true && this.backend.renderer.isOutputTarget !== true ) {
+
+			this.setBlending( AdditiveBlending, AddEquation, OneFactor, OneFactor, AddEquation, OneFactor, OneFactor, material.blendColor, material.blendAlpha, true );
+
+		} else if ( material.blending === NormalBlending && material.transparent === false ) {
+
+			this.setBlending( NoBlending );
+
+		} else {
+
+			this.setBlending( material.blending, material.blendEquation, material.blendSrc, material.blendDst, material.blendEquationAlpha, material.blendSrcAlpha, material.blendDstAlpha, material.blendColor, material.blendAlpha, material.premultipliedAlpha );
+
+		}
+		// !WITH_GENESYS
+		// ( material.blending === NormalBlending && material.transparent === false )
+		// 	? this.setBlending( NoBlending )
+		// 	: this.setBlending( material.blending, material.blendEquation, material.blendSrc, material.blendDst, material.blendEquationAlpha, material.blendSrcAlpha, material.blendDstAlpha, material.blendColor, material.blendAlpha, material.premultipliedAlpha );
 
 		this.setDepthFunc( material.depthFunc );
 		this.setDepthTest( material.depthTest );
