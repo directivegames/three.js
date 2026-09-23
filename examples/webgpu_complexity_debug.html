@@ -20,9 +20,11 @@
 			</div>
 
 			<small>
-				Back: basic, standard, physical, 8 cheap layers, 4 physical layers, 2 Lambert layers, light overlap.<br/>
+				Back: basic, standard, physical, 8 cheap layers, 4 physical layers, 2 Lambert layers, light overlap, glTF model.<br/>
 				Middle: RGB, rough/smooth, metal/plastic, emissive, normal/flat, AO.<br/>
-				Front: near LOD, far LOD, open box, caster / non-caster, separate meshes, one instanced mesh.
+				Front: near LOD, far LOD, open box, caster / non-caster, separate meshes, one instanced mesh.<br/>
+				Render path: direct to canvas, a scene pass, or an MRT scene pass (output, normal, emissive) like a post-processing stack.<br/>
+				WASD moves the camera, mouse orbits.
 			</small>
 		</div>
 
@@ -41,13 +43,23 @@
 
 			// WITH_GENESYS
 			import * as THREE from 'three/webgpu';
+			import { pass, mrt, output, emissive, normalView, packNormalToRGB } from 'three/tsl';
 
 			import { Inspector } from 'three/addons/inspector/Inspector.js';
 			import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+			import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 			import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 
-			let camera, scene, renderer;
+			let camera, scene, renderer, renderPipeline, controls;
 			let viewController, shaderBudget, overdrawBudget;
+
+			// WASD moves the camera and the orbit target together on the ground plane.
+			const moveKeys = { KeyW: false, KeyA: false, KeyS: false, KeyD: false };
+			const moveSpeed = 6;
+			const moveForward = new THREE.Vector3();
+			const moveRight = new THREE.Vector3();
+			const moveOffset = new THREE.Vector3();
+			let lastTime = null;
 
 			// New views are added here. `key` is optional.
 			const modes = [
@@ -67,7 +79,14 @@
 				{ id: 'drawCall', view: 'drawCall', label: 'Draw call' }
 			];
 
-			const params = { view: 'shaded' };
+			// `direct` draws to the canvas. The pass paths draw the scene into a render target first.
+			const renderPaths = {
+				'Direct': 'direct',
+				'Scene pass': 'scenePass',
+				'MRT scene pass': 'mrtScenePass'
+			};
+
+			const params = { view: 'shaded', path: 'direct' };
 
 			init();
 
@@ -349,6 +368,26 @@
 
 				} );
 
+				// glTF: a real asset with base color, normal, metal/roughness, AO and emissive maps.
+				new GLTFLoader().load( 'models/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf', ( gltf ) => {
+
+					const model = gltf.scene;
+					model.scale.setScalar( 0.55 );
+					model.position.set( 7, 0.6, - 1.6 );
+					model.traverse( ( child ) => {
+
+						if ( child.isMesh ) {
+
+							child.castShadow = true;
+							child.receiveShadow = true;
+
+						}
+
+					} );
+					scene.add( model );
+
+				} );
+
 				// Buffer views: albedo, roughness, metalness, emissive, normal, AO.
 				const swatch = new THREE.SphereGeometry( 0.32, 32, 20 );
 
@@ -436,7 +475,9 @@
 				renderer.inspector = new Inspector();
 				document.body.appendChild( renderer.domElement );
 
-				const controls = new OrbitControls( camera, renderer.domElement );
+				renderPipeline = new THREE.RenderPipeline( renderer );
+
+				controls = new OrbitControls( camera, renderer.domElement );
 				controls.target.set( 0, 0.5, 0.4 );
 				controls.update();
 
@@ -444,6 +485,8 @@
 
 				window.addEventListener( 'resize', onWindowResize );
 				window.addEventListener( 'keydown', onKeyDown );
+				window.addEventListener( 'keyup', onKeyUp );
+				window.addEventListener( 'blur', releaseMoveKeys );
 				window.addEventListener( 'genesys-debug-view', onDebugView );
 
 				await renderer.init();
@@ -495,6 +538,27 @@
 
 			}
 
+			function applyRenderPath( path ) {
+
+				if ( path === 'direct' ) return;
+
+				const scenePass = pass( scene, camera );
+
+				if ( path === 'mrtScenePass' ) {
+
+					scenePass.setMRT( mrt( {
+						output,
+						normal: packNormalToRGB( normalView ),
+						emissive
+					} ) );
+
+				}
+
+				renderPipeline.outputNode = scenePass.getTextureNode( 'output' );
+				renderPipeline.needsUpdate = true;
+
+			}
+
 			function createDebugUI() {
 
 				const gui = new GUI( { title: 'Debug' } );
@@ -502,6 +566,7 @@
 
 				for ( const mode of modes ) labels[ mode.label ] = mode.id;
 
+				gui.add( params, 'path', renderPaths ).name( 'Render path' ).onChange( applyRenderPath );
 				viewController = gui.add( params, 'view', labels ).name( 'View' ).onChange( applyMode );
 				shaderBudget = gui.add( renderer.debug, 'shaderComplexityBudget', 50, 4000, 10 ).name( 'Shader budget' );
 				overdrawBudget = gui.add( renderer.debug, 'quadOverdrawBudget', 1, 40, 1 ).name( 'Overdraw budget' );
@@ -525,11 +590,56 @@
 
 				if ( event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement ) return;
 
+				if ( event.code in moveKeys ) {
+
+					moveKeys[ event.code ] = true;
+					return;
+
+				}
+
 				const mode = modes.find( ( entry ) => entry.key === event.key );
 
 				if ( mode === undefined ) return;
 
 				applyMode( mode.id );
+
+			}
+
+			function onKeyUp( event ) {
+
+				if ( event.code in moveKeys ) moveKeys[ event.code ] = false;
+
+			}
+
+			function releaseMoveKeys() {
+
+				for ( const code in moveKeys ) moveKeys[ code ] = false;
+
+			}
+
+			function updateMovement( delta ) {
+
+				const forward = Number( moveKeys.KeyW ) - Number( moveKeys.KeyS );
+				const right = Number( moveKeys.KeyD ) - Number( moveKeys.KeyA );
+
+				if ( forward === 0 && right === 0 ) return;
+
+				camera.getWorldDirection( moveForward );
+				moveForward.y = 0;
+
+				if ( moveForward.lengthSq() === 0 ) return;
+
+				moveForward.normalize();
+				moveRight.crossVectors( moveForward, camera.up ).normalize();
+
+				moveOffset.set( 0, 0, 0 )
+					.addScaledVector( moveForward, forward )
+					.addScaledVector( moveRight, right )
+					.setLength( moveSpeed * delta );
+
+				camera.position.add( moveOffset );
+				controls.target.add( moveOffset );
+				controls.update();
 
 			}
 
@@ -541,9 +651,22 @@
 
 			}
 
-			function render() {
+			function render( time ) {
 
-				renderer.render( scene, camera );
+				const delta = lastTime === null ? 0 : Math.min( ( time - lastTime ) / 1000, 0.1 );
+				lastTime = time;
+
+				updateMovement( delta );
+
+				if ( params.path === 'direct' ) {
+
+					renderer.render( scene, camera );
+
+				} else {
+
+					renderPipeline.render();
+
+				}
 
 			}
 			// !WITH_GENESYS
