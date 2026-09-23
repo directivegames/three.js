@@ -41,6 +41,7 @@
 			// WITH_GENESYS
 			import * as THREE from 'three/webgpu';
 
+			import { Inspector } from 'three/addons/inspector/Inspector.js';
 			import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 			let camera, scene, renderer;
@@ -162,6 +163,7 @@
 				renderer.toneMapping = THREE.ACESFilmicToneMapping;
 				renderer.shadowMap.enabled = true;
 				renderer.setAnimationLoop( render );
+				renderer.inspector = new Inspector();
 				document.body.appendChild( renderer.domElement );
 
 				const controls = new OrbitControls( camera, renderer.domElement );
@@ -170,8 +172,17 @@
 
 				window.addEventListener( 'resize', onWindowResize );
 				window.addEventListener( 'keydown', onKeyDown );
+				window.addEventListener( 'genesys-debug-view', onDebugView );
 
 				await renderer.init();
+
+			}
+
+			function onDebugView() {
+
+				const match = Object.values( views ).find( ( entry ) => entry.view === renderer.debug.view );
+
+				if ( match !== undefined ) viewLabel.textContent = match.label;
 
 			}
 
