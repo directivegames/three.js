@@ -134,9 +134,45 @@ class Settings extends Parameters {
 
 		} ).info( 'Shows how many times each pixel is shaded.' );
 
+		// WITH_GENESYS
+		// Values match Renderer.debug.view. Not stored with inspector settings.
+		const debugViewState = { view: 'none' };
+
+		this._debugViewState = debugViewState;
+		this._debugViewControl = modesGroup.add( debugViewState, 'view', {
+			'Shaded': 'none',
+			'Shader Complexity': 'shaderComplexity',
+			'Lighting Complexity': 'lightingComplexity'
+		} ).name( 'Debug View' ).onChange( ( view ) => {
+
+			const renderer = this.inspector.getRenderer();
+
+			if ( renderer === null || renderer.debug === undefined ) return;
+
+			renderer.debug.view = view;
+			window.dispatchEvent( new Event( 'genesys-debug-view' ) );
+
+		} ).info( 'Shaded color, a shader-cost heatmap, or a direct-light count. Overdraw draws on top when both are enabled.' );
+		// !WITH_GENESYS
+
 	}
 
 	init() {
+
+		// WITH_GENESYS
+		const renderer = this.inspector.getRenderer();
+		const view = renderer !== null && renderer.debug !== undefined ? renderer.debug.view : null;
+
+		if ( view === 'none' || view === 'shaderComplexity' || view === 'lightingComplexity' ) {
+
+			if ( this._debugViewState.view !== view ) {
+
+				this._debugViewControl.setValue( view );
+
+			}
+
+		}
+		// !WITH_GENESYS
 
 		const extensionsGroup = this.createGroup( 'Extensions' );
 
