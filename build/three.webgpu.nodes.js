@@ -21641,6 +21641,14 @@ const DEBUG_VIEW_SHADER_COMPLEXITY = 'shaderComplexity';
 const DEBUG_VIEW_LIGHTING_COMPLEXITY = 'lightingComplexity';
 
 /**
+ * Per-pixel overdraw heatmap. Each fragment that passes the depth test adds one.
+ * This is the portable stand-in for Unreal's 2×2 quad-coverage count.
+ *
+ * @type {string}
+ */
+const DEBUG_VIEW_QUAD_OVERDRAW = 'quadOverdraw';
+
+/**
  * Proxy budget that fills the shader-complexity ramp.
  * Unlit and basic stay green. Phong and standard move through yellow into red.
  * Transmission plus several texture samples climbs toward white.
@@ -21648,6 +21656,14 @@ const DEBUG_VIEW_LIGHTING_COMPLEXITY = 'lightingComplexity';
  * @type {number}
  */
 const DEFAULT_SHADER_COMPLEXITY_BUDGET = 800;
+
+/**
+ * Overlapping fragments that fill the quad-overdraw ramp.
+ * Unreal's stair reaches white at ten layers (`1 / 16` stored, then scaled by 1.6).
+ *
+ * @type {number}
+ */
+const DEFAULT_QUAD_OVERDRAW_BUDGET = 10;
 
 /**
  * Added for each fragment texture sample. Lighting-model costs are returned
@@ -21686,6 +21702,26 @@ const SHADER_COMPLEXITY_COLORS = [
 	[ 0.7, 0.0, 0.0 ],
 	[ 1.0, 0.0, 0.0 ],
 	[ 1.0, 0.0, 0.5 ],
+	[ 1.0, 0.9, 0.9 ]
+];
+
+/**
+ * Unreal `QuadComplexityColors` from `BaseEngine.ini`.
+ * Sampled as a stair: one overlapping fragment is one stop.
+ *
+ * @type {Array<Array<number>>}
+ */
+const QUAD_COMPLEXITY_COLORS = [
+	[ 0.0, 0.0, 0.0 ],
+	[ 0.0, 0.0, 0.4 ],
+	[ 0.0, 0.3, 1.0 ],
+	[ 0.0, 0.7, 0.4 ],
+	[ 0.0, 1.0, 0.0 ],
+	[ 0.8, 0.8, 0.0 ],
+	[ 1.0, 0.3, 0.0 ],
+	[ 0.7, 0.0, 0.0 ],
+	[ 0.5, 0.0, 0.5 ],
+	[ 0.7, 0.3, 0.7 ],
 	[ 1.0, 0.9, 0.9 ]
 ];
 
@@ -21746,6 +21782,42 @@ const colorizeLinear = ( cost, colors ) => {
  * @return {Node<vec3>} The ramp color.
  */
 const colorizeLightComplexity = ( cost ) => colorizeLinear( cost, LIGHT_COMPLEXITY_COLORS );
+
+/**
+ * Unreal's stair sample for quad overdraw (`CS_STAIR`).
+ * `cost` is the accumulated fragment count divided by the budget.
+ *
+ * @param {Node<float>} cost - Overdraw count divided by the budget.
+ * @return {Node<vec3>} The ramp color.
+ */
+const colorizeQuadOverdraw = ( cost ) => {
+
+	const steps = QUAD_COMPLEXITY_COLORS.length - 1;
+	const index = round( cost.clamp( 0, 1 ).mul( steps ) );
+
+	let color = rgb( QUAD_COMPLEXITY_COLORS, 0 );
+
+	for ( let i = 0; i <= steps; i ++ ) {
+
+		color = index.equal( float( i ) ).select( rgb( QUAD_COMPLEXITY_COLORS, i ), color );
+
+	}
+
+	return color;
+
+};
+
+/**
+ * Views that add a scalar per fragment, then colorize that sum in the output pass.
+ *
+ * @param {string} view - `renderer.debug.view`.
+ * @return {boolean} `true` when the view accumulates.
+ */
+function debugViewAccumulates( view ) {
+
+	return view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_QUAD_OVERDRAW;
+
+}
 
 /**
  * Unreal's nonlinear shader-complexity ramp (`ColorizeComplexity`).
@@ -21854,6 +21926,52 @@ function shaderComplexityOutput( resultNode ) {
 	const shaded = vec4( resultNode ).toVar();
 
 	const ratio = new ShaderComplexityRatioNode();
+
+	return vec4( ratio, 0, 0, 1 ).add( shaded.mul( 0 ) );
+
+}
+
+/**
+ * Reads `1 / quadOverdrawBudget` at code-generation time.
+ *
+ * @augments Node
+ */
+class QuadOverdrawRatioNode extends Node {
+
+	static get type() {
+
+		return 'QuadOverdrawRatioNode';
+
+	}
+
+	constructor() {
+
+		super( 'float' );
+
+	}
+
+	generate( builder ) {
+
+		const budget = builder.renderer.debug.quadOverdrawBudget;
+		const safeBudget = ( typeof budget === 'number' && budget > 0 ) ? budget : 1;
+
+		return ( 1 / safeBudget ).toFixed( 6 );
+
+	}
+
+}
+
+/**
+ * Replaces the shaded color with `vec4(1 / budget, 0, 0, 1)`.
+ * The real graph is still generated so clipped fragments are not counted.
+ *
+ * @param {Node} resultNode - The material's shaded output.
+ * @return {Node<vec4>} One overdraw step in the red channel.
+ */
+function quadOverdrawOutput( resultNode ) {
+
+	const shaded = vec4( resultNode ).toVar();
+	const ratio = new QuadOverdrawRatioNode();
 
 	return vec4( ratio, 0, 0, 1 ).add( shaded.mul( 0 ) );
 
@@ -22439,6 +22557,10 @@ class NodeMaterial extends Material {
 
 			builder.shaderComplexityBase = this.getShaderComplexity();
 			resultNode = shaderComplexityOutput( resultNode );
+
+		} else if ( renderer.debug.view === DEBUG_VIEW_QUAD_OVERDRAW && this.isShadowPassMaterial !== true && renderer.isOutputTarget !== true ) {
+
+			resultNode = quadOverdrawOutput( resultNode );
 
 		}
 		// !WITH_GENESYS
@@ -31895,7 +32017,7 @@ class RenderObject {
 
 		// WITH_GENESYS
 		// hash() xors each argument as a number, so a view name has to be hashed first.
-		cacheKey = hash$1( cacheKey, hashString( this.renderer.debug.view ), this.renderer.debug.shaderComplexityBudget );
+		cacheKey = hash$1( cacheKey, hashString( this.renderer.debug.view ), this.renderer.debug.shaderComplexityBudget, this.renderer.debug.quadOverdrawBudget );
 		// !WITH_GENESYS
 
 		return cacheKey;
@@ -52349,6 +52471,8 @@ var TSL = /*#__PURE__*/Object.freeze({
 	xor: xor
 });
 
+// !WITH_GENESYS
+
 const _clearColor = /*@__PURE__*/ new Color4();
 
 /**
@@ -52534,7 +52658,7 @@ class Background extends DataMap {
 
 			// WITH_GENESYS
 			// The background is depth-tested off, so additive shader complexity would add it to every pixel.
-			if ( renderer.debug.view !== 'shaderComplexity' ) {
+			if ( debugViewAccumulates( renderer.debug.view ) !== true ) {
 
 				renderList.unshift( backgroundMesh, backgroundMesh.geometry, backgroundMesh.material, 0, 0, null, null );
 
@@ -52565,7 +52689,7 @@ class Background extends DataMap {
 		//
 
 		// WITH_GENESYS
-		if ( renderer.debug.view === 'shaderComplexity' ) {
+		if ( debugViewAccumulates( renderer.debug.view ) ) {
 
 			_clearColor.set( 0, 0, 0, 1 );
 
@@ -59860,6 +59984,12 @@ class NodeManager extends DataMap {
 			return vec4( colorizeShaderComplexity( sampled.r ), 1 ).renderOutput( NoToneMapping, renderer.currentColorSpace );
 
 		}
+
+		if ( renderer.debug.view === DEBUG_VIEW_QUAD_OVERDRAW ) {
+
+			return vec4( colorizeQuadOverdraw( sampled.r ), 1 ).renderOutput( NoToneMapping, renderer.currentColorSpace );
+
+		}
 		// !WITH_GENESYS
 
 		return sampled.renderOutput( renderer.toneMapping, renderer.currentColorSpace );
@@ -63820,8 +63950,9 @@ class Renderer {
 		 * @property {?Function} onNodeBuilderCreated - A callback function that is executed after a node builder has been created and before it is built.
 		 * @property {?Function} onShaderError - A callback function that is executed when a shader error happens. Only supported with WebGL 2 right now.
 		 * @property {Function} getShaderAsync - Allows the get the raw shader code for the given scene, camera and 3D object.
-		 * @property {string} view - Debug view. `shaderComplexity` and `lightingComplexity` replace the shaded color with a heatmap.
+		 * @property {string} view - Debug view. `shaderComplexity`, `lightingComplexity`, and `quadOverdraw` replace the shaded color with a heatmap.
 		 * @property {number} shaderComplexityBudget - Proxy budget that fills the shader-complexity ramp.
+		 * @property {number} quadOverdrawBudget - Overlapping fragments that fill the quad-overdraw ramp.
 		 */
 
 		/**
@@ -63839,6 +63970,7 @@ class Renderer {
 			// WITH_GENESYS
 			view: DEBUG_VIEW_NONE,
 			shaderComplexityBudget: DEFAULT_SHADER_COMPLEXITY_BUDGET,
+			quadOverdrawBudget: DEFAULT_QUAD_OVERDRAW_BUDGET,
 			// !WITH_GENESYS
 			getShaderAsync: async ( scene, camera, object ) => {
 
@@ -65775,10 +65907,8 @@ class Renderer {
 		const useColorSpace = this.currentColorSpace !== ColorManagement.workingColorSpace;
 
 		// WITH_GENESYS
-		// Shader complexity writes a scalar into an intermediate target, then the output pass colorizes it.
-		const shaderComplexity = this.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY;
-
-		return useToneMapping || useColorSpace || shaderComplexity;
+		// Accumulating views write a scalar into an intermediate target, then the output pass colorizes it.
+		return useToneMapping || useColorSpace || debugViewAccumulates( this.debug.view );
 		// !WITH_GENESYS
 		// return useToneMapping || useColorSpace;
 
@@ -65834,7 +65964,7 @@ class Renderer {
 		// WITH_GENESYS
 		const view = this.debug.view;
 
-		if ( view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_LIGHTING_COMPLEXITY ) {
+		if ( view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_LIGHTING_COMPLEXITY || view === DEBUG_VIEW_QUAD_OVERDRAW ) {
 
 			return NoToneMapping;
 
@@ -71638,6 +71768,8 @@ class WebGLAttributeUtils {
 
 }
 
+// !WITH_GENESYS
+
 let equationToGL, factorToGL;
 
 /**
@@ -72562,7 +72694,7 @@ class WebGLState {
 
 		// WITH_GENESYS
 		// WebGL has no cached render pipeline. One+One is applied on each draw instead.
-		if ( this.backend.renderer.debug.view === 'shaderComplexity' && material.isShadowPassMaterial !== true && this.backend.renderer.isOutputTarget !== true ) {
+		if ( debugViewAccumulates( this.backend.renderer.debug.view ) && material.isShadowPassMaterial !== true && this.backend.renderer.isOutputTarget !== true ) {
 
 			this.setBlending( AdditiveBlending, AddEquation, OneFactor, OneFactor, AddEquation, OneFactor, OneFactor, material.blendColor, material.blendAlpha, true );
 
@@ -87267,7 +87399,7 @@ class WebGPUPipelineUtils {
 
 		// WITH_GENESYS
 		// Accumulate shader cost with One+One. Opaque materials normally disable blending.
-		if ( backend.renderer.debug.view === 'shaderComplexity' && material.isShadowPassMaterial !== true && backend.renderer.isOutputTarget !== true ) {
+		if ( debugViewAccumulates( backend.renderer.debug.view ) && material.isShadowPassMaterial !== true && backend.renderer.isOutputTarget !== true ) {
 
 			materialBlending = {
 				color: {

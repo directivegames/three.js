@@ -37,7 +37,7 @@ import { float, vec3, vec4, Fn } from '../../nodes/tsl/TSLCore.js';
 import { detachRendererReference } from '../../nodes/accessors/RendererReferenceNode.js';
 import { toneMappingExposure } from '../../nodes/display/ToneMappingNode.js';
 import { ProfilerService } from '../../profiler/ProfilerService.js';
-import { DEBUG_VIEW_LIGHTING_COMPLEXITY, DEBUG_VIEW_NONE, DEBUG_VIEW_SHADER_COMPLEXITY, DEFAULT_SHADER_COMPLEXITY_BUDGET } from '../../nodes/display/ComplexityDebug.js';
+import { DEBUG_VIEW_LIGHTING_COMPLEXITY, DEBUG_VIEW_NONE, DEBUG_VIEW_QUAD_OVERDRAW, DEBUG_VIEW_SHADER_COMPLEXITY, DEFAULT_QUAD_OVERDRAW_BUDGET, DEFAULT_SHADER_COMPLEXITY_BUDGET, debugViewAccumulates } from '../../nodes/display/ComplexityDebug.js';
 // !WITH_GENESYS
 import { reference } from '../../nodes/accessors/ReferenceNode.js';
 import { highpModelNormalViewMatrix, highpModelViewMatrix } from '../../nodes/accessors/ModelNode.js';
@@ -744,8 +744,9 @@ class Renderer {
 		 * @property {?Function} onNodeBuilderCreated - A callback function that is executed after a node builder has been created and before it is built.
 		 * @property {?Function} onShaderError - A callback function that is executed when a shader error happens. Only supported with WebGL 2 right now.
 		 * @property {Function} getShaderAsync - Allows the get the raw shader code for the given scene, camera and 3D object.
-		 * @property {string} view - Debug view. `shaderComplexity` and `lightingComplexity` replace the shaded color with a heatmap.
+		 * @property {string} view - Debug view. `shaderComplexity`, `lightingComplexity`, and `quadOverdraw` replace the shaded color with a heatmap.
 		 * @property {number} shaderComplexityBudget - Proxy budget that fills the shader-complexity ramp.
+		 * @property {number} quadOverdrawBudget - Overlapping fragments that fill the quad-overdraw ramp.
 		 */
 
 		/**
@@ -763,6 +764,7 @@ class Renderer {
 			// WITH_GENESYS
 			view: DEBUG_VIEW_NONE,
 			shaderComplexityBudget: DEFAULT_SHADER_COMPLEXITY_BUDGET,
+			quadOverdrawBudget: DEFAULT_QUAD_OVERDRAW_BUDGET,
 			// !WITH_GENESYS
 			getShaderAsync: async ( scene, camera, object ) => {
 
@@ -2699,10 +2701,8 @@ class Renderer {
 		const useColorSpace = this.currentColorSpace !== ColorManagement.workingColorSpace;
 
 		// WITH_GENESYS
-		// Shader complexity writes a scalar into an intermediate target, then the output pass colorizes it.
-		const shaderComplexity = this.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY;
-
-		return useToneMapping || useColorSpace || shaderComplexity;
+		// Accumulating views write a scalar into an intermediate target, then the output pass colorizes it.
+		return useToneMapping || useColorSpace || debugViewAccumulates( this.debug.view );
 		// !WITH_GENESYS
 		// return useToneMapping || useColorSpace;
 
@@ -2758,7 +2758,7 @@ class Renderer {
 		// WITH_GENESYS
 		const view = this.debug.view;
 
-		if ( view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_LIGHTING_COMPLEXITY ) {
+		if ( view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_LIGHTING_COMPLEXITY || view === DEBUG_VIEW_QUAD_OVERDRAW ) {
 
 			return NoToneMapping;
 

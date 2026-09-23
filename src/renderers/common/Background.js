@@ -7,6 +7,9 @@ import { Mesh } from '../../objects/Mesh.js';
 import { SphereGeometry } from '../../geometries/SphereGeometry.js';
 import { BackSide } from '../../constants.js';
 import { error } from '../../utils.js';
+// WITH_GENESYS
+import { debugViewAccumulates } from '../../nodes/display/ComplexityDebug.js';
+// !WITH_GENESYS
 
 const _clearColor = /*@__PURE__*/ new Color4();
 
@@ -193,7 +196,7 @@ class Background extends DataMap {
 
 			// WITH_GENESYS
 			// The background is depth-tested off, so additive shader complexity would add it to every pixel.
-			if ( renderer.debug.view !== 'shaderComplexity' ) {
+			if ( debugViewAccumulates( renderer.debug.view ) !== true ) {
 
 				renderList.unshift( backgroundMesh, backgroundMesh.geometry, backgroundMesh.material, 0, 0, null, null );
 
@@ -224,7 +227,7 @@ class Background extends DataMap {
 		//
 
 		// WITH_GENESYS
-		if ( renderer.debug.view === 'shaderComplexity' ) {
+		if ( debugViewAccumulates( renderer.debug.view ) ) {
 
 			_clearColor.set( 0, 0, 0, 1 );
 

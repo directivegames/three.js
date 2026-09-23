@@ -21,7 +21,10 @@
 
 			<small>
 				<span id="view-label">Shaded</span><br/>
-				Keys: 1 shaded, 2 shader complexity, 3 lighting complexity.
+				Keys: 1 shaded, 2 shader complexity, 3 lighting complexity, 4 quad overdraw.<br/>
+				Back: basic, standard, physical, 8 cheap layers, 4 physical layers, light overlap.<br/>
+				Middle: RGB, rough/smooth, metal/plastic, emissive, normal/flat, AO.<br/>
+				Front: near LOD, far LOD, open box, caster / non-caster, separate meshes.
 			</small>
 		</div>
 
@@ -50,7 +53,8 @@
 			const views = {
 				'1': { view: 'none', label: 'Shaded' },
 				'2': { view: 'shaderComplexity', label: 'Shader complexity' },
-				'3': { view: 'lightingComplexity', label: 'Lighting complexity' }
+				'3': { view: 'lightingComplexity', label: 'Lighting complexity' },
+				'4': { view: 'quadOverdraw', label: 'Quad overdraw' }
 			};
 
 			init();
@@ -72,53 +76,199 @@
 
 			}
 
+			function makeNormalMap( size ) {
+
+				const data = new Uint8Array( size * size * 4 );
+
+				for ( let y = 0; y < size; y ++ ) {
+
+					for ( let x = 0; x < size; x ++ ) {
+
+						const i = ( y * size + x ) * 4;
+						const u = ( x / ( size - 1 ) ) * 2 - 1;
+						const v = ( y / ( size - 1 ) ) * 2 - 1;
+						const nx = u;
+						const ny = v;
+						const nz = 0.45;
+						const len = Math.hypot( nx, ny, nz );
+
+						data[ i ] = ( nx / len * 0.5 + 0.5 ) * 255;
+						data[ i + 1 ] = ( ny / len * 0.5 + 0.5 ) * 255;
+						data[ i + 2 ] = ( nz / len * 0.5 + 0.5 ) * 255;
+						data[ i + 3 ] = 255;
+
+					}
+
+				}
+
+				const texture = new THREE.DataTexture( data, size, size );
+				texture.colorSpace = THREE.NoColorSpace;
+				texture.needsUpdate = true;
+				return texture;
+
+			}
+
+			function makeAOMap() {
+
+				const data = new Uint8Array( [
+					255, 255, 255, 255,
+					40, 40, 40, 255,
+					180, 180, 180, 255,
+					20, 20, 20, 255
+				] );
+				const texture = new THREE.DataTexture( data, 2, 2 );
+				texture.colorSpace = THREE.NoColorSpace;
+				texture.needsUpdate = true;
+				texture.wrapS = THREE.ClampToEdgeWrapping;
+				texture.wrapT = THREE.ClampToEdgeWrapping;
+				return texture;
+
+			}
+
+			function addMesh( geometry, material, x, y, z ) {
+
+				const mesh = new THREE.Mesh( geometry, material );
+				mesh.position.set( x, y, z );
+				scene.add( mesh );
+				return mesh;
+
+			}
+
+			function addUprightPlane( material, x, z, size ) {
+
+				const geometry = new THREE.PlaneGeometry( size, size );
+				geometry.setAttribute( 'uv2', geometry.attributes.uv.clone() );
+
+				const mesh = addMesh( geometry, material, x, size * 0.5 + 0.02, z );
+				mesh.receiveShadow = true;
+				return mesh;
+
+			}
+
+			function addOverdrawStack( material, x, z, count ) {
+
+				for ( let i = 0; i < count; i ++ ) {
+
+					const mesh = addMesh( new THREE.PlaneGeometry( 1.15, 1.15 ), material, x, 0.7, z - 0.35 + i * 0.08 );
+					mesh.renderOrder = i;
+
+				}
+
+			}
+
+			function addLOD( x, z ) {
+
+				const lod = new THREE.LOD();
+
+				const levels = [
+					{ distance: 0, color: 0x4488ff, geometry: new THREE.IcosahedronGeometry( 0.45, 2 ) },
+					{ distance: 15, color: 0xffcc33, geometry: new THREE.IcosahedronGeometry( 0.45, 0 ) },
+					{ distance: 19, color: 0xff4422, geometry: new THREE.TetrahedronGeometry( 0.55 ) }
+				];
+
+				for ( const level of levels ) {
+
+					const mesh = new THREE.Mesh(
+						level.geometry,
+						new THREE.MeshStandardNodeMaterial( { color: level.color, roughness: 0.45 } )
+					);
+					mesh.castShadow = true;
+					lod.addLevel( mesh, level.distance );
+
+				}
+
+				lod.position.set( x, 0.5, z );
+				scene.add( lod );
+
+			}
+
+			function addOpenBox( x, z ) {
+
+				const material = new THREE.MeshStandardNodeMaterial( {
+					color: 0xdddddd,
+					roughness: 0.55,
+					side: THREE.DoubleSide
+				} );
+				const group = new THREE.Group();
+				const width = 1.15;
+				const height = 0.75;
+				const wall = new THREE.PlaneGeometry( width, height );
+				const floor = new THREE.PlaneGeometry( width, width );
+
+				const bottom = new THREE.Mesh( floor, material );
+				bottom.rotation.x = - Math.PI / 2;
+				bottom.position.y = 0.02;
+				group.add( bottom );
+
+				const walls = [
+					[ 0, height / 2, width / 2, 0 ],
+					[ 0, height / 2, - width / 2, Math.PI ],
+					[ - width / 2, height / 2, 0, Math.PI / 2 ],
+					[ width / 2, height / 2, 0, - Math.PI / 2 ]
+				];
+
+				for ( const [ px, py, pz, ry ] of walls ) {
+
+					const mesh = new THREE.Mesh( wall, material );
+					mesh.position.set( px, py, pz );
+					mesh.rotation.y = ry;
+					group.add( mesh );
+
+				}
+
+				group.position.set( x, 0, z );
+				scene.add( group );
+
+			}
+
 			async function init() {
 
-				camera = new THREE.PerspectiveCamera( 50, window.innerWidth / window.innerHeight, 0.1, 40 );
-				camera.position.set( 4.5, 3.2, 6.5 );
+				camera = new THREE.PerspectiveCamera( 42, window.innerWidth / window.innerHeight, 0.1, 80 );
+				camera.position.set( 0.4, 7.4, 13.2 );
 
 				scene = new THREE.Scene();
 				scene.background = new THREE.Color( 0x000000 );
 
-				const hemi = new THREE.HemisphereLight( 0xffffff, 0x223344, 0.15 );
+				const hemi = new THREE.HemisphereLight( 0xffffff, 0x223344, 0.18 );
 				scene.add( hemi );
 
-				const sun = new THREE.DirectionalLight( 0xffffff, 2.5 );
-				sun.position.set( 4, 8, 2 );
+				const sun = new THREE.DirectionalLight( 0xffffff, 2.2 );
+				sun.position.set( 2, 12, - 8 );
 				sun.castShadow = true;
-				sun.shadow.mapSize.set( 1024, 1024 );
+				sun.shadow.mapSize.set( 2048, 2048 );
+				sun.shadow.bias = - 0.0002;
+				sun.shadow.camera.left = - 14;
+				sun.shadow.camera.right = 14;
+				sun.shadow.camera.top = 14;
+				sun.shadow.camera.bottom = - 14;
+				sun.shadow.camera.near = 1;
+				sun.shadow.camera.far = 40;
 				scene.add( sun );
-
-				const colors = [ 0xff4422, 0x44aaff, 0x66ff66, 0xffcc33 ];
-
-				colors.forEach( ( color, index ) => {
-
-					const light = new THREE.PointLight( color, 12, 5 );
-					const angle = index / colors.length * Math.PI * 2;
-					light.position.set( Math.cos( angle ) * 2.2, 1.2, Math.sin( angle ) * 2.2 );
-					scene.add( light );
-
-				} );
+				scene.add( sun.target );
 
 				const ground = new THREE.Mesh(
-					new THREE.PlaneGeometry( 12, 12 ),
+					new THREE.PlaneGeometry( 24, 16 ),
 					new THREE.MeshStandardNodeMaterial( { color: 0x666666, roughness: 0.9 } )
 				);
 				ground.rotation.x = - Math.PI / 2;
 				ground.receiveShadow = true;
 				scene.add( ground );
 
-				const cheap = new THREE.Mesh(
-					new THREE.BoxGeometry( 1.2, 1.2, 1.2 ),
-					new THREE.MeshStandardNodeMaterial( { color: 0xc8d0d8, roughness: 0.45, metalness: 0.05 } )
+				// Shader complexity: unlit, lit, then physical with several maps.
+				addMesh(
+					new THREE.BoxGeometry( 0.9, 0.9, 0.9 ),
+					new THREE.MeshBasicNodeMaterial( { color: 0xc8d0d8 } ),
+					- 8, 0.45, - 1.6
 				);
-				cheap.position.set( - 1.6, 0.6, 0.2 );
-				cheap.castShadow = true;
-				cheap.receiveShadow = true;
-				scene.add( cheap );
-
-				const heavy = new THREE.Mesh(
-					new THREE.SphereGeometry( 0.7, 48, 32 ),
+				const standard = addMesh(
+					new THREE.BoxGeometry( 0.9, 0.9, 0.9 ),
+					new THREE.MeshStandardNodeMaterial( { color: 0xc8d0d8, roughness: 0.45, metalness: 0.05 } ),
+					- 6, 0.45, - 1.6
+				);
+				standard.castShadow = true;
+				standard.receiveShadow = true;
+				const physical = addMesh(
+					new THREE.SphereGeometry( 0.5, 48, 32 ),
 					new THREE.MeshPhysicalNodeMaterial( {
 						color: 0x88ccee,
 						roughness: 0.15,
@@ -132,28 +282,112 @@
 						metalnessMap: makeMap( 0, 0, 0 ),
 						aoMap: makeMap( 200, 200, 200 ),
 						emissiveMap: makeMap( 20, 30, 40 )
-					} )
+					} ),
+					- 4, 0.5, - 1.6
 				);
-				heavy.position.set( 1.5, 0.7, 0.3 );
-				heavy.castShadow = true;
-				heavy.receiveShadow = true;
-				scene.add( heavy );
+				physical.castShadow = true;
+				physical.receiveShadow = true;
 
-				for ( let i = 0; i < 3; i ++ ) {
+				// Quad overdraw: many cheap layers. Shader complexity with quads: fewer expensive layers.
+				addOverdrawStack( new THREE.MeshStandardNodeMaterial( {
+					color: 0xffffff,
+					transparent: true,
+					opacity: 0.22,
+					depthWrite: false,
+					roughness: 0.8
+				} ), - 1.6, - 1.6, 8 );
+				addOverdrawStack( new THREE.MeshPhysicalNodeMaterial( {
+					color: 0x88ddff,
+					roughness: 0.15,
+					clearcoat: 1,
+					clearcoatRoughness: 0.1,
+					transmission: 0.65,
+					thickness: 0.4,
+					transparent: true,
+					opacity: 0.4,
+					depthWrite: false,
+					map: makeMap( 140, 200, 255 )
+				} ), 0.9, - 1.6, 4 );
 
-					const plane = new THREE.Mesh(
-						new THREE.PlaneGeometry( 1.4, 1.4 ),
-						new THREE.MeshStandardNodeMaterial( {
-							color: 0xffffff,
-							transparent: true,
-							opacity: 0.35,
-							depthWrite: false,
-							roughness: 0.4
-						} )
+				// Lighting complexity: four short-range points over one pad. The rest of the ground has the sun only.
+				const pad = addMesh(
+					new THREE.BoxGeometry( 1.6, 0.08, 1.6 ),
+					new THREE.MeshStandardNodeMaterial( { color: 0xeeeeee, roughness: 0.7 } ),
+					4.4, 0.04, - 1.6
+				);
+				pad.receiveShadow = true;
+
+				const lightColors = [ 0xff4422, 0x44aaff, 0x66ff66, 0xffcc33 ];
+
+				lightColors.forEach( ( color, index ) => {
+
+					const light = new THREE.PointLight( color, 18, 1.7 );
+					const angle = index / lightColors.length * Math.PI * 2;
+					light.position.set( 4.4 + Math.cos( angle ) * 0.45, 0.7, - 1.6 + Math.sin( angle ) * 0.45 );
+					scene.add( light );
+
+				} );
+
+				// Buffer views: albedo, roughness, metalness, emissive, normal, AO.
+				const swatch = new THREE.SphereGeometry( 0.32, 32, 20 );
+
+				addMesh( swatch, new THREE.MeshStandardNodeMaterial( { color: 0xff2244, roughness: 0.55 } ), - 8, 0.32, 1.5 );
+				addMesh( swatch, new THREE.MeshStandardNodeMaterial( { color: 0x22cc66, roughness: 0.55 } ), - 7.1, 0.32, 1.5 );
+				addMesh( swatch, new THREE.MeshStandardNodeMaterial( { color: 0x2266ff, roughness: 0.55 } ), - 6.2, 0.32, 1.5 );
+				addMesh( swatch, new THREE.MeshStandardNodeMaterial( { color: 0xffffff, roughness: 1 } ), - 4.8, 0.32, 1.5 );
+				addMesh( swatch, new THREE.MeshStandardNodeMaterial( { color: 0xffffff, roughness: 0.04 } ), - 3.9, 0.32, 1.5 );
+				addMesh( swatch, new THREE.MeshStandardNodeMaterial( { color: 0xffcc66, metalness: 1, roughness: 0.2 } ), - 2.5, 0.32, 1.5 );
+				addMesh( swatch, new THREE.MeshStandardNodeMaterial( { color: 0xcc3344, metalness: 0, roughness: 0.45 } ), - 1.6, 0.32, 1.5 );
+				addUprightPlane( new THREE.MeshStandardNodeMaterial( {
+					color: 0x000000,
+					emissive: 0xff4400,
+					emissiveIntensity: 1,
+					roughness: 1
+				} ), 0.2, 1.5, 0.85 );
+				addUprightPlane( new THREE.MeshStandardNodeMaterial( {
+					color: 0x99bbdd,
+					roughness: 0.45,
+					normalMap: makeNormalMap( 16 )
+				} ), 1.6, 1.5, 0.85 );
+				addUprightPlane( new THREE.MeshStandardNodeMaterial( {
+					color: 0x99bbdd,
+					roughness: 0.45
+				} ), 2.8, 1.5, 0.85 );
+				addUprightPlane( new THREE.MeshStandardNodeMaterial( {
+					color: 0xdddddd,
+					roughness: 0.6,
+					aoMap: makeAOMap()
+				} ), 4.2, 1.5, 0.85 );
+
+				// LOD coloration: the near object stays on level 0, the far one drops to the tetrahedron.
+				addLOD( - 5.2, 3.5 );
+				addLOD( 8.2, - 5.4 );
+
+				// Front/back: open top, double sided, so inner walls are back faces.
+				addOpenBox( - 2.2, 3.5 );
+
+				// Shadow casters: identical meshes, only one casts.
+				const casterMaterial = new THREE.MeshStandardNodeMaterial( { color: 0xdddddd, roughness: 0.5 } );
+				const caster = addMesh( new THREE.BoxGeometry( 0.7, 0.7, 0.7 ), casterMaterial, 0.6, 0.35, 3.5 );
+				caster.castShadow = true;
+				caster.receiveShadow = true;
+				const nonCaster = addMesh( new THREE.BoxGeometry( 0.7, 0.7, 0.7 ), casterMaterial, 2.2, 0.35, 3.5 );
+				nonCaster.castShadow = false;
+				nonCaster.receiveShadow = true;
+
+				// Random color: separate meshes, one shared material.
+				const clusterMaterial = new THREE.MeshStandardNodeMaterial( { color: 0x8899aa, roughness: 0.5 } );
+
+				for ( let i = 0; i < 6; i ++ ) {
+
+					const mesh = addMesh(
+						new THREE.BoxGeometry( 0.32, 0.32, 0.32 ),
+						clusterMaterial,
+						4.6 + ( i % 3 ) * 0.48,
+						0.16,
+						3.2 + Math.floor( i / 3 ) * 0.48
 					);
-					plane.position.set( 0.1, 1.1, - 0.4 + i * 0.18 );
-					plane.receiveShadow = true;
-					scene.add( plane );
+					mesh.castShadow = true;
 
 				}
 
@@ -167,7 +401,7 @@
 				document.body.appendChild( renderer.domElement );
 
 				const controls = new OrbitControls( camera, renderer.domElement );
-				controls.target.set( 0, 0.6, 0 );
+				controls.target.set( 0, 0.5, 0.4 );
 				controls.update();
 
 				window.addEventListener( 'resize', onWindowResize );

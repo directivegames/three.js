@@ -142,7 +142,8 @@ class Settings extends Parameters {
 		this._debugViewControl = modesGroup.add( debugViewState, 'view', {
 			'Shaded': 'none',
 			'Shader Complexity': 'shaderComplexity',
-			'Lighting Complexity': 'lightingComplexity'
+			'Lighting Complexity': 'lightingComplexity',
+			'Quad Overdraw': 'quadOverdraw'
 		} ).name( 'Debug View' ).onChange( ( view ) => {
 
 			const renderer = this.inspector.getRenderer();
@@ -152,7 +153,7 @@ class Settings extends Parameters {
 			renderer.debug.view = view;
 			window.dispatchEvent( new Event( 'genesys-debug-view' ) );
 
-		} ).info( 'Shaded color, a shader-cost heatmap, or a direct-light count. Overdraw draws on top when both are enabled.' );
+		} ).info( 'Shaded color, a shader-cost heatmap, a direct-light count, or per-pixel overdraw. The Overdraw toggle above draws on top when both are enabled.' );
 		// !WITH_GENESYS
 
 	}
@@ -163,7 +164,7 @@ class Settings extends Parameters {
 		const renderer = this.inspector.getRenderer();
 		const view = renderer !== null && renderer.debug !== undefined ? renderer.debug.view : null;
 
-		if ( view === 'none' || view === 'shaderComplexity' || view === 'lightingComplexity' ) {
+		if ( view === 'none' || view === 'shaderComplexity' || view === 'lightingComplexity' || view === 'quadOverdraw' ) {
 
 			if ( this._debugViewState.view !== view ) {
 

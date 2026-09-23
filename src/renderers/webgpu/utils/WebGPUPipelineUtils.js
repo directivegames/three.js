@@ -15,6 +15,9 @@ import {
 } from '../../../constants.js';
 
 import { error, ReversedDepthFuncs, warn, warnOnce } from '../../../utils.js';
+// WITH_GENESYS
+import { debugViewAccumulates } from '../../../nodes/display/ComplexityDebug.js';
+// !WITH_GENESYS
 
 import GPUComputePipelineDescriptor from '../descriptors/GPUComputePipelineDescriptor.js';
 import GPUPipelineLayoutDescriptor from '../descriptors/GPUPipelineLayoutDescriptor.js';
@@ -108,7 +111,7 @@ class WebGPUPipelineUtils {
 
 		// WITH_GENESYS
 		// Accumulate shader cost with One+One. Opaque materials normally disable blending.
-		if ( backend.renderer.debug.view === 'shaderComplexity' && material.isShadowPassMaterial !== true && backend.renderer.isOutputTarget !== true ) {
+		if ( debugViewAccumulates( backend.renderer.debug.view ) && material.isShadowPassMaterial !== true && backend.renderer.isOutputTarget !== true ) {
 
 			materialBlending = {
 				color: {

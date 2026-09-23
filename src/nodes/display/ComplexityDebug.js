@@ -4,7 +4,7 @@
 
 import Node from '../core/Node.js';
 import { float, vec3, vec4, If, Fn } from '../tsl/TSLCore.js';
-import { fract, min, mix } from '../math/MathNode.js';
+import { fract, min, mix, round } from '../math/MathNode.js';
 
 /**
  * Shaded output. No complexity debug view.
@@ -28,6 +28,14 @@ export const DEBUG_VIEW_SHADER_COMPLEXITY = 'shaderComplexity';
 export const DEBUG_VIEW_LIGHTING_COMPLEXITY = 'lightingComplexity';
 
 /**
+ * Per-pixel overdraw heatmap. Each fragment that passes the depth test adds one.
+ * This is the portable stand-in for Unreal's 2×2 quad-coverage count.
+ *
+ * @type {string}
+ */
+export const DEBUG_VIEW_QUAD_OVERDRAW = 'quadOverdraw';
+
+/**
  * Proxy budget that fills the shader-complexity ramp.
  * Unlit and basic stay green. Phong and standard move through yellow into red.
  * Transmission plus several texture samples climbs toward white.
@@ -35,6 +43,14 @@ export const DEBUG_VIEW_LIGHTING_COMPLEXITY = 'lightingComplexity';
  * @type {number}
  */
 export const DEFAULT_SHADER_COMPLEXITY_BUDGET = 800;
+
+/**
+ * Overlapping fragments that fill the quad-overdraw ramp.
+ * Unreal's stair reaches white at ten layers (`1 / 16` stored, then scaled by 1.6).
+ *
+ * @type {number}
+ */
+export const DEFAULT_QUAD_OVERDRAW_BUDGET = 10;
 
 /**
  * Added for each fragment texture sample. Lighting-model costs are returned
@@ -73,6 +89,26 @@ const SHADER_COMPLEXITY_COLORS = [
 	[ 0.7, 0.0, 0.0 ],
 	[ 1.0, 0.0, 0.0 ],
 	[ 1.0, 0.0, 0.5 ],
+	[ 1.0, 0.9, 0.9 ]
+];
+
+/**
+ * Unreal `QuadComplexityColors` from `BaseEngine.ini`.
+ * Sampled as a stair: one overlapping fragment is one stop.
+ *
+ * @type {Array<Array<number>>}
+ */
+const QUAD_COMPLEXITY_COLORS = [
+	[ 0.0, 0.0, 0.0 ],
+	[ 0.0, 0.0, 0.4 ],
+	[ 0.0, 0.3, 1.0 ],
+	[ 0.0, 0.7, 0.4 ],
+	[ 0.0, 1.0, 0.0 ],
+	[ 0.8, 0.8, 0.0 ],
+	[ 1.0, 0.3, 0.0 ],
+	[ 0.7, 0.0, 0.0 ],
+	[ 0.5, 0.0, 0.5 ],
+	[ 0.7, 0.3, 0.7 ],
 	[ 1.0, 0.9, 0.9 ]
 ];
 
@@ -133,6 +169,42 @@ const colorizeLinear = ( cost, colors ) => {
  * @return {Node<vec3>} The ramp color.
  */
 export const colorizeLightComplexity = ( cost ) => colorizeLinear( cost, LIGHT_COMPLEXITY_COLORS );
+
+/**
+ * Unreal's stair sample for quad overdraw (`CS_STAIR`).
+ * `cost` is the accumulated fragment count divided by the budget.
+ *
+ * @param {Node<float>} cost - Overdraw count divided by the budget.
+ * @return {Node<vec3>} The ramp color.
+ */
+export const colorizeQuadOverdraw = ( cost ) => {
+
+	const steps = QUAD_COMPLEXITY_COLORS.length - 1;
+	const index = round( cost.clamp( 0, 1 ).mul( steps ) );
+
+	let color = rgb( QUAD_COMPLEXITY_COLORS, 0 );
+
+	for ( let i = 0; i <= steps; i ++ ) {
+
+		color = index.equal( float( i ) ).select( rgb( QUAD_COMPLEXITY_COLORS, i ), color );
+
+	}
+
+	return color;
+
+};
+
+/**
+ * Views that add a scalar per fragment, then colorize that sum in the output pass.
+ *
+ * @param {string} view - `renderer.debug.view`.
+ * @return {boolean} `true` when the view accumulates.
+ */
+export function debugViewAccumulates( view ) {
+
+	return view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_QUAD_OVERDRAW;
+
+}
 
 /**
  * Unreal's nonlinear shader-complexity ramp (`ColorizeComplexity`).
@@ -241,6 +313,52 @@ export function shaderComplexityOutput( resultNode ) {
 	const shaded = vec4( resultNode ).toVar();
 
 	const ratio = new ShaderComplexityRatioNode();
+
+	return vec4( ratio, 0, 0, 1 ).add( shaded.mul( 0 ) );
+
+}
+
+/**
+ * Reads `1 / quadOverdrawBudget` at code-generation time.
+ *
+ * @augments Node
+ */
+class QuadOverdrawRatioNode extends Node {
+
+	static get type() {
+
+		return 'QuadOverdrawRatioNode';
+
+	}
+
+	constructor() {
+
+		super( 'float' );
+
+	}
+
+	generate( builder ) {
+
+		const budget = builder.renderer.debug.quadOverdrawBudget;
+		const safeBudget = ( typeof budget === 'number' && budget > 0 ) ? budget : 1;
+
+		return ( 1 / safeBudget ).toFixed( 6 );
+
+	}
+
+}
+
+/**
+ * Replaces the shaded color with `vec4(1 / budget, 0, 0, 1)`.
+ * The real graph is still generated so clipped fragments are not counted.
+ *
+ * @param {Node} resultNode - The material's shaded output.
+ * @return {Node<vec4>} One overdraw step in the red channel.
+ */
+export function quadOverdrawOutput( resultNode ) {
+
+	const shaded = vec4( resultNode ).toVar();
+	const ratio = new QuadOverdrawRatioNode();
 
 	return vec4( ratio, 0, 0, 1 ).add( shaded.mul( 0 ) );
 

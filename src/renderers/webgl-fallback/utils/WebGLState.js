@@ -11,6 +11,9 @@ import {
 import { Color } from '../../../math/Color.js';
 import { Vector4 } from '../../../math/Vector4.js';
 import { error, ReversedDepthFuncs, warnOnce } from '../../../utils.js';
+// WITH_GENESYS
+import { debugViewAccumulates } from '../../../nodes/display/ComplexityDebug.js';
+// !WITH_GENESYS
 
 let equationToGL, factorToGL;
 
@@ -936,7 +939,7 @@ class WebGLState {
 
 		// WITH_GENESYS
 		// WebGL has no cached render pipeline. One+One is applied on each draw instead.
-		if ( this.backend.renderer.debug.view === 'shaderComplexity' && material.isShadowPassMaterial !== true && this.backend.renderer.isOutputTarget !== true ) {
+		if ( debugViewAccumulates( this.backend.renderer.debug.view ) && material.isShadowPassMaterial !== true && this.backend.renderer.isOutputTarget !== true ) {
 
 			this.setBlending( AdditiveBlending, AddEquation, OneFactor, OneFactor, AddEquation, OneFactor, OneFactor, material.blendColor, material.blendAlpha, true );
 

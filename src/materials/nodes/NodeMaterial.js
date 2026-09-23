@@ -26,7 +26,7 @@ import { vertexColor } from '../../nodes/accessors/VertexColorNode.js';
 import { premultiplyAlpha } from '../../nodes/display/PremultiplyAlphaFunctions.js';
 import { subBuild } from '../../nodes/core/SubBuildNode.js';
 // WITH_GENESYS
-import { DEBUG_VIEW_LIGHTING_COMPLEXITY, DEBUG_VIEW_SHADER_COMPLEXITY, shaderComplexityOutput } from '../../nodes/display/ComplexityDebug.js';
+import { DEBUG_VIEW_LIGHTING_COMPLEXITY, DEBUG_VIEW_QUAD_OVERDRAW, DEBUG_VIEW_SHADER_COMPLEXITY, quadOverdrawOutput, shaderComplexityOutput } from '../../nodes/display/ComplexityDebug.js';
 // !WITH_GENESYS
 
 /**
@@ -607,6 +607,10 @@ class NodeMaterial extends Material {
 
 			builder.shaderComplexityBase = this.getShaderComplexity();
 			resultNode = shaderComplexityOutput( resultNode );
+
+		} else if ( renderer.debug.view === DEBUG_VIEW_QUAD_OVERDRAW && this.isShadowPassMaterial !== true && renderer.isOutputTarget !== true ) {
+
+			resultNode = quadOverdrawOutput( resultNode );
 
 		}
 		// !WITH_GENESYS
