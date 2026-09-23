@@ -146,7 +146,9 @@ class Settings extends Parameters {
 			'Shader Complexity': 'shaderComplexity',
 			'Lighting Complexity': 'lightingComplexity',
 			'Quad Overdraw': 'quadOverdraw',
-			'Buffer Visualization': 'bufferVisualization'
+			'Buffer Visualization': 'bufferVisualization',
+			'Lighting Only': 'lightingOnly',
+			'Detail Lighting': 'detailLighting'
 		} ).name( 'Debug View' ).onChange( ( view ) => {
 
 			const renderer = this.inspector.getRenderer();
@@ -157,7 +159,7 @@ class Settings extends Parameters {
 			this._syncBufferRow( view );
 			window.dispatchEvent( new Event( 'genesys-debug-view' ) );
 
-		} ).info( 'Shaded color, a cost heatmap, per-pixel overdraw, or one material channel. The Overdraw toggle above draws on top when both are enabled.' );
+		} ).info( 'Shaded color, a cost heatmap, per-pixel overdraw, one material channel, or lighting on a flat gray surface. The Overdraw toggle above draws on top when both are enabled.' );
 
 		this._bufferControl = modesGroup.add( bufferState, 'buffer', {
 			'Base Color': 'baseColor',
@@ -188,7 +190,7 @@ class Settings extends Parameters {
 		const renderer = this.inspector.getRenderer();
 		const view = renderer !== null && renderer.debug !== undefined ? renderer.debug.view : null;
 
-		if ( view === 'none' || view === 'shaderComplexity' || view === 'lightingComplexity' || view === 'quadOverdraw' || view === 'bufferVisualization' ) {
+		if ( view === 'none' || view === 'shaderComplexity' || view === 'lightingComplexity' || view === 'quadOverdraw' || view === 'bufferVisualization' || view === 'lightingOnly' || view === 'detailLighting' ) {
 
 			if ( this._debugViewState.view !== view ) {
 

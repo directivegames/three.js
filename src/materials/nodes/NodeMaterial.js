@@ -28,6 +28,7 @@ import { subBuild } from '../../nodes/core/SubBuildNode.js';
 // WITH_GENESYS
 import { DEBUG_VIEW_LIGHTING_COMPLEXITY, DEBUG_VIEW_QUAD_OVERDRAW, DEBUG_VIEW_SHADER_COMPLEXITY, quadOverdrawOutput, shaderComplexityOutput } from '../../nodes/display/ComplexityDebug.js';
 import { DEBUG_VIEW_BUFFER, assignBufferDefaults, bufferVisualizationOutput } from '../../nodes/display/BufferDebug.js';
+import { DEBUG_VIEW_DETAIL_LIGHTING, DEBUG_VIEW_LIGHTING_ONLY, applyLightingDebug, lightingOnlyNormal } from '../../nodes/display/LightingDebug.js';
 // !WITH_GENESYS
 
 /**
@@ -541,6 +542,16 @@ class NodeMaterial extends Material {
 			this.setupAmbientOcclusion( builder );
 			this.setupVariants( builder );
 
+			// WITH_GENESYS
+			// After the material writes its channels, so roughness and normals already exist
+			// for detail lighting and can be replaced for lighting only.
+			if ( ( renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY || renderer.debug.view === DEBUG_VIEW_DETAIL_LIGHTING ) && this.isShadowPassMaterial !== true ) {
+
+				applyLightingDebug( builder, renderer.debug.view );
+
+			}
+			// !WITH_GENESYS
+
 			const outgoingLightNode = this.setupLighting( builder );
 
 			if ( clippingNode !== null ) builder.stack.addToStack( clippingNode );
@@ -980,9 +991,18 @@ class NodeMaterial extends Material {
 	/**
 	 * Setups the normal node from the material.
 	 *
+	 * @param {NodeBuilder} builder - The current node builder.
 	 * @return {Node<vec3>} The normal node.
 	 */
-	setupNormal() {
+	setupNormal( builder ) {
+
+		// WITH_GENESYS
+		if ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY && this.isShadowPassMaterial !== true && this.fragmentNode === null ) {
+
+			return lightingOnlyNormal();
+
+		}
+		// !WITH_GENESYS
 
 		return this.normalNode ? vec3( this.normalNode ) : materialNormal;
 
@@ -1178,6 +1198,16 @@ class NodeMaterial extends Material {
 		// EMISSIVE
 
 		if ( ( emissiveNode && emissiveNode.isNode === true ) || ( material.emissive && material.emissive.isColor === true ) ) {
+
+			// WITH_GENESYS
+			// Lighting only substitutes a plain lit material, so emissive is dropped.
+			// Detail lighting keeps it.
+			if ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY && this.isShadowPassMaterial !== true ) {
+
+				return outgoingLightNode;
+
+			}
+			// !WITH_GENESYS
 
 			emissive.assign( vec3( emissiveNode ? emissiveNode : materialEmissive ) );
 

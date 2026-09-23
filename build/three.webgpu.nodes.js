@@ -22118,6 +22118,111 @@ function bufferVisualizationOutput( buffer ) {
 
 }
 
+// WITH_GENESYS
+// Lighting only and detail lighting. Both replace the shaded albedo with a flat gray.
+// !WITH_GENESYS
+
+
+/**
+ * Lighting only. Flat gray, no specular, geometry normals. Material detail is dropped.
+ *
+ * @type {string}
+ */
+const DEBUG_VIEW_LIGHTING_ONLY = 'lightingOnly';
+
+/**
+ * Detail lighting. Flat gray and a constant specular, with normal maps and roughness kept.
+ *
+ * @type {string}
+ */
+const DEBUG_VIEW_DETAIL_LIGHTING = 'detailLighting';
+
+/**
+ * Neutral albedo shared by both views. Matches Unreal's `LightingOnlyBrightness`.
+ *
+ * @type {number}
+ */
+const LIGHTING_ONLY_BRIGHTNESS = 0.3;
+
+/**
+ * Specular color used by detail lighting. Unreal writes `0.1` into the specular override.
+ *
+ * @type {number}
+ */
+const DETAIL_LIGHTING_SPECULAR = 0.1;
+
+/**
+ * Geometry normal for lighting only, so normal maps and `normalNode` do not shade the surface.
+ *
+ * @type {Node<vec3>}
+ */
+const lightingOnlyNormal = /*@__PURE__*/ Fn( ( builder ) => {
+
+	let node = normalViewGeometry;
+
+	if ( builder.isFlatShading() !== true ) {
+
+		node = negateOnBackSide( node );
+
+	}
+
+	return node;
+
+}, 'vec3' );
+
+/**
+ * Replaces albedo and specular after the material has written its channels.
+ * Lit materials become a dielectric gray. Unlit materials become flat gray.
+ *
+ * @param {NodeBuilder} builder - The current node builder.
+ * @param {string} view - `renderer.debug.view`.
+ */
+function applyLightingDebug( builder, view ) {
+
+	const material = builder.material;
+	const gray = vec3( LIGHTING_ONLY_BRIGHTNESS );
+
+	diffuseColor.rgb.assign( gray );
+
+	if ( material.lights !== true ) return;
+
+	metalness.assign( float( 0 ) );
+	diffuseContribution.assign( gray );
+
+	if ( view === DEBUG_VIEW_LIGHTING_ONLY ) {
+
+		roughness.assign( float( 1 ) );
+		specularColor.assign( vec3( 0 ) );
+		specularColorBlended.assign( vec3( 0 ) );
+		specularF90.assign( float( 0 ) );
+
+		// Ambient occlusion was stored for the lighting model. Lighting only has no material.
+		builder.context.ambientOcclusion = null;
+
+		if ( material.useClearcoat === true ) clearcoat.assign( float( 0 ) );
+
+		if ( material.useSheen === true ) sheen.assign( vec3( 0 ) );
+
+		if ( material.useIridescence === true ) iridescence.assign( float( 0 ) );
+
+		if ( material.useAnisotropy === true ) anisotropy.assign( float( 0 ) );
+
+		if ( material.useTransmission === true ) transmission.assign( float( 0 ) );
+
+		if ( material.useRetroreflection === true ) retroreflectivity.assign( float( 0 ) );
+
+	} else {
+
+		const specular = vec3( DETAIL_LIGHTING_SPECULAR );
+
+		specularColor.assign( specular );
+		specularColorBlended.assign( specular );
+		specularF90.assign( float( 1 ) );
+
+	}
+
+}
+
 // !WITH_GENESYS
 
 /**
@@ -22631,6 +22736,16 @@ class NodeMaterial extends Material {
 			this.setupAmbientOcclusion( builder );
 			this.setupVariants( builder );
 
+			// WITH_GENESYS
+			// After the material writes its channels, so roughness and normals already exist
+			// for detail lighting and can be replaced for lighting only.
+			if ( ( renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY || renderer.debug.view === DEBUG_VIEW_DETAIL_LIGHTING ) && this.isShadowPassMaterial !== true ) {
+
+				applyLightingDebug( builder, renderer.debug.view );
+
+			}
+			// !WITH_GENESYS
+
 			const outgoingLightNode = this.setupLighting( builder );
 
 			if ( clippingNode !== null ) builder.stack.addToStack( clippingNode );
@@ -23070,9 +23185,18 @@ class NodeMaterial extends Material {
 	/**
 	 * Setups the normal node from the material.
 	 *
+	 * @param {NodeBuilder} builder - The current node builder.
 	 * @return {Node<vec3>} The normal node.
 	 */
-	setupNormal() {
+	setupNormal( builder ) {
+
+		// WITH_GENESYS
+		if ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY && this.isShadowPassMaterial !== true && this.fragmentNode === null ) {
+
+			return lightingOnlyNormal();
+
+		}
+		// !WITH_GENESYS
 
 		return this.normalNode ? vec3( this.normalNode ) : materialNormal;
 
@@ -23268,6 +23392,16 @@ class NodeMaterial extends Material {
 		// EMISSIVE
 
 		if ( ( emissiveNode && emissiveNode.isNode === true ) || ( material.emissive && material.emissive.isColor === true ) ) {
+
+			// WITH_GENESYS
+			// Lighting only substitutes a plain lit material, so emissive is dropped.
+			// Detail lighting keeps it.
+			if ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY && this.isShadowPassMaterial !== true ) {
+
+				return outgoingLightNode;
+
+			}
+			// !WITH_GENESYS
 
 			emissive.assign( vec3( emissiveNode ? emissiveNode : materialEmissive ) );
 
@@ -64106,7 +64240,7 @@ class Renderer {
 		 * @property {?Function} onNodeBuilderCreated - A callback function that is executed after a node builder has been created and before it is built.
 		 * @property {?Function} onShaderError - A callback function that is executed when a shader error happens. Only supported with WebGL 2 right now.
 		 * @property {Function} getShaderAsync - Allows the get the raw shader code for the given scene, camera and 3D object.
-		 * @property {string} view - Debug view. `shaderComplexity`, `lightingComplexity`, and `quadOverdraw` replace the shaded color with a heatmap. `bufferVisualization` shows one material channel.
+		 * @property {string} view - Debug view. `shaderComplexity`, `lightingComplexity`, and `quadOverdraw` replace the shaded color with a heatmap. `bufferVisualization` shows one material channel. `lightingOnly` and `detailLighting` light a flat gray surface.
 		 * @property {string} buffer - Channel drawn by `bufferVisualization`: `baseColor`, `worldNormal`, `roughness`, `metallic`, `ambientOcclusion`, or `emissive`.
 		 * @property {number} shaderComplexityBudget - Proxy budget that fills the shader-complexity ramp.
 		 * @property {number} quadOverdrawBudget - Overlapping fragments that fill the quad-overdraw ramp.
