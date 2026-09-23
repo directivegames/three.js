@@ -1124,7 +1124,10 @@ class WebGLBackend extends Backend {
 
 		const frontFaceCW = ( object.isMesh && object.matrixWorld.determinantAffine() < 0 );
 
-		state.setMaterial( material, frontFaceCW, hardwareClippingPlanes );
+		// WITH_GENESYS
+		state.setMaterial( material, frontFaceCW, hardwareClippingPlanes, object );
+		// !WITH_GENESYS
+		// state.setMaterial( material, frontFaceCW, hardwareClippingPlanes );
 
 		if ( context.mrt !== null && context.textures !== null ) {
 

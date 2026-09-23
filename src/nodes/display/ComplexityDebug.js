@@ -5,6 +5,7 @@
 import Node from '../core/Node.js';
 import { float, vec3, vec4, If, Fn } from '../tsl/TSLCore.js';
 import { fract, min, mix, round } from '../math/MathNode.js';
+import { DEBUG_VIEW_BUFFER } from './BufferDebug.js';
 
 /**
  * Shaded output. No complexity debug view.
@@ -221,6 +222,37 @@ export const colorizeQuadOverdraw = ( cost ) => {
 export function debugViewAccumulates( view ) {
 
 	return view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_QUAD_OVERDRAW || view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS;
+
+}
+
+/**
+ * Whether a draw adds its scalar to the accumulating target instead of shading normally.
+ * Shadow passes, draws to the screen, and fullscreen quads draw normally. A post-processing
+ * quad copies the accumulated scene target, so its own cost must not replace it.
+ *
+ * @param {Renderer} renderer - The renderer.
+ * @param {Material} material - The material being drawn.
+ * @param {?Object3D} object - The object being drawn.
+ * @return {boolean} `true` when the draw accumulates.
+ */
+export function debugDrawAccumulates( renderer, material, object ) {
+
+	return debugViewAccumulates( renderer.debug.view ) &&
+		material.isShadowPassMaterial !== true &&
+		renderer.isOutputTarget !== true &&
+		( object === null || object === undefined || object.isQuadMesh !== true );
+
+}
+
+/**
+ * Views that output data or a heatmap, so tone mapping would distort them.
+ *
+ * @param {string} view - `renderer.debug.view`.
+ * @return {boolean} `true` when the view is drawn without tone mapping.
+ */
+export function debugViewSkipsToneMapping( view ) {
+
+	return debugViewAccumulates( view ) || view === DEBUG_VIEW_LIGHTING_COMPLEXITY || view === DEBUG_VIEW_BUFFER;
 
 }
 

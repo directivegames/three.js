@@ -3,7 +3,7 @@
  * Copyright 2010-2026 Three.js Authors
  * SPDX-License-Identifier: MIT
  */
-import { DynamicDrawUsage, RenderObjectRefreshType, Color, Vector2, Vector3, Vector4, Matrix2, Matrix3, Matrix4, error, UnsignedIntType, IntType, RedFormat, RedIntegerFormat, DepthFormat, DepthStencilFormat, AlphaFormat, RGFormat, RGIntegerFormat, RGBFormat, RGBIntegerFormat, EventDispatcher, MathUtils, warn, WebGLCoordinateSystem, WebGPUCoordinateSystem, ColorManagement, SRGBTransfer, NoToneMapping, StaticDrawUsage, InterleavedBufferAttribute, InterleavedBuffer, NoColorSpace, log as log$1, warnOnce, Texture, Compatibility, LessCompare, LessEqualCompare, GreaterCompare, GreaterEqualCompare, NearestFilter, Sphere, BackSide, DoubleSide, CubeTexture, CubeReflectionMapping, CubeRefractionMapping, TangentSpaceNormalMap, NoNormalPacking, NormalRGPacking, NormalGAPacking, ObjectSpaceNormalMap, RED_GREEN_RGTC2_Format, RG11_EAC_Format, InstancedBufferAttribute, InstancedInterleavedBuffer, DataTexture, RGBAFormat, FloatType, DataArrayTexture, FramebufferTexture, LinearMipmapLinearFilter, DepthTexture, Material, LineBasicMaterial, LineDashedMaterial, NoBlending, MeshNormalMaterial, SRGBColorSpace, RenderTarget, BoxGeometry, Mesh, Scene, LinearFilter, CubeCamera, EquirectangularReflectionMapping, EquirectangularRefractionMapping, AddOperation, MixOperation, MultiplyOperation, MeshBasicMaterial, MeshLambertMaterial, MeshPhongMaterial, HalfFloatType, ClampToEdgeWrapping, BufferGeometry, OrthographicCamera, PerspectiveCamera, LinearSRGBColorSpace, CubeUVReflectionMapping, BufferAttribute, MeshStandardMaterial, MeshPhysicalMaterial, MeshToonMaterial, MeshMatcapMaterial, SpriteMaterial, PointsMaterial, ShadowMaterial, Uint32BufferAttribute, Uint16BufferAttribute, ByteType, UnsignedByteType, ShortType, UnsignedShortType, UnsignedShort4444Type, UnsignedShort5551Type, UnsignedInt248Type, UnsignedInt5999Type, UnsignedInt101111Type, NormalBlending, SrcAlphaFactor, OneMinusSrcAlphaFactor, AddEquation, MaterialBlending, Object3D, LinearMipMapLinearFilter, Plane, Float32BufferAttribute, UVMapping, Data3DTexture, VSMShadowMap, PCFShadowMap, ProfilerService, BasicShadowMap, CubeDepthTexture, SphereGeometry, LinearMipmapNearestFilter, NearestMipmapLinearFilter, Float16BufferAttribute, yieldToMain, REVISION, ArrayCamera, PlaneGeometry, FrontSide, CustomBlending, ZeroFactor, CylinderGeometry, Quaternion, WebXRController, RAD2DEG, PCFSoftShadowMap, FrustumArray, Frustum, RGBAIntegerFormat, TimestampQuery, createCanvasElement, MaxEquation, MinEquation, ReverseSubtractEquation, SubtractEquation, OneMinusConstantAlphaFactor, ConstantAlphaFactor, OneMinusConstantColorFactor, ConstantColorFactor, OneMinusDstAlphaFactor, OneMinusDstColorFactor, OneMinusSrcColorFactor, DstAlphaFactor, DstColorFactor, SrcAlphaSaturateFactor, SrcColorFactor, OneFactor, CullFaceNone, CullFaceBack, CullFaceFront, MultiplyBlending, SubtractiveBlending, AdditiveBlending, NotEqualDepth, GreaterDepth, GreaterEqualDepth, EqualDepth, LessEqualDepth, LessDepth, AlwaysDepth, NeverDepth, ReversedDepthFuncs, RGB_S3TC_DXT1_Format, RGBA_S3TC_DXT1_Format, RGBA_S3TC_DXT3_Format, RGBA_S3TC_DXT5_Format, RGB_PVRTC_4BPPV1_Format, RGB_PVRTC_2BPPV1_Format, RGBA_PVRTC_4BPPV1_Format, RGBA_PVRTC_2BPPV1_Format, RGB_ETC1_Format, RGB_ETC2_Format, RGBA_ETC2_EAC_Format, R11_EAC_Format, SIGNED_R11_EAC_Format, SIGNED_RG11_EAC_Format, RGBA_ASTC_4x4_Format, RGBA_ASTC_5x4_Format, RGBA_ASTC_5x5_Format, RGBA_ASTC_6x5_Format, RGBA_ASTC_6x6_Format, RGBA_ASTC_8x5_Format, RGBA_ASTC_8x6_Format, RGBA_ASTC_8x8_Format, RGBA_ASTC_10x5_Format, RGBA_ASTC_10x6_Format, RGBA_ASTC_10x8_Format, RGBA_ASTC_10x10_Format, RGBA_ASTC_12x10_Format, RGBA_ASTC_12x12_Format, RGBA_BPTC_Format, RGB_BPTC_SIGNED_Format, RGB_BPTC_UNSIGNED_Format, RED_RGTC1_Format, SIGNED_RED_RGTC1_Format, SIGNED_RED_GREEN_RGTC2_Format, MirroredRepeatWrapping, RepeatWrapping, NearestMipmapNearestFilter, NotEqualCompare, EqualCompare, AlwaysCompare, NeverCompare, LinearTransfer, getByteLength, isTypedArray, NotEqualStencilFunc, GreaterStencilFunc, GreaterEqualStencilFunc, EqualStencilFunc, LessEqualStencilFunc, LessStencilFunc, AlwaysStencilFunc, NeverStencilFunc, DecrementWrapStencilOp, IncrementWrapStencilOp, DecrementStencilOp, IncrementStencilOp, InvertStencilOp, ReplaceStencilOp, ZeroStencilOp, KeepStencilOp, SpotLight, PointLight, DirectionalLight, RectAreaLight, AmbientLight, HemisphereLight, LightProbe, LinearToneMapping, ReinhardToneMapping, CineonToneMapping, ACESFilmicToneMapping, AgXToneMapping, NeutralToneMapping, Group, Loader, FileLoader, MaterialLoader, ObjectLoader } from './three.core.js';
+import { DynamicDrawUsage, RenderObjectRefreshType, Color, Vector2, Vector3, Vector4, Matrix2, Matrix3, Matrix4, error, UnsignedIntType, IntType, RedFormat, RedIntegerFormat, DepthFormat, DepthStencilFormat, AlphaFormat, RGFormat, RGIntegerFormat, RGBFormat, RGBIntegerFormat, EventDispatcher, MathUtils, warn, WebGLCoordinateSystem, WebGPUCoordinateSystem, ColorManagement, SRGBTransfer, NoToneMapping, StaticDrawUsage, InterleavedBufferAttribute, InterleavedBuffer, NoColorSpace, log as log$1, warnOnce, Texture, Compatibility, LessCompare, LessEqualCompare, GreaterCompare, GreaterEqualCompare, NearestFilter, Sphere, BackSide, DoubleSide, CubeTexture, CubeReflectionMapping, CubeRefractionMapping, TangentSpaceNormalMap, NoNormalPacking, NormalRGPacking, NormalGAPacking, ObjectSpaceNormalMap, RED_GREEN_RGTC2_Format, RG11_EAC_Format, InstancedBufferAttribute, InstancedInterleavedBuffer, DataTexture, RGBAFormat, FloatType, DataArrayTexture, FramebufferTexture, LinearMipmapLinearFilter, DepthTexture, NormalBlending, SrcAlphaFactor, OneMinusSrcAlphaFactor, AddEquation, MaterialBlending, NoBlending, Material, LineBasicMaterial, LineDashedMaterial, MeshNormalMaterial, SRGBColorSpace, RenderTarget, BoxGeometry, Mesh, Scene, LinearFilter, CubeCamera, EquirectangularReflectionMapping, EquirectangularRefractionMapping, AddOperation, MixOperation, MultiplyOperation, MeshBasicMaterial, MeshLambertMaterial, MeshPhongMaterial, HalfFloatType, ClampToEdgeWrapping, BufferGeometry, OrthographicCamera, PerspectiveCamera, LinearSRGBColorSpace, CubeUVReflectionMapping, BufferAttribute, MeshStandardMaterial, MeshPhysicalMaterial, MeshToonMaterial, MeshMatcapMaterial, SpriteMaterial, PointsMaterial, ShadowMaterial, Uint32BufferAttribute, Uint16BufferAttribute, ByteType, UnsignedByteType, ShortType, UnsignedShortType, UnsignedShort4444Type, UnsignedShort5551Type, UnsignedInt248Type, UnsignedInt5999Type, UnsignedInt101111Type, Object3D, LinearMipMapLinearFilter, Plane, Float32BufferAttribute, UVMapping, Data3DTexture, VSMShadowMap, PCFShadowMap, ProfilerService, BasicShadowMap, CubeDepthTexture, SphereGeometry, LinearMipmapNearestFilter, NearestMipmapLinearFilter, Float16BufferAttribute, yieldToMain, REVISION, ArrayCamera, PlaneGeometry, FrontSide, CustomBlending, ZeroFactor, CylinderGeometry, Quaternion, WebXRController, RAD2DEG, PCFSoftShadowMap, FrustumArray, Frustum, RGBAIntegerFormat, TimestampQuery, createCanvasElement, MaxEquation, MinEquation, ReverseSubtractEquation, SubtractEquation, OneMinusConstantAlphaFactor, ConstantAlphaFactor, OneMinusConstantColorFactor, ConstantColorFactor, OneMinusDstAlphaFactor, OneMinusDstColorFactor, OneMinusSrcColorFactor, DstAlphaFactor, DstColorFactor, SrcAlphaSaturateFactor, SrcColorFactor, OneFactor, CullFaceNone, CullFaceBack, CullFaceFront, MultiplyBlending, SubtractiveBlending, AdditiveBlending, NotEqualDepth, GreaterDepth, GreaterEqualDepth, EqualDepth, LessEqualDepth, LessDepth, AlwaysDepth, NeverDepth, ReversedDepthFuncs, RGB_S3TC_DXT1_Format, RGBA_S3TC_DXT1_Format, RGBA_S3TC_DXT3_Format, RGBA_S3TC_DXT5_Format, RGB_PVRTC_4BPPV1_Format, RGB_PVRTC_2BPPV1_Format, RGBA_PVRTC_4BPPV1_Format, RGBA_PVRTC_2BPPV1_Format, RGB_ETC1_Format, RGB_ETC2_Format, RGBA_ETC2_EAC_Format, R11_EAC_Format, SIGNED_R11_EAC_Format, SIGNED_RG11_EAC_Format, RGBA_ASTC_4x4_Format, RGBA_ASTC_5x4_Format, RGBA_ASTC_5x5_Format, RGBA_ASTC_6x5_Format, RGBA_ASTC_6x6_Format, RGBA_ASTC_8x5_Format, RGBA_ASTC_8x6_Format, RGBA_ASTC_8x8_Format, RGBA_ASTC_10x5_Format, RGBA_ASTC_10x6_Format, RGBA_ASTC_10x8_Format, RGBA_ASTC_10x10_Format, RGBA_ASTC_12x10_Format, RGBA_ASTC_12x12_Format, RGBA_BPTC_Format, RGB_BPTC_SIGNED_Format, RGB_BPTC_UNSIGNED_Format, RED_RGTC1_Format, SIGNED_RED_RGTC1_Format, SIGNED_RED_GREEN_RGTC2_Format, MirroredRepeatWrapping, RepeatWrapping, NearestMipmapNearestFilter, NotEqualCompare, EqualCompare, AlwaysCompare, NeverCompare, LinearTransfer, getByteLength, isTypedArray, NotEqualStencilFunc, GreaterStencilFunc, GreaterEqualStencilFunc, EqualStencilFunc, LessEqualStencilFunc, LessStencilFunc, AlwaysStencilFunc, NeverStencilFunc, DecrementWrapStencilOp, IncrementWrapStencilOp, DecrementStencilOp, IncrementStencilOp, InvertStencilOp, ReplaceStencilOp, ZeroStencilOp, KeepStencilOp, SpotLight, PointLight, DirectionalLight, RectAreaLight, AmbientLight, HemisphereLight, LightProbe, LinearToneMapping, ReinhardToneMapping, CineonToneMapping, ACESFilmicToneMapping, AgXToneMapping, NeutralToneMapping, Group, Loader, FileLoader, MaterialLoader, ObjectLoader } from './three.core.js';
 export { AdditiveAnimationBlendMode, AnimationAction, AnimationClip, AnimationLoader, AnimationMixer, AnimationObjectGroup, AnimationUtils, ArcCurve, ArrowHelper, AttachedBindMode, Audio, AudioAnalyser, AudioContext, AudioListener, AudioLoader, AxesHelper, BasicDepthPacking, BatchedMesh, BezierInterpolant, Bone, BooleanKeyframeTrack, Box2, Box3, Box3Helper, BoxHelper, BufferGeometryLoader, Cache, Camera, CameraHelper, CanvasTexture, CapsuleGeometry, CatmullRomCurve3, CircleGeometry, Clock, ColorKeyframeTrack, CompressedArrayTexture, CompressedCubeTexture, CompressedTexture, CompressedTextureLoader, ConeGeometry, Controls, CubeTextureLoader, CubicBezierCurve, CubicBezierCurve3, CubicInterpolant, CullFaceFrontBack, Curve, CurvePath, CustomToneMapping, Cylindrical, DataTextureLoader, DataUtils, DefaultLoadingManager, DetachedBindMode, DirectionalLightHelper, DiscreteInterpolant, DodecahedronGeometry, DynamicCopyUsage, DynamicReadUsage, EdgesGeometry, EllipseCurve, Euler, ExternalTexture, ExtrudeGeometry, Fog, FogExp2, GLBufferAttribute, GLSL1, GLSL3, GridHelper, HTMLTexture, HemisphereLightHelper, IcosahedronGeometry, ImageBitmapLoader, ImageLoader, ImageUtils, InstancedBufferGeometry, InstancedMesh, Int16BufferAttribute, Int32BufferAttribute, Int8BufferAttribute, Interpolant, InterpolateBezier, InterpolateDiscrete, InterpolateLinear, InterpolateSmooth, InterpolationSamplingMode, InterpolationSamplingType, KeyframeTrack, LOD, LatheGeometry, Layers, Light, LightShadow, Line, Line3, LineCurve, LineCurve3, LineLoop, LineSegments, LinearInterpolant, LinearMipMapNearestFilter, LoaderUtils, LoadingManager, LoopOnce, LoopPingPong, LoopRepeat, MOUSE, MeshDepthMaterial, MeshDistanceMaterial, NearestMipMapLinearFilter, NearestMipMapNearestFilter, NodePath, NormalAnimationBlendMode, NumberKeyframeTrack, OctahedronGeometry, Path, PlaneHelper, PointLightHelper, Points, PolarGridHelper, PolyhedronGeometry, PositionalAudio, PropertyBinding, PropertyMixer, QuadraticBezierCurve, QuadraticBezierCurve3, QuaternionKeyframeTrack, QuaternionLinearInterpolant, RGBADepthPacking, RGBDepthPacking, RGDepthPacking, RawShaderMaterial, Ray, Raycaster, RenderTarget3D, RingGeometry, ShaderMaterial, Shape, ShapeGeometry, ShapePath, ShapeUtils, Skeleton, SkeletonHelper, SkinnedMesh, Source, Spherical, SphericalHarmonics3, SplineCurve, SpotLightHelper, Sprite, StaticCopyUsage, StaticReadUsage, StereoCamera, StreamCopyUsage, StreamDrawUsage, StreamReadUsage, StringKeyframeTrack, TOUCH, TetrahedronGeometry, TextureLoader, TextureSource, TextureUtils, Timer, TorusGeometry, TorusKnotGeometry, Triangle, TriangleFanDrawMode, TriangleStripDrawMode, TrianglesDrawMode, TubeGeometry, Uint8BufferAttribute, Uint8ClampedBufferAttribute, Uniform, UniformsGroup, VectorKeyframeTrack, VideoFrameTexture, VideoTexture, WebGL3DRenderTarget, WebGLArrayRenderTarget, WebGLRenderTarget, WireframeGeometry, WrapAroundEnding, XorShift32, ZeroCurvatureEnding, ZeroSlopeEnding, allocateNodeId, collectSiblingNodeIds, configureNodeIdSeed, ensureUniqueNodeIdAmongParentChildren, generateNodeId, getConsoleFunction, hashStringToUint32, isValidNodeId, nodeIdFromKey, nodeIdFromString, nodeIdToString, profile, profileClass, randomSeedUint32, setConsoleFunction, xorshift32 } from './three.core.js';
 
 const refreshUniforms = [
@@ -21615,6 +21615,147 @@ class VertexColorNode extends AttributeNode {
 const vertexColor = ( index = 0 ) => new VertexColorNode( index );
 
 // WITH_GENESYS
+// Buffer visualization. Shows one material channel in place of the shaded color.
+// !WITH_GENESYS
+
+
+/**
+ * Buffer visualization. The visible surface wins, and one material channel replaces the shaded color.
+ *
+ * @type {string}
+ */
+const DEBUG_VIEW_BUFFER = 'bufferVisualization';
+
+/**
+ * Albedo before lighting, including maps and vertex colors.
+ *
+ * @type {string}
+ */
+const BUFFER_BASE_COLOR = 'baseColor';
+
+/**
+ * Shading normal in world space, packed to RGB with `n * 0.5 + 0.5`.
+ *
+ * @type {string}
+ */
+const BUFFER_WORLD_NORMAL = 'worldNormal';
+
+/**
+ * Scalar roughness used by the lighting model. Black is smooth.
+ *
+ * @type {string}
+ */
+const BUFFER_ROUGHNESS = 'roughness';
+
+/**
+ * Scalar metalness. White is metal. Unreal calls this buffer Metallic.
+ *
+ * @type {string}
+ */
+const BUFFER_METALLIC = 'metallic';
+
+/**
+ * Material ambient occlusion. White means no occlusion map.
+ *
+ * @type {string}
+ */
+const BUFFER_AMBIENT_OCCLUSION = 'ambientOcclusion';
+
+/**
+ * Emissive color before it is added to the lit result.
+ *
+ * @type {string}
+ */
+const BUFFER_EMISSIVE = 'emissive';
+
+/**
+ * Channel drawn when buffer visualization is first enabled.
+ *
+ * @type {string}
+ */
+const DEFAULT_BUFFER = BUFFER_BASE_COLOR;
+
+/**
+ * Writes a defined value for channels a material may never assign.
+ * Standard and physical materials overwrite roughness and metalness in `setupVariants`,
+ * and emissive is overwritten when the material has one.
+ *
+ * @param {string} buffer - `renderer.debug.buffer`.
+ */
+function assignBufferDefaults( buffer ) {
+
+	if ( buffer === BUFFER_ROUGHNESS ) {
+
+		roughness.assign( float( 0 ) );
+
+	} else if ( buffer === BUFFER_METALLIC ) {
+
+		metalness.assign( float( 0 ) );
+
+	} else if ( buffer === BUFFER_EMISSIVE ) {
+
+		emissive.assign( vec3( 0 ) );
+
+	}
+
+}
+
+/**
+ * The color for one buffer channel. Scalar channels are copied into RGB.
+ *
+ * @param {string} buffer - `renderer.debug.buffer`.
+ * @return {Node<vec3>} The channel color.
+ */
+function bufferVisualizationColor( buffer ) {
+
+	if ( buffer === BUFFER_WORLD_NORMAL ) {
+
+		return normalWorld.mul( 0.5 ).add( 0.5 );
+
+	}
+
+	if ( buffer === BUFFER_ROUGHNESS ) {
+
+		return vec3( roughness );
+
+	}
+
+	if ( buffer === BUFFER_METALLIC ) {
+
+		return vec3( metalness );
+
+	}
+
+	if ( buffer === BUFFER_AMBIENT_OCCLUSION ) {
+
+		return vec3( ambientOcclusion );
+
+	}
+
+	if ( buffer === BUFFER_EMISSIVE ) {
+
+		return emissive;
+
+	}
+
+	return diffuseColor.rgb;
+
+}
+
+/**
+ * Replaces the shaded color with the selected buffer. Alpha stays the material's coverage
+ * so masked and transparent surfaces keep their shape.
+ *
+ * @param {string} buffer - `renderer.debug.buffer`.
+ * @return {Node<vec4>} The buffer color.
+ */
+function bufferVisualizationOutput( buffer ) {
+
+	return vec4( bufferVisualizationColor( buffer ), diffuseColor.a );
+
+}
+
+// WITH_GENESYS
 // Shader and lighting complexity debug views. Costs are a material proxy, not ISA instruction counts.
 // !WITH_GENESYS
 
@@ -21838,6 +21979,37 @@ function debugViewAccumulates( view ) {
 }
 
 /**
+ * Whether a draw adds its scalar to the accumulating target instead of shading normally.
+ * Shadow passes, draws to the screen, and fullscreen quads draw normally. A post-processing
+ * quad copies the accumulated scene target, so its own cost must not replace it.
+ *
+ * @param {Renderer} renderer - The renderer.
+ * @param {Material} material - The material being drawn.
+ * @param {?Object3D} object - The object being drawn.
+ * @return {boolean} `true` when the draw accumulates.
+ */
+function debugDrawAccumulates( renderer, material, object ) {
+
+	return debugViewAccumulates( renderer.debug.view ) &&
+		material.isShadowPassMaterial !== true &&
+		renderer.isOutputTarget !== true &&
+		( object === null || object === undefined || object.isQuadMesh !== true );
+
+}
+
+/**
+ * Views that output data or a heatmap, so tone mapping would distort them.
+ *
+ * @param {string} view - `renderer.debug.view`.
+ * @return {boolean} `true` when the view is drawn without tone mapping.
+ */
+function debugViewSkipsToneMapping( view ) {
+
+	return debugViewAccumulates( view ) || view === DEBUG_VIEW_LIGHTING_COMPLEXITY || view === DEBUG_VIEW_BUFFER;
+
+}
+
+/**
  * Unreal's nonlinear shader-complexity ramp (`ColorizeComplexity`).
  * The first third of the normalized cost spreads across the first seven stops.
  *
@@ -22012,146 +22184,565 @@ function quadOverdrawOutput( resultNode ) {
 
 }
 
-// WITH_GENESYS
-// Buffer visualization. Shows one material channel in place of the shaded color.
-// !WITH_GENESYS
-
-
 /**
- * Buffer visualization. The visible surface wins, and one material channel replaces the shaded color.
+ * This node can be used to define multiple outputs in a shader programs.
  *
- * @type {string}
+ * @augments Node
  */
-const DEBUG_VIEW_BUFFER = 'bufferVisualization';
+class OutputStructNode extends Node {
 
-/**
- * Albedo before lighting, including maps and vertex colors.
- *
- * @type {string}
- */
-const BUFFER_BASE_COLOR = 'baseColor';
+	static get type() {
 
-/**
- * Shading normal in world space, packed to RGB with `n * 0.5 + 0.5`.
- *
- * @type {string}
- */
-const BUFFER_WORLD_NORMAL = 'worldNormal';
+		return 'OutputStructNode';
 
-/**
- * Scalar roughness used by the lighting model. Black is smooth.
- *
- * @type {string}
- */
-const BUFFER_ROUGHNESS = 'roughness';
+	}
 
-/**
- * Scalar metalness. White is metal. Unreal calls this buffer Metallic.
- *
- * @type {string}
- */
-const BUFFER_METALLIC = 'metallic';
+	/**
+	 * Constructs a new output struct node. The constructor can be invoked with an
+	 * arbitrary number of nodes representing the members.
+	 *
+	 * @param {...Node} members - A parameter list of nodes.
+	 */
+	constructor( ...members ) {
 
-/**
- * Material ambient occlusion. White means no occlusion map.
- *
- * @type {string}
- */
-const BUFFER_AMBIENT_OCCLUSION = 'ambientOcclusion';
+		super();
 
-/**
- * Emissive color before it is added to the lit result.
- *
- * @type {string}
- */
-const BUFFER_EMISSIVE = 'emissive';
+		/**
+		 * An array of nodes which defines the output.
+		 *
+		 * @type {Array<Node>}
+		 */
+		this.members = members;
 
-/**
- * Channel drawn when buffer visualization is first enabled.
- *
- * @type {string}
- */
-const DEFAULT_BUFFER = BUFFER_BASE_COLOR;
+		/**
+		 * This flag can be used for type testing.
+		 *
+		 * @type {boolean}
+		 * @readonly
+		 * @default true
+		 */
+		this.isOutputStructNode = true;
 
-/**
- * Writes a defined value for channels a material may never assign.
- * Standard and physical materials overwrite roughness and metalness in `setupVariants`,
- * and emissive is overwritten when the material has one.
- *
- * @param {string} buffer - `renderer.debug.buffer`.
- */
-function assignBufferDefaults( buffer ) {
+	}
 
-	if ( buffer === BUFFER_ROUGHNESS ) {
+	generateNodeType( /*builder*/ ) {
 
-		roughness.assign( float( 0 ) );
+		return 'OutputType';
 
-	} else if ( buffer === BUFFER_METALLIC ) {
+	}
 
-		metalness.assign( float( 0 ) );
+	generate( builder ) {
 
-	} else if ( buffer === BUFFER_EMISSIVE ) {
+		const nodeData = builder.getDataFromNode( this );
 
-		emissive.assign( vec3( 0 ) );
+		if ( nodeData.membersLayout === undefined ) {
+
+			const members = this.members;
+			const membersLayout = [];
+
+			for ( let i = 0; i < members.length; i ++ ) {
+
+				const name = 'm' + i;
+				const type = members[ i ].getNodeType( builder );
+
+				membersLayout.push( { name, type, index: i } );
+
+			}
+
+			nodeData.membersLayout = membersLayout;
+			nodeData.structType = builder.getOutputStructTypeFromNode( this, nodeData.membersLayout );
+
+		}
+
+		//
+
+		const propertyName = builder.getOutputStructName();
+		const members = this.members;
+
+		const structPrefix = propertyName !== '' ? propertyName + '.' : '';
+
+		for ( let i = 0; i < members.length; i ++ ) {
+
+			const snippet = members[ i ].build( builder, nodeData.membersLayout[ i ].type );
+
+			builder.addLineFlowCode( `${ structPrefix }m${ i } = ${ snippet }`, this );
+
+		}
+
+		return propertyName;
 
 	}
 
 }
 
 /**
- * The color for one buffer channel. Scalar channels are copied into RGB.
+ * TSL function for creating an output struct node.
  *
- * @param {string} buffer - `renderer.debug.buffer`.
- * @return {Node<vec3>} The channel color.
+ * @tsl
+ * @function
+ * @param {...Node} members - A parameter list of nodes.
+ * @returns {OutputStructNode}
  */
-function bufferVisualizationColor( buffer ) {
+const outputStruct = /*@__PURE__*/ nodeProxy( OutputStructNode );
 
-	if ( buffer === BUFFER_WORLD_NORMAL ) {
+/**
+ * Represents blending configuration.
+ *
+ * This class encapsulates all blending-related properties that control how
+ * a material's colors are combined with the colors already in the frame buffer.
+ */
+class BlendMode {
 
-		return normalWorld.mul( 0.5 ).add( 0.5 );
+	/**
+	 * Constructs a new blending configuration.
+	 *
+	 * @param {(NoBlending|NormalBlending|AdditiveBlending|SubtractiveBlending|MultiplyBlending|CustomBlending|MaterialBlending)} [blending=NormalBlending] - The blending mode.
+	 */
+	constructor( blending = NormalBlending ) {
+
+		/**
+		 * Defines the blending type.
+		 *
+		 * It must be set to `CustomBlending` if custom blending properties like
+		 * {@link BlendMode#blendSrc}, {@link BlendMode#blendDst} or {@link BlendMode#blendEquation}
+		 * should have any effect.
+		 *
+		 * @type {(NoBlending|NormalBlending|AdditiveBlending|SubtractiveBlending|MultiplyBlending|CustomBlending|MaterialBlending)}
+		 * @default NormalBlending
+		 */
+		this.blending = blending;
+
+		/**
+		 * Defines the blending source factor.
+		 *
+		 * This determines how the source (incoming) fragment color is factored before being added
+		 * to the destination (existing) fragment color in the frame buffer.
+		 *
+		 * @type {(ZeroFactor|OneFactor|SrcColorFactor|OneMinusSrcColorFactor|SrcAlphaFactor|OneMinusSrcAlphaFactor|DstAlphaFactor|OneMinusDstAlphaFactor|DstColorFactor|OneMinusDstColorFactor|SrcAlphaSaturateFactor|ConstantColorFactor|OneMinusConstantColorFactor|ConstantAlphaFactor|OneMinusConstantAlphaFactor)}
+		 * @default SrcAlphaFactor
+		 */
+		this.blendSrc = SrcAlphaFactor;
+
+		/**
+		 * Defines the blending destination factor.
+		 *
+		 * This determines how the destination (existing) fragment color in the frame buffer
+		 * is factored before being combined with the source (incoming) fragment color.
+		 *
+		 * @type {(ZeroFactor|OneFactor|SrcColorFactor|OneMinusSrcColorFactor|SrcAlphaFactor|OneMinusSrcAlphaFactor|DstAlphaFactor|OneMinusDstAlphaFactor|DstColorFactor|OneMinusDstColorFactor|SrcAlphaSaturateFactor|ConstantColorFactor|OneMinusConstantColorFactor|ConstantAlphaFactor|OneMinusConstantAlphaFactor)}
+		 * @default OneMinusSrcAlphaFactor
+		 */
+		this.blendDst = OneMinusSrcAlphaFactor;
+
+		/**
+		 * Defines the blending equation.
+		 *
+		 * This determines how the source and destination colors are combined.
+		 *
+		 * @type {(AddEquation|SubtractEquation|ReverseSubtractEquation|MinEquation|MaxEquation)}
+		 * @default AddEquation
+		 */
+		this.blendEquation = AddEquation;
+
+		/**
+		 * Defines the blending source alpha factor.
+		 *
+		 * When set, this allows separate control of the alpha channel's source blending factor.
+		 * If `null`, {@link BlendMode#blendSrc} is used for the alpha channel as well.
+		 *
+		 * @type {?(ZeroFactor|OneFactor|SrcColorFactor|OneMinusSrcColorFactor|SrcAlphaFactor|OneMinusSrcAlphaFactor|DstAlphaFactor|OneMinusDstAlphaFactor|DstColorFactor|OneMinusDstColorFactor|SrcAlphaSaturateFactor|ConstantColorFactor|OneMinusConstantColorFactor|ConstantAlphaFactor|OneMinusConstantAlphaFactor)}
+		 * @default null
+		 */
+		this.blendSrcAlpha = null;
+
+		/**
+		 * Defines the blending destination alpha factor.
+		 *
+		 * When set, this allows separate control of the alpha channel's destination blending factor.
+		 * If `null`, {@link BlendMode#blendDst} is used for the alpha channel as well.
+		 *
+		 * @type {?(ZeroFactor|OneFactor|SrcColorFactor|OneMinusSrcColorFactor|SrcAlphaFactor|OneMinusSrcAlphaFactor|DstAlphaFactor|OneMinusDstAlphaFactor|DstColorFactor|OneMinusDstColorFactor|SrcAlphaSaturateFactor|ConstantColorFactor|OneMinusConstantColorFactor|ConstantAlphaFactor|OneMinusConstantAlphaFactor)}
+		 * @default null
+		 */
+		this.blendDstAlpha = null;
+
+		/**
+		 * Defines the blending equation of the alpha channel.
+		 *
+		 * When set, this allows separate control of the alpha channel's blending equation.
+		 * If `null`, {@link BlendMode#blendEquation} is used for the alpha channel as well.
+		 *
+		 * @type {?(AddEquation|SubtractEquation|ReverseSubtractEquation|MinEquation|MaxEquation)}
+		 * @default null
+		 */
+		this.blendEquationAlpha = null;
+
+		/**
+		 * Defines whether to premultiply the alpha (transparency) value.
+		 *
+		 * If `true`, the RGB color of the texture or material is multiplied by its alpha value.
+		 * This is useful for transparent textures/materials where the color data
+		 * should already include the transparency information.
+		 *
+		 * @type {boolean}
+		 * @default false
+		 */
+		this.premultiplyAlpha = false;
 
 	}
 
-	if ( buffer === BUFFER_ROUGHNESS ) {
+	/**
+	 * Copies the blending properties from the given source to this instance.
+	 *
+	 * @param {BlendMode} source - The blending configuration to copy from.
+	 * @return {BlendMode} A reference to this instance.
+	 */
+	copy( source ) {
 
-		return vec3( roughness );
+		this.blending = source.blending;
+		this.blendSrc = source.blendSrc;
+		this.blendDst = source.blendDst;
+		this.blendEquation = source.blendEquation;
+		this.blendSrcAlpha = source.blendSrcAlpha;
+		this.blendDstAlpha = source.blendDstAlpha;
+		this.blendEquationAlpha = source.blendEquationAlpha;
+		this.premultiplyAlpha = source.premultiplyAlpha;
 
-	}
-
-	if ( buffer === BUFFER_METALLIC ) {
-
-		return vec3( metalness );
-
-	}
-
-	if ( buffer === BUFFER_AMBIENT_OCCLUSION ) {
-
-		return vec3( ambientOcclusion );
-
-	}
-
-	if ( buffer === BUFFER_EMISSIVE ) {
-
-		return emissive;
+		return this;
 
 	}
 
-	return diffuseColor.rgb;
+	/**
+	 * Returns a clone of this blending configuration.
+	 *
+	 * @return {BlendMode} A new Blending instance with the same properties.
+	 */
+	clone() {
+
+		return new this.constructor().copy( this );
+
+	}
 
 }
 
 /**
- * Replaces the shaded color with the selected buffer. Alpha stays the material's coverage
- * so masked and transparent surfaces keep their shape.
+ * A four-component version of {@link Color} which is internally
+ * used by the renderer to represents clear color with alpha as
+ * one object.
  *
- * @param {string} buffer - `renderer.debug.buffer`.
- * @return {Node<vec4>} The buffer color.
+ * @private
+ * @augments Color
  */
-function bufferVisualizationOutput( buffer ) {
+class Color4 extends Color {
 
-	return vec4( bufferVisualizationColor( buffer ), diffuseColor.a );
+	/**
+	 * Constructs a new four-component color.
+	 * You can also pass a single THREE.Color, hex or
+	 * string argument to this constructor.
+	 *
+	 * @param {number|string} [r=1] - The red value.
+	 * @param {number} [g=1] - The green value.
+	 * @param {number} [b=1] - The blue value.
+	 * @param {number} [a=1] - The alpha value.
+	 */
+	constructor( r, g, b, a = 1 ) {
+
+		super( r, g, b );
+
+		this.a = a;
+
+	}
+
+	/**
+	 * Overwrites the default to honor alpha.
+	 * You can also pass a single THREE.Color, hex or
+	 * string argument to this method.
+	 *
+	 * @param {number|string|Color} r - The red value.
+	 * @param {number} [g] - The green value.
+	 * @param {number} [b] - The blue value.
+	 * @param {number} [a=1] - The alpha value.
+	 * @return {Color4} A reference to this object.
+	 */
+	set( r, g, b, a = 1 ) {
+
+		this.a = a;
+
+		return super.set( r, g, b );
+
+	}
+
+	/**
+	 * Overwrites the default to honor alpha.
+	 *
+	 * @param {Color4} color - The color to copy.
+	 * @return {Color4} A reference to this object.
+	 */
+	copy( color ) {
+
+		if ( color.a !== undefined ) this.a = color.a;
+
+		return super.copy( color );
+
+	}
+
+	/**
+	 * Overwrites the default to honor alpha.
+	 *
+	 * @return {Color4} The cloned color.
+	 */
+	clone() {
+
+		return new this.constructor( this.r, this.g, this.b, this.a );
+
+	}
+
+	*[ Symbol.iterator ]() {
+
+		yield this.r;
+		yield this.g;
+		yield this.b;
+		yield this.a;
+
+	}
 
 }
+
+// Predefined blend modes for MRT nodes.
+const _noBlending = /**@__PURE__*/ new BlendMode( NoBlending );
+const _materialBlending = /**@__PURE__*/ new BlendMode( MaterialBlending );
+
+/**
+ * Returns the MRT texture index for the given name.
+ *
+ * @param {Array<Texture>} textures - The textures of a MRT-configured render target.
+ * @param {string} name - The name of the MRT texture which index is requested.
+ * @return {number} The texture index.
+ */
+function getTextureIndex( textures, name ) {
+
+	for ( let i = 0; i < textures.length; i ++ ) {
+
+		if ( textures[ i ].name === name ) {
+
+			return i;
+
+		}
+
+	}
+
+	return -1;
+
+}
+
+/**
+ * This node can be used setup a MRT context for rendering. A typical MRT setup for
+ * post-processing is shown below:
+ * ```js
+ * const mrtNode = mrt( {
+ *   output: output,
+ *   normal: normalView
+ * } ) ;
+ * ```
+ * The MRT output is defined as a dictionary.
+ *
+ * @augments OutputStructNode
+ */
+class MRTNode extends OutputStructNode {
+
+	static get type() {
+
+		return 'MRTNode';
+
+	}
+
+	/**
+	 * Constructs a new output struct node.
+	 *
+	 * @param {Object<string, Node>} outputNodes - The MRT outputs.
+	 */
+	constructor( outputNodes ) {
+
+		super();
+
+		/**
+		 * A dictionary representing the MRT outputs. The key
+		 * is the name of the output, the value the node which produces
+		 * the output result.
+		 *
+		 * @type {Object<string, Node>}
+		 */
+		this.outputNodes = outputNodes;
+
+		/**
+		 * A dictionary storing the blend modes for each output.
+		 *
+		 * @type {Object<string, BlendMode>}
+		 */
+		this.blendModes = {
+			output: _materialBlending
+		};
+
+		/**
+		 * A dictionary storing the clear colors for each output.
+		 *
+		 * @type {Object<string, Color4>}
+		 */
+		this.clearColors = {};
+
+		/**
+		 * This flag can be used for type testing.
+		 *
+		 * @type {boolean}
+		 * @readonly
+		 * @default true
+		 */
+		this.isMRTNode = true;
+
+	}
+
+	/**
+	 * Sets the blend mode for the given output name.
+	 *
+	 * @param {string} name - The name of the output.
+	 * @param {BlendMode} blend - The blending mode.
+	 * @return {MRTNode} The current MRT node.
+	 */
+	setBlendMode( name, blend ) {
+
+		this.blendModes[ name ] = blend;
+
+		return this;
+
+	}
+
+	/**
+	 * Returns the blend mode for the given output name.
+	 *
+	 * @param {string} name - The name of the output.
+	 * @return {BlendMode} The blend mode.
+	 */
+	getBlendMode( name ) {
+
+		return this.blendModes[ name ] || _noBlending;
+
+	}
+
+	/**
+	 * Sets the clear color for the given output name.
+	 *
+	 * @param {string} name - The name of the output.
+	 * @param {number|string|Color} color - The clear color.
+	 * @param {number} [alpha=1] - The clear alpha.
+	 * @return {MRTNode} The current MRT node.
+	 */
+	setClearColor( name, color, alpha = 1 ) {
+
+		const clearColor = this.clearColors[ name ] || ( this.clearColors[ name ] = new Color4() );
+
+		clearColor.set( color );
+		clearColor.a = alpha;
+
+		return this;
+
+	}
+
+	/**
+	 * Returns the clear color for the given output name.
+	 *
+	 * @param {string} name - The name of the output.
+	 * @return {?Color4} The clear color. Returns `null` if no clear color is defined
+	 * which means the renderer's default clear policy is applied.
+	 */
+	getClearColor( name ) {
+
+		return this.clearColors[ name ] || null;
+
+	}
+
+	/**
+	 * Returns `true` if the MRT node has an output with the given name.
+	 *
+	 * @param {string} name - The name of the output.
+	 * @return {NodeBuilder} Whether the MRT node has an output for the given name or not.
+	 */
+	has( name ) {
+
+		return this.outputNodes[ name ] !== undefined;
+
+	}
+
+	/**
+	 * Returns the output node for the given name.
+	 *
+	 * @param {string} name - The name of the output.
+	 * @return {Node} The output node.
+	 */
+	get( name ) {
+
+		return this.outputNodes[ name ];
+
+	}
+
+	/**
+	 * Merges the outputs of the given MRT node with the outputs of this node.
+	 *
+	 * @param {MRTNode} mrtNode - The MRT to merge.
+	 * @return {MRTNode} A new MRT node with merged outputs..
+	 */
+	merge( mrtNode ) {
+
+		const outputs = { ...this.outputNodes, ...mrtNode.outputNodes };
+		const blendModes = { ...this.blendModes, ...mrtNode.blendModes };
+		const clearColors = { ...this.clearColors, ...mrtNode.clearColors };
+
+		const mrtTarget = mrt( outputs );
+		mrtTarget.blendModes = blendModes;
+		mrtTarget.clearColors = clearColors;
+
+		return mrtTarget;
+
+	}
+
+	setup( builder ) {
+
+		const outputNodes = this.outputNodes;
+		const mrt = builder.renderer.getRenderTarget();
+
+		const members = [];
+
+		const textures = mrt.textures;
+
+		for ( const name in outputNodes ) {
+
+			const index = getTextureIndex( textures, name );
+
+			// Ignore if the output exists in the MRT but has never been used.
+			if ( index === -1 ) continue;
+
+			const type = builder.getOutputType( index );
+
+			members[ index ] = outputNodes[ name ].convert( type );
+
+		}
+
+		this.members = members;
+
+		return super.setup( builder );
+
+	}
+
+}
+
+/**
+ * TSL function for creating a MRT node.
+ *
+ * @tsl
+ * @function
+ * @param {Object<string, Node>} outputNodes - The MRT outputs.
+ * @returns {MRTNode}
+ */
+const mrt = /*@__PURE__*/ nodeProxy( MRTNode );
 
 // WITH_GENESYS
 // Lighting only and detail lighting. Both replace the shaded albedo with a flat gray.
@@ -22373,6 +22964,24 @@ function applyDrawCallDebug( builder ) {
 
 }
 
+/**
+ * Replaces the color a material writes with a debug output. With MRT, only the `output`
+ * attachment is replaced so the other attachments keep their members. Converting the
+ * whole MRT struct to a color leaves WGSL with an empty output struct.
+ *
+ * @param {Node} resultNode - The material's fragment result, possibly an MRT node.
+ * @param {function(Node): Node} createOutput - Builds the debug color from the shaded color.
+ * @return {Node} The fragment result with the debug color in place.
+ */
+function replaceColorOutput( resultNode, createOutput ) {
+
+	if ( resultNode.isMRTNode !== true ) return createOutput( resultNode );
+
+	if ( resultNode.has( 'output' ) !== true ) return resultNode;
+
+	return resultNode.merge( mrt( { output: createOutput( resultNode.get( 'output' ) ) } ) );
+
+}
 // !WITH_GENESYS
 
 /**
@@ -22970,27 +23579,32 @@ class NodeMaterial extends Material {
 		}
 
 		// WITH_GENESYS
-		// The screen output pass colorizes the accumulated ratio. Wrapping that pass
-		// would replace the heatmap with this material's own constant cost.
-		if ( renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY && this.isShadowPassMaterial !== true && renderer.isOutputTarget !== true ) {
+		// The screen output pass colorizes the accumulated ratio. Wrapping that pass, or a
+		// post-processing quad that copies the scene target, would replace the heatmap with
+		// that quad's own constant cost.
+		if ( debugDrawAccumulates( renderer, this, builder.object ) ) {
 
-			builder.shaderComplexityBase = this.getShaderComplexity();
-			resultNode = shaderComplexityOutput( resultNode );
+			if ( renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY ) {
 
-		} else if ( renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS && this.isShadowPassMaterial !== true && renderer.isOutputTarget !== true ) {
+				builder.shaderComplexityBase = this.getShaderComplexity();
+				resultNode = replaceColorOutput( resultNode, shaderComplexityOutput );
 
-			builder.shaderComplexityBase = this.getShaderComplexity();
-			resultNode = shaderComplexityAndQuadsOutput( resultNode );
+			} else if ( renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS ) {
 
-		} else if ( renderer.debug.view === DEBUG_VIEW_QUAD_OVERDRAW && this.isShadowPassMaterial !== true && renderer.isOutputTarget !== true ) {
+				builder.shaderComplexityBase = this.getShaderComplexity();
+				resultNode = replaceColorOutput( resultNode, shaderComplexityAndQuadsOutput );
 
-			resultNode = quadOverdrawOutput( resultNode );
+			} else {
+
+				resultNode = replaceColorOutput( resultNode, quadOverdrawOutput );
+
+			}
 
 		} else if ( renderer.debug.view === DEBUG_VIEW_BUFFER && this.isShadowPassMaterial !== true && this.fragmentNode === null ) {
 
 			// The fullscreen output pass sets fragmentNode. Scene materials do not, including
 			// when the scene is drawn straight to the canvas.
-			resultNode = bufferVisualizationOutput( renderer.debug.buffer );
+			resultNode = replaceColorOutput( resultNode, () => bufferVisualizationOutput( renderer.debug.buffer ) );
 
 		}
 		// !WITH_GENESYS
@@ -36902,89 +37516,6 @@ class Textures extends DataMap {
 }
 
 /**
- * A four-component version of {@link Color} which is internally
- * used by the renderer to represents clear color with alpha as
- * one object.
- *
- * @private
- * @augments Color
- */
-class Color4 extends Color {
-
-	/**
-	 * Constructs a new four-component color.
-	 * You can also pass a single THREE.Color, hex or
-	 * string argument to this constructor.
-	 *
-	 * @param {number|string} [r=1] - The red value.
-	 * @param {number} [g=1] - The green value.
-	 * @param {number} [b=1] - The blue value.
-	 * @param {number} [a=1] - The alpha value.
-	 */
-	constructor( r, g, b, a = 1 ) {
-
-		super( r, g, b );
-
-		this.a = a;
-
-	}
-
-	/**
-	 * Overwrites the default to honor alpha.
-	 * You can also pass a single THREE.Color, hex or
-	 * string argument to this method.
-	 *
-	 * @param {number|string|Color} r - The red value.
-	 * @param {number} [g] - The green value.
-	 * @param {number} [b] - The blue value.
-	 * @param {number} [a=1] - The alpha value.
-	 * @return {Color4} A reference to this object.
-	 */
-	set( r, g, b, a = 1 ) {
-
-		this.a = a;
-
-		return super.set( r, g, b );
-
-	}
-
-	/**
-	 * Overwrites the default to honor alpha.
-	 *
-	 * @param {Color4} color - The color to copy.
-	 * @return {Color4} A reference to this object.
-	 */
-	copy( color ) {
-
-		if ( color.a !== undefined ) this.a = color.a;
-
-		return super.copy( color );
-
-	}
-
-	/**
-	 * Overwrites the default to honor alpha.
-	 *
-	 * @return {Color4} The cloned color.
-	 */
-	clone() {
-
-		return new this.constructor( this.r, this.g, this.b, this.a );
-
-	}
-
-	*[ Symbol.iterator ]() {
-
-		yield this.r;
-		yield this.g;
-		yield this.b;
-		yield this.a;
-
-	}
-
-}
-
-/**
  * A specialized context node designed to override specific target nodes within a
  * node sub-graph or flow. This allows replacing specific inputs (e.g., normal
  * and position vectors) dynamically during compilation for a specific flow node,
@@ -37931,483 +38462,6 @@ const struct = ( membersLayout, name = null ) => {
 	return nodeProxyConstructor( struct, structType );
 
 };
-
-/**
- * This node can be used to define multiple outputs in a shader programs.
- *
- * @augments Node
- */
-class OutputStructNode extends Node {
-
-	static get type() {
-
-		return 'OutputStructNode';
-
-	}
-
-	/**
-	 * Constructs a new output struct node. The constructor can be invoked with an
-	 * arbitrary number of nodes representing the members.
-	 *
-	 * @param {...Node} members - A parameter list of nodes.
-	 */
-	constructor( ...members ) {
-
-		super();
-
-		/**
-		 * An array of nodes which defines the output.
-		 *
-		 * @type {Array<Node>}
-		 */
-		this.members = members;
-
-		/**
-		 * This flag can be used for type testing.
-		 *
-		 * @type {boolean}
-		 * @readonly
-		 * @default true
-		 */
-		this.isOutputStructNode = true;
-
-	}
-
-	generateNodeType( /*builder*/ ) {
-
-		return 'OutputType';
-
-	}
-
-	generate( builder ) {
-
-		const nodeData = builder.getDataFromNode( this );
-
-		if ( nodeData.membersLayout === undefined ) {
-
-			const members = this.members;
-			const membersLayout = [];
-
-			for ( let i = 0; i < members.length; i ++ ) {
-
-				const name = 'm' + i;
-				const type = members[ i ].getNodeType( builder );
-
-				membersLayout.push( { name, type, index: i } );
-
-			}
-
-			nodeData.membersLayout = membersLayout;
-			nodeData.structType = builder.getOutputStructTypeFromNode( this, nodeData.membersLayout );
-
-		}
-
-		//
-
-		const propertyName = builder.getOutputStructName();
-		const members = this.members;
-
-		const structPrefix = propertyName !== '' ? propertyName + '.' : '';
-
-		for ( let i = 0; i < members.length; i ++ ) {
-
-			const snippet = members[ i ].build( builder, nodeData.membersLayout[ i ].type );
-
-			builder.addLineFlowCode( `${ structPrefix }m${ i } = ${ snippet }`, this );
-
-		}
-
-		return propertyName;
-
-	}
-
-}
-
-/**
- * TSL function for creating an output struct node.
- *
- * @tsl
- * @function
- * @param {...Node} members - A parameter list of nodes.
- * @returns {OutputStructNode}
- */
-const outputStruct = /*@__PURE__*/ nodeProxy( OutputStructNode );
-
-/**
- * Represents blending configuration.
- *
- * This class encapsulates all blending-related properties that control how
- * a material's colors are combined with the colors already in the frame buffer.
- */
-class BlendMode {
-
-	/**
-	 * Constructs a new blending configuration.
-	 *
-	 * @param {(NoBlending|NormalBlending|AdditiveBlending|SubtractiveBlending|MultiplyBlending|CustomBlending|MaterialBlending)} [blending=NormalBlending] - The blending mode.
-	 */
-	constructor( blending = NormalBlending ) {
-
-		/**
-		 * Defines the blending type.
-		 *
-		 * It must be set to `CustomBlending` if custom blending properties like
-		 * {@link BlendMode#blendSrc}, {@link BlendMode#blendDst} or {@link BlendMode#blendEquation}
-		 * should have any effect.
-		 *
-		 * @type {(NoBlending|NormalBlending|AdditiveBlending|SubtractiveBlending|MultiplyBlending|CustomBlending|MaterialBlending)}
-		 * @default NormalBlending
-		 */
-		this.blending = blending;
-
-		/**
-		 * Defines the blending source factor.
-		 *
-		 * This determines how the source (incoming) fragment color is factored before being added
-		 * to the destination (existing) fragment color in the frame buffer.
-		 *
-		 * @type {(ZeroFactor|OneFactor|SrcColorFactor|OneMinusSrcColorFactor|SrcAlphaFactor|OneMinusSrcAlphaFactor|DstAlphaFactor|OneMinusDstAlphaFactor|DstColorFactor|OneMinusDstColorFactor|SrcAlphaSaturateFactor|ConstantColorFactor|OneMinusConstantColorFactor|ConstantAlphaFactor|OneMinusConstantAlphaFactor)}
-		 * @default SrcAlphaFactor
-		 */
-		this.blendSrc = SrcAlphaFactor;
-
-		/**
-		 * Defines the blending destination factor.
-		 *
-		 * This determines how the destination (existing) fragment color in the frame buffer
-		 * is factored before being combined with the source (incoming) fragment color.
-		 *
-		 * @type {(ZeroFactor|OneFactor|SrcColorFactor|OneMinusSrcColorFactor|SrcAlphaFactor|OneMinusSrcAlphaFactor|DstAlphaFactor|OneMinusDstAlphaFactor|DstColorFactor|OneMinusDstColorFactor|SrcAlphaSaturateFactor|ConstantColorFactor|OneMinusConstantColorFactor|ConstantAlphaFactor|OneMinusConstantAlphaFactor)}
-		 * @default OneMinusSrcAlphaFactor
-		 */
-		this.blendDst = OneMinusSrcAlphaFactor;
-
-		/**
-		 * Defines the blending equation.
-		 *
-		 * This determines how the source and destination colors are combined.
-		 *
-		 * @type {(AddEquation|SubtractEquation|ReverseSubtractEquation|MinEquation|MaxEquation)}
-		 * @default AddEquation
-		 */
-		this.blendEquation = AddEquation;
-
-		/**
-		 * Defines the blending source alpha factor.
-		 *
-		 * When set, this allows separate control of the alpha channel's source blending factor.
-		 * If `null`, {@link BlendMode#blendSrc} is used for the alpha channel as well.
-		 *
-		 * @type {?(ZeroFactor|OneFactor|SrcColorFactor|OneMinusSrcColorFactor|SrcAlphaFactor|OneMinusSrcAlphaFactor|DstAlphaFactor|OneMinusDstAlphaFactor|DstColorFactor|OneMinusDstColorFactor|SrcAlphaSaturateFactor|ConstantColorFactor|OneMinusConstantColorFactor|ConstantAlphaFactor|OneMinusConstantAlphaFactor)}
-		 * @default null
-		 */
-		this.blendSrcAlpha = null;
-
-		/**
-		 * Defines the blending destination alpha factor.
-		 *
-		 * When set, this allows separate control of the alpha channel's destination blending factor.
-		 * If `null`, {@link BlendMode#blendDst} is used for the alpha channel as well.
-		 *
-		 * @type {?(ZeroFactor|OneFactor|SrcColorFactor|OneMinusSrcColorFactor|SrcAlphaFactor|OneMinusSrcAlphaFactor|DstAlphaFactor|OneMinusDstAlphaFactor|DstColorFactor|OneMinusDstColorFactor|SrcAlphaSaturateFactor|ConstantColorFactor|OneMinusConstantColorFactor|ConstantAlphaFactor|OneMinusConstantAlphaFactor)}
-		 * @default null
-		 */
-		this.blendDstAlpha = null;
-
-		/**
-		 * Defines the blending equation of the alpha channel.
-		 *
-		 * When set, this allows separate control of the alpha channel's blending equation.
-		 * If `null`, {@link BlendMode#blendEquation} is used for the alpha channel as well.
-		 *
-		 * @type {?(AddEquation|SubtractEquation|ReverseSubtractEquation|MinEquation|MaxEquation)}
-		 * @default null
-		 */
-		this.blendEquationAlpha = null;
-
-		/**
-		 * Defines whether to premultiply the alpha (transparency) value.
-		 *
-		 * If `true`, the RGB color of the texture or material is multiplied by its alpha value.
-		 * This is useful for transparent textures/materials where the color data
-		 * should already include the transparency information.
-		 *
-		 * @type {boolean}
-		 * @default false
-		 */
-		this.premultiplyAlpha = false;
-
-	}
-
-	/**
-	 * Copies the blending properties from the given source to this instance.
-	 *
-	 * @param {BlendMode} source - The blending configuration to copy from.
-	 * @return {BlendMode} A reference to this instance.
-	 */
-	copy( source ) {
-
-		this.blending = source.blending;
-		this.blendSrc = source.blendSrc;
-		this.blendDst = source.blendDst;
-		this.blendEquation = source.blendEquation;
-		this.blendSrcAlpha = source.blendSrcAlpha;
-		this.blendDstAlpha = source.blendDstAlpha;
-		this.blendEquationAlpha = source.blendEquationAlpha;
-		this.premultiplyAlpha = source.premultiplyAlpha;
-
-		return this;
-
-	}
-
-	/**
-	 * Returns a clone of this blending configuration.
-	 *
-	 * @return {BlendMode} A new Blending instance with the same properties.
-	 */
-	clone() {
-
-		return new this.constructor().copy( this );
-
-	}
-
-}
-
-// Predefined blend modes for MRT nodes.
-const _noBlending = /**@__PURE__*/ new BlendMode( NoBlending );
-const _materialBlending = /**@__PURE__*/ new BlendMode( MaterialBlending );
-
-/**
- * Returns the MRT texture index for the given name.
- *
- * @param {Array<Texture>} textures - The textures of a MRT-configured render target.
- * @param {string} name - The name of the MRT texture which index is requested.
- * @return {number} The texture index.
- */
-function getTextureIndex( textures, name ) {
-
-	for ( let i = 0; i < textures.length; i ++ ) {
-
-		if ( textures[ i ].name === name ) {
-
-			return i;
-
-		}
-
-	}
-
-	return -1;
-
-}
-
-/**
- * This node can be used setup a MRT context for rendering. A typical MRT setup for
- * post-processing is shown below:
- * ```js
- * const mrtNode = mrt( {
- *   output: output,
- *   normal: normalView
- * } ) ;
- * ```
- * The MRT output is defined as a dictionary.
- *
- * @augments OutputStructNode
- */
-class MRTNode extends OutputStructNode {
-
-	static get type() {
-
-		return 'MRTNode';
-
-	}
-
-	/**
-	 * Constructs a new output struct node.
-	 *
-	 * @param {Object<string, Node>} outputNodes - The MRT outputs.
-	 */
-	constructor( outputNodes ) {
-
-		super();
-
-		/**
-		 * A dictionary representing the MRT outputs. The key
-		 * is the name of the output, the value the node which produces
-		 * the output result.
-		 *
-		 * @type {Object<string, Node>}
-		 */
-		this.outputNodes = outputNodes;
-
-		/**
-		 * A dictionary storing the blend modes for each output.
-		 *
-		 * @type {Object<string, BlendMode>}
-		 */
-		this.blendModes = {
-			output: _materialBlending
-		};
-
-		/**
-		 * A dictionary storing the clear colors for each output.
-		 *
-		 * @type {Object<string, Color4>}
-		 */
-		this.clearColors = {};
-
-		/**
-		 * This flag can be used for type testing.
-		 *
-		 * @type {boolean}
-		 * @readonly
-		 * @default true
-		 */
-		this.isMRTNode = true;
-
-	}
-
-	/**
-	 * Sets the blend mode for the given output name.
-	 *
-	 * @param {string} name - The name of the output.
-	 * @param {BlendMode} blend - The blending mode.
-	 * @return {MRTNode} The current MRT node.
-	 */
-	setBlendMode( name, blend ) {
-
-		this.blendModes[ name ] = blend;
-
-		return this;
-
-	}
-
-	/**
-	 * Returns the blend mode for the given output name.
-	 *
-	 * @param {string} name - The name of the output.
-	 * @return {BlendMode} The blend mode.
-	 */
-	getBlendMode( name ) {
-
-		return this.blendModes[ name ] || _noBlending;
-
-	}
-
-	/**
-	 * Sets the clear color for the given output name.
-	 *
-	 * @param {string} name - The name of the output.
-	 * @param {number|string|Color} color - The clear color.
-	 * @param {number} [alpha=1] - The clear alpha.
-	 * @return {MRTNode} The current MRT node.
-	 */
-	setClearColor( name, color, alpha = 1 ) {
-
-		const clearColor = this.clearColors[ name ] || ( this.clearColors[ name ] = new Color4() );
-
-		clearColor.set( color );
-		clearColor.a = alpha;
-
-		return this;
-
-	}
-
-	/**
-	 * Returns the clear color for the given output name.
-	 *
-	 * @param {string} name - The name of the output.
-	 * @return {?Color4} The clear color. Returns `null` if no clear color is defined
-	 * which means the renderer's default clear policy is applied.
-	 */
-	getClearColor( name ) {
-
-		return this.clearColors[ name ] || null;
-
-	}
-
-	/**
-	 * Returns `true` if the MRT node has an output with the given name.
-	 *
-	 * @param {string} name - The name of the output.
-	 * @return {NodeBuilder} Whether the MRT node has an output for the given name or not.
-	 */
-	has( name ) {
-
-		return this.outputNodes[ name ] !== undefined;
-
-	}
-
-	/**
-	 * Returns the output node for the given name.
-	 *
-	 * @param {string} name - The name of the output.
-	 * @return {Node} The output node.
-	 */
-	get( name ) {
-
-		return this.outputNodes[ name ];
-
-	}
-
-	/**
-	 * Merges the outputs of the given MRT node with the outputs of this node.
-	 *
-	 * @param {MRTNode} mrtNode - The MRT to merge.
-	 * @return {MRTNode} A new MRT node with merged outputs..
-	 */
-	merge( mrtNode ) {
-
-		const outputs = { ...this.outputNodes, ...mrtNode.outputNodes };
-		const blendModes = { ...this.blendModes, ...mrtNode.blendModes };
-		const clearColors = { ...this.clearColors, ...mrtNode.clearColors };
-
-		const mrtTarget = mrt( outputs );
-		mrtTarget.blendModes = blendModes;
-		mrtTarget.clearColors = clearColors;
-
-		return mrtTarget;
-
-	}
-
-	setup( builder ) {
-
-		const outputNodes = this.outputNodes;
-		const mrt = builder.renderer.getRenderTarget();
-
-		const members = [];
-
-		const textures = mrt.textures;
-
-		for ( const name in outputNodes ) {
-
-			const index = getTextureIndex( textures, name );
-
-			// Ignore if the output exists in the MRT but has never been used.
-			if ( index === -1 ) continue;
-
-			const type = builder.getOutputType( index );
-
-			members[ index ] = outputNodes[ name ].convert( type );
-
-		}
-
-		this.members = members;
-
-		return super.setup( builder );
-
-	}
-
-}
-
-/**
- * TSL function for creating a MRT node.
- *
- * @tsl
- * @function
- * @param {Object<string, Node>} outputNodes - The MRT outputs.
- * @returns {MRTNode}
- */
-const mrt = /*@__PURE__*/ nodeProxy( MRTNode );
 
 /**
  * This node represents an operation that reinterprets the bit representation of a value
@@ -66363,7 +66417,8 @@ class Renderer {
 
 		// WITH_GENESYS
 		// Accumulating views write a scalar into an intermediate target, then the output pass colorizes it.
-		return useToneMapping || useColorSpace || debugViewAccumulates( this.debug.view );
+		// Only screen output needs one. An off-screen target, such as a scene pass, already is the target.
+		return useToneMapping || useColorSpace || ( debugViewAccumulates( this.debug.view ) && this.isOutputTarget );
 		// !WITH_GENESYS
 		// return useToneMapping || useColorSpace;
 
@@ -66417,9 +66472,7 @@ class Renderer {
 	get currentToneMapping() {
 
 		// WITH_GENESYS
-		const view = this.debug.view;
-
-		if ( view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS || view === DEBUG_VIEW_LIGHTING_COMPLEXITY || view === DEBUG_VIEW_QUAD_OVERDRAW || view === DEBUG_VIEW_BUFFER ) {
+		if ( debugViewSkipsToneMapping( this.debug.view ) ) {
 
 			return NoToneMapping;
 
@@ -73133,8 +73186,9 @@ class WebGLState {
 	 * @param {Material} material - The material to configure the state for.
 	 * @param {number} frontFaceCW - Whether the front faces are counter-clockwise or not.
 	 * @param {number} hardwareClippingPlanes - The number of hardware clipping planes.
+	 * @param {?Object3D} [object=null] - The object being drawn. Used by the accumulating debug views.
 	 */
-	setMaterial( material, frontFaceCW, hardwareClippingPlanes ) {
+	setMaterial( material, frontFaceCW, hardwareClippingPlanes, object = null ) {
 
 		const { gl } = this;
 
@@ -73149,7 +73203,7 @@ class WebGLState {
 
 		// WITH_GENESYS
 		// WebGL has no cached render pipeline. One+One is applied on each draw instead.
-		if ( debugViewAccumulates( this.backend.renderer.debug.view ) && material.isShadowPassMaterial !== true && this.backend.renderer.isOutputTarget !== true ) {
+		if ( debugDrawAccumulates( this.backend.renderer, material, object ) ) {
 
 			this.setBlending( AdditiveBlending, AddEquation, OneFactor, OneFactor, AddEquation, OneFactor, OneFactor, material.blendColor, material.blendAlpha, true );
 
@@ -77399,7 +77453,10 @@ class WebGLBackend extends Backend {
 
 		const frontFaceCW = ( object.isMesh && object.matrixWorld.determinantAffine() < 0 );
 
-		state.setMaterial( material, frontFaceCW, hardwareClippingPlanes );
+		// WITH_GENESYS
+		state.setMaterial( material, frontFaceCW, hardwareClippingPlanes, object );
+		// !WITH_GENESYS
+		// state.setMaterial( material, frontFaceCW, hardwareClippingPlanes );
 
 		if ( context.mrt !== null && context.textures !== null ) {
 
@@ -87854,7 +87911,7 @@ class WebGPUPipelineUtils {
 
 		// WITH_GENESYS
 		// Accumulate shader cost with One+One. Opaque materials normally disable blending.
-		if ( debugViewAccumulates( backend.renderer.debug.view ) && material.isShadowPassMaterial !== true && backend.renderer.isOutputTarget !== true ) {
+		if ( debugDrawAccumulates( backend.renderer, material, object ) ) {
 
 			materialBlending = {
 				color: {
@@ -92879,6 +92936,8 @@ class BundleGroup extends Group {
 
 }
 
+// !WITH_GENESYS
+
 /**
  * This module is responsible to manage the rendering pipeline setups in apps.
  * You usually create a single instance of this class and use it to define
@@ -93013,7 +93072,12 @@ class RenderPipeline {
 		const outputColorSpace = renderer.outputColorSpace;
 
 		renderer.toneMapping = NoToneMapping;
-		renderer.outputColorSpace = ColorManagement.workingColorSpace;
+
+		// WITH_GENESYS
+		// Accumulating views colorize in the renderer's output pass, which must still encode the color space.
+		if ( debugViewAccumulates( renderer.debug.view ) !== true ) renderer.outputColorSpace = ColorManagement.workingColorSpace;
+		// !WITH_GENESYS
+		// renderer.outputColorSpace = ColorManagement.workingColorSpace;
 
 		//
 
@@ -93089,19 +93153,40 @@ class RenderPipeline {
 	 */
 	_update() {
 
-		if ( this._toneMapping !== this.renderer.toneMapping ) {
+		// WITH_GENESYS
+		// Debug views drawn without tone mapping must match the direct path. An accumulating
+		// view copies the raw ratio here, and the renderer's output pass colorizes it.
+		const view = this.renderer.debug.view;
+		const toneMapping = debugViewSkipsToneMapping( view ) ? NoToneMapping : this.renderer.toneMapping;
+		const outputColorSpace = debugViewAccumulates( view ) ? ColorManagement.workingColorSpace : this.renderer.outputColorSpace;
 
-			this._toneMapping = this.renderer.toneMapping;
+		if ( this._toneMapping !== toneMapping ) {
+
+			this._toneMapping = toneMapping;
 			this.needsUpdate = true;
 
 		}
 
-		if ( this._outputColorSpace !== this.renderer.outputColorSpace ) {
+		if ( this._outputColorSpace !== outputColorSpace ) {
 
-			this._outputColorSpace = this.renderer.outputColorSpace;
+			this._outputColorSpace = outputColorSpace;
 			this.needsUpdate = true;
 
 		}
+		// !WITH_GENESYS
+		// if ( this._toneMapping !== this.renderer.toneMapping ) {
+		//
+		// 	this._toneMapping = this.renderer.toneMapping;
+		// 	this.needsUpdate = true;
+		//
+		// }
+		//
+		// if ( this._outputColorSpace !== this.renderer.outputColorSpace ) {
+		//
+		// 	this._outputColorSpace = this.renderer.outputColorSpace;
+		// 	this.needsUpdate = true;
+		//
+		// }
 
 		if ( this.needsUpdate === true ) {
 

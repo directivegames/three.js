@@ -37,8 +37,8 @@ import { float, vec3, vec4, Fn } from '../../nodes/tsl/TSLCore.js';
 import { detachRendererReference } from '../../nodes/accessors/RendererReferenceNode.js';
 import { toneMappingExposure } from '../../nodes/display/ToneMappingNode.js';
 import { ProfilerService } from '../../profiler/ProfilerService.js';
-import { DEBUG_VIEW_LIGHTING_COMPLEXITY, DEBUG_VIEW_NONE, DEBUG_VIEW_QUAD_OVERDRAW, DEBUG_VIEW_SHADER_COMPLEXITY, DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS, DEFAULT_QUAD_OVERDRAW_BUDGET, DEFAULT_SHADER_COMPLEXITY_BUDGET, debugViewAccumulates } from '../../nodes/display/ComplexityDebug.js';
-import { DEBUG_VIEW_BUFFER, DEFAULT_BUFFER } from '../../nodes/display/BufferDebug.js';
+import { DEBUG_VIEW_NONE, DEFAULT_QUAD_OVERDRAW_BUDGET, DEFAULT_SHADER_COMPLEXITY_BUDGET, debugViewAccumulates, debugViewSkipsToneMapping } from '../../nodes/display/ComplexityDebug.js';
+import { DEFAULT_BUFFER } from '../../nodes/display/BufferDebug.js';
 // !WITH_GENESYS
 import { reference } from '../../nodes/accessors/ReferenceNode.js';
 import { highpModelNormalViewMatrix, highpModelViewMatrix } from '../../nodes/accessors/ModelNode.js';
@@ -2705,7 +2705,8 @@ class Renderer {
 
 		// WITH_GENESYS
 		// Accumulating views write a scalar into an intermediate target, then the output pass colorizes it.
-		return useToneMapping || useColorSpace || debugViewAccumulates( this.debug.view );
+		// Only screen output needs one. An off-screen target, such as a scene pass, already is the target.
+		return useToneMapping || useColorSpace || ( debugViewAccumulates( this.debug.view ) && this.isOutputTarget );
 		// !WITH_GENESYS
 		// return useToneMapping || useColorSpace;
 
@@ -2759,9 +2760,7 @@ class Renderer {
 	get currentToneMapping() {
 
 		// WITH_GENESYS
-		const view = this.debug.view;
-
-		if ( view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS || view === DEBUG_VIEW_LIGHTING_COMPLEXITY || view === DEBUG_VIEW_QUAD_OVERDRAW || view === DEBUG_VIEW_BUFFER ) {
+		if ( debugViewSkipsToneMapping( this.debug.view ) ) {
 
 			return NoToneMapping;
 

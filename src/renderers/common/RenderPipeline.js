@@ -4,6 +4,9 @@ import { vec4, renderOutput, context } from '../../nodes/TSL.js';
 import { NoToneMapping } from '../../constants.js';
 import QuadMesh from '../../renderers/common/QuadMesh.js';
 import { warnOnce } from '../../utils.js';
+// WITH_GENESYS
+import { debugViewAccumulates, debugViewSkipsToneMapping } from '../../nodes/display/ComplexityDebug.js';
+// !WITH_GENESYS
 
 /**
  * This module is responsible to manage the rendering pipeline setups in apps.
@@ -139,7 +142,12 @@ class RenderPipeline {
 		const outputColorSpace = renderer.outputColorSpace;
 
 		renderer.toneMapping = NoToneMapping;
-		renderer.outputColorSpace = ColorManagement.workingColorSpace;
+
+		// WITH_GENESYS
+		// Accumulating views colorize in the renderer's output pass, which must still encode the color space.
+		if ( debugViewAccumulates( renderer.debug.view ) !== true ) renderer.outputColorSpace = ColorManagement.workingColorSpace;
+		// !WITH_GENESYS
+		// renderer.outputColorSpace = ColorManagement.workingColorSpace;
 
 		//
 
@@ -215,19 +223,40 @@ class RenderPipeline {
 	 */
 	_update() {
 
-		if ( this._toneMapping !== this.renderer.toneMapping ) {
+		// WITH_GENESYS
+		// Debug views drawn without tone mapping must match the direct path. An accumulating
+		// view copies the raw ratio here, and the renderer's output pass colorizes it.
+		const view = this.renderer.debug.view;
+		const toneMapping = debugViewSkipsToneMapping( view ) ? NoToneMapping : this.renderer.toneMapping;
+		const outputColorSpace = debugViewAccumulates( view ) ? ColorManagement.workingColorSpace : this.renderer.outputColorSpace;
 
-			this._toneMapping = this.renderer.toneMapping;
+		if ( this._toneMapping !== toneMapping ) {
+
+			this._toneMapping = toneMapping;
 			this.needsUpdate = true;
 
 		}
 
-		if ( this._outputColorSpace !== this.renderer.outputColorSpace ) {
+		if ( this._outputColorSpace !== outputColorSpace ) {
 
-			this._outputColorSpace = this.renderer.outputColorSpace;
+			this._outputColorSpace = outputColorSpace;
 			this.needsUpdate = true;
 
 		}
+		// !WITH_GENESYS
+		// if ( this._toneMapping !== this.renderer.toneMapping ) {
+		//
+		// 	this._toneMapping = this.renderer.toneMapping;
+		// 	this.needsUpdate = true;
+		//
+		// }
+		//
+		// if ( this._outputColorSpace !== this.renderer.outputColorSpace ) {
+		//
+		// 	this._outputColorSpace = this.renderer.outputColorSpace;
+		// 	this.needsUpdate = true;
+		//
+		// }
 
 		if ( this.needsUpdate === true ) {
 

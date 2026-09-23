@@ -26,10 +26,30 @@ import { vertexColor } from '../../nodes/accessors/VertexColorNode.js';
 import { premultiplyAlpha } from '../../nodes/display/PremultiplyAlphaFunctions.js';
 import { subBuild } from '../../nodes/core/SubBuildNode.js';
 // WITH_GENESYS
-import { DEBUG_VIEW_LIGHTING_COMPLEXITY, DEBUG_VIEW_QUAD_OVERDRAW, DEBUG_VIEW_SHADER_COMPLEXITY, DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS, quadOverdrawOutput, shaderComplexityAndQuadsOutput, shaderComplexityOutput } from '../../nodes/display/ComplexityDebug.js';
+import { DEBUG_VIEW_LIGHTING_COMPLEXITY, DEBUG_VIEW_SHADER_COMPLEXITY, DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS, debugDrawAccumulates, quadOverdrawOutput, shaderComplexityAndQuadsOutput, shaderComplexityOutput } from '../../nodes/display/ComplexityDebug.js';
+import { mrt } from '../../nodes/core/MRTNode.js';
 import { DEBUG_VIEW_BUFFER, assignBufferDefaults, bufferVisualizationOutput } from '../../nodes/display/BufferDebug.js';
 import { DEBUG_VIEW_DETAIL_LIGHTING, DEBUG_VIEW_LIGHTING_ONLY, applyLightingDebug, lightingOnlyNormal } from '../../nodes/display/LightingDebug.js';
 import { DEBUG_VIEW_DRAW_CALL, applyDrawCallDebug } from '../../nodes/display/DrawCallDebug.js';
+
+/**
+ * Replaces the color a material writes with a debug output. With MRT, only the `output`
+ * attachment is replaced so the other attachments keep their members. Converting the
+ * whole MRT struct to a color leaves WGSL with an empty output struct.
+ *
+ * @param {Node} resultNode - The material's fragment result, possibly an MRT node.
+ * @param {function(Node): Node} createOutput - Builds the debug color from the shaded color.
+ * @return {Node} The fragment result with the debug color in place.
+ */
+function replaceColorOutput( resultNode, createOutput ) {
+
+	if ( resultNode.isMRTNode !== true ) return createOutput( resultNode );
+
+	if ( resultNode.has( 'output' ) !== true ) return resultNode;
+
+	return resultNode.merge( mrt( { output: createOutput( resultNode.get( 'output' ) ) } ) );
+
+}
 // !WITH_GENESYS
 
 /**
@@ -627,27 +647,32 @@ class NodeMaterial extends Material {
 		}
 
 		// WITH_GENESYS
-		// The screen output pass colorizes the accumulated ratio. Wrapping that pass
-		// would replace the heatmap with this material's own constant cost.
-		if ( renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY && this.isShadowPassMaterial !== true && renderer.isOutputTarget !== true ) {
+		// The screen output pass colorizes the accumulated ratio. Wrapping that pass, or a
+		// post-processing quad that copies the scene target, would replace the heatmap with
+		// that quad's own constant cost.
+		if ( debugDrawAccumulates( renderer, this, builder.object ) ) {
 
-			builder.shaderComplexityBase = this.getShaderComplexity();
-			resultNode = shaderComplexityOutput( resultNode );
+			if ( renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY ) {
 
-		} else if ( renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS && this.isShadowPassMaterial !== true && renderer.isOutputTarget !== true ) {
+				builder.shaderComplexityBase = this.getShaderComplexity();
+				resultNode = replaceColorOutput( resultNode, shaderComplexityOutput );
 
-			builder.shaderComplexityBase = this.getShaderComplexity();
-			resultNode = shaderComplexityAndQuadsOutput( resultNode );
+			} else if ( renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS ) {
 
-		} else if ( renderer.debug.view === DEBUG_VIEW_QUAD_OVERDRAW && this.isShadowPassMaterial !== true && renderer.isOutputTarget !== true ) {
+				builder.shaderComplexityBase = this.getShaderComplexity();
+				resultNode = replaceColorOutput( resultNode, shaderComplexityAndQuadsOutput );
 
-			resultNode = quadOverdrawOutput( resultNode );
+			} else {
+
+				resultNode = replaceColorOutput( resultNode, quadOverdrawOutput );
+
+			}
 
 		} else if ( renderer.debug.view === DEBUG_VIEW_BUFFER && this.isShadowPassMaterial !== true && this.fragmentNode === null ) {
 
 			// The fullscreen output pass sets fragmentNode. Scene materials do not, including
 			// when the scene is drawn straight to the canvas.
-			resultNode = bufferVisualizationOutput( renderer.debug.buffer );
+			resultNode = replaceColorOutput( resultNode, () => bufferVisualizationOutput( renderer.debug.buffer ) );
 
 		}
 		// !WITH_GENESYS
