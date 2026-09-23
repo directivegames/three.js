@@ -29,6 +29,7 @@ import { subBuild } from '../../nodes/core/SubBuildNode.js';
 import { DEBUG_VIEW_LIGHTING_COMPLEXITY, DEBUG_VIEW_QUAD_OVERDRAW, DEBUG_VIEW_SHADER_COMPLEXITY, quadOverdrawOutput, shaderComplexityOutput } from '../../nodes/display/ComplexityDebug.js';
 import { DEBUG_VIEW_BUFFER, assignBufferDefaults, bufferVisualizationOutput } from '../../nodes/display/BufferDebug.js';
 import { DEBUG_VIEW_DETAIL_LIGHTING, DEBUG_VIEW_LIGHTING_ONLY, applyLightingDebug, lightingOnlyNormal } from '../../nodes/display/LightingDebug.js';
+import { DEBUG_VIEW_DRAW_CALL, applyDrawCallDebug } from '../../nodes/display/DrawCallDebug.js';
 // !WITH_GENESYS
 
 /**
@@ -549,6 +550,10 @@ class NodeMaterial extends Material {
 
 				applyLightingDebug( builder, renderer.debug.view );
 
+			} else if ( renderer.debug.view === DEBUG_VIEW_DRAW_CALL && this.isShadowPassMaterial !== true ) {
+
+				applyDrawCallDebug( builder );
+
 			}
 			// !WITH_GENESYS
 
@@ -997,7 +1002,7 @@ class NodeMaterial extends Material {
 	setupNormal( builder ) {
 
 		// WITH_GENESYS
-		if ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY && this.isShadowPassMaterial !== true && this.fragmentNode === null ) {
+		if ( ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY || builder.renderer.debug.view === DEBUG_VIEW_DRAW_CALL ) && this.isShadowPassMaterial !== true && this.fragmentNode === null ) {
 
 			return lightingOnlyNormal();
 
@@ -1200,9 +1205,9 @@ class NodeMaterial extends Material {
 		if ( ( emissiveNode && emissiveNode.isNode === true ) || ( material.emissive && material.emissive.isColor === true ) ) {
 
 			// WITH_GENESYS
-			// Lighting only substitutes a plain lit material, so emissive is dropped.
+			// Lighting only and draw call substitute a plain lit material, so emissive is dropped.
 			// Detail lighting keeps it.
-			if ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY && this.isShadowPassMaterial !== true ) {
+			if ( ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY || builder.renderer.debug.view === DEBUG_VIEW_DRAW_CALL ) && this.isShadowPassMaterial !== true ) {
 
 				return outgoingLightNode;
 

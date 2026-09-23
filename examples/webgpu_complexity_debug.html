@@ -22,7 +22,7 @@
 			<small>
 				Back: basic, standard, physical, 8 cheap layers, 4 physical layers, light overlap.<br/>
 				Middle: RGB, rough/smooth, metal/plastic, emissive, normal/flat, AO.<br/>
-				Front: near LOD, far LOD, open box, caster / non-caster, separate meshes.
+				Front: near LOD, far LOD, open box, caster / non-caster, separate meshes, one instanced mesh.
 			</small>
 		</div>
 
@@ -62,7 +62,8 @@
 				{ id: 'ambientOcclusion', view: 'bufferVisualization', buffer: 'ambientOcclusion', label: 'Buffer: Ambient occlusion', key: '9' },
 				{ id: 'emissive', view: 'bufferVisualization', buffer: 'emissive', label: 'Buffer: Emissive', key: '0' },
 				{ id: 'lightingOnly', view: 'lightingOnly', label: 'Lighting only' },
-				{ id: 'detailLighting', view: 'detailLighting', label: 'Detail lighting' }
+				{ id: 'detailLighting', view: 'detailLighting', label: 'Detail lighting' },
+				{ id: 'drawCall', view: 'drawCall', label: 'Draw call' }
 			];
 
 			const params = { view: 'shaded' };
@@ -385,7 +386,7 @@
 				nonCaster.castShadow = false;
 				nonCaster.receiveShadow = true;
 
-				// Random color: separate meshes, one shared material.
+				// Draw call: six separate meshes and one instanced mesh, all on the same material.
 				const clusterMaterial = new THREE.MeshStandardNodeMaterial( { color: 0x8899aa, roughness: 0.5 } );
 
 				for ( let i = 0; i < 6; i ++ ) {
@@ -400,6 +401,21 @@
 					mesh.castShadow = true;
 
 				}
+
+				const instances = new THREE.InstancedMesh( new THREE.BoxGeometry( 0.32, 0.32, 0.32 ), clusterMaterial, 6 );
+				instances.castShadow = true;
+				instances.receiveShadow = true;
+				const dummy = new THREE.Object3D();
+
+				for ( let i = 0; i < 6; i ++ ) {
+
+					dummy.position.set( 7.4 + ( i % 3 ) * 0.48, 0.16, 3.2 + Math.floor( i / 3 ) * 0.48 );
+					dummy.updateMatrix();
+					instances.setMatrixAt( i, dummy.matrix );
+
+				}
+
+				scene.add( instances );
 
 				renderer = new THREE.WebGPURenderer( { antialias: true } );
 				renderer.setPixelRatio( window.devicePixelRatio );
