@@ -32,6 +32,7 @@ import { DEBUG_VIEW_BUFFER, assignBufferDefaults, bufferVisualizationOutput } fr
 import { DEBUG_VIEW_DETAIL_LIGHTING, DEBUG_VIEW_LIGHTING_ONLY, applyLightingDebug, lightingOnlyNormal } from '../../nodes/display/LightingDebug.js';
 import { DEBUG_VIEW_DRAW_CALL, applyDrawCallDebug } from '../../nodes/display/DrawCallDebug.js';
 import { DEBUG_VIEW_FRONT_BACK_FACE, applyFrontBackFaceDebug } from '../../nodes/display/FrontBackFaceDebug.js';
+import { DEBUG_VIEW_SHADOW_CASTER, applyShadowCasterDebug } from '../../nodes/display/ShadowCasterDebug.js';
 
 /**
  * Replaces the color a material writes with a debug output. With MRT, only the `output`
@@ -579,6 +580,10 @@ class NodeMaterial extends Material {
 
 				applyFrontBackFaceDebug( builder, this );
 
+			} else if ( renderer.debug.view === DEBUG_VIEW_SHADOW_CASTER && this.isShadowPassMaterial !== true ) {
+
+				applyShadowCasterDebug( builder, this );
+
 			}
 			// !WITH_GENESYS
 
@@ -1037,7 +1042,7 @@ class NodeMaterial extends Material {
 	setupNormal( builder ) {
 
 		// WITH_GENESYS
-		if ( ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY || builder.renderer.debug.view === DEBUG_VIEW_DRAW_CALL || builder.renderer.debug.view === DEBUG_VIEW_FRONT_BACK_FACE ) && this.isShadowPassMaterial !== true && this.fragmentNode === null ) {
+		if ( ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY || builder.renderer.debug.view === DEBUG_VIEW_DRAW_CALL || builder.renderer.debug.view === DEBUG_VIEW_FRONT_BACK_FACE || builder.renderer.debug.view === DEBUG_VIEW_SHADOW_CASTER ) && this.isShadowPassMaterial !== true && this.fragmentNode === null ) {
 
 			return lightingOnlyNormal();
 
@@ -1242,7 +1247,7 @@ class NodeMaterial extends Material {
 			// WITH_GENESYS
 			// Lighting only and draw call substitute a plain lit material, so emissive is dropped.
 			// Detail lighting keeps it.
-			if ( ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY || builder.renderer.debug.view === DEBUG_VIEW_DRAW_CALL || builder.renderer.debug.view === DEBUG_VIEW_FRONT_BACK_FACE ) && this.isShadowPassMaterial !== true ) {
+			if ( ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY || builder.renderer.debug.view === DEBUG_VIEW_DRAW_CALL || builder.renderer.debug.view === DEBUG_VIEW_FRONT_BACK_FACE || builder.renderer.debug.view === DEBUG_VIEW_SHADOW_CASTER ) && this.isShadowPassMaterial !== true ) {
 
 				return outgoingLightNode;
 

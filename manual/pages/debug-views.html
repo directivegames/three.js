@@ -225,6 +225,18 @@ renderer.debug.view = 'none';
             </p>
             <div class="threejs_center"><img src="../resources/images/debug-views/front-back-face.jpg" alt="Front/back face. Surfaces facing the camera are warm gray. The inside of the open box is blue." style="width: 100%;"></div>
 
+            <h2 id="shadow-caster">Shadow caster</h2>
+
+            <p>
+              Colors each mesh by whether it casts shadows. A caster is green. A mesh that does not cast is gray.
+              The color is lit, so form and shadows stay readable.
+            </p>
+            <p>
+              Use it to find a mesh that should cast and does not, or one that casts and should not.
+              The two boxes in the picture share a material. Only the left one has <code>castShadow</code> set.
+            </p>
+            <div class="threejs_center"><img src="../resources/images/debug-views/shadow-caster.jpg" alt="Shadow caster. The left box is green because it casts shadows. The right box is gray because it does not." style="width: 100%;"></div>
+
             <h2 id="draw-call">Draw call</h2>
 
             <p>

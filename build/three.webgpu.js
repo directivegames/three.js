@@ -23067,6 +23067,72 @@ function applyFrontBackFaceDebug( builder, material ) {
 
 }
 
+// WITH_GENESYS
+// Shadow casters. Green when the object casts a shadow, gray when it does not.
+// !WITH_GENESYS
+
+
+/**
+ * Shadow casters. A mesh that casts shadows is green. One that does not is gray.
+ * The color is lit, so form stays readable.
+ *
+ * Matches Unreal's simplified shadow-caster view (`GetCachedShadowCasterColorSimplified`):
+ * green `(0, 1, 0)` casts, gray `(0.5, 0.5, 0.5)` does not. Contact-shadow yellow is omitted;
+ * Three.js has no per-object contact-shadow flag.
+ *
+ * @type {string}
+ */
+const DEBUG_VIEW_SHADOW_CASTER = 'shadowCaster';
+
+const CASTS_COLOR = new Color( 0, 1, 0 );
+const NONE_COLOR = new Color( 0.5, 0.5, 0.5 );
+
+/**
+ * Replaces albedo with the caster color after the material has written its channels.
+ * Lit materials become a matte dielectric. Unlit materials become flat.
+ * The color is an object uniform, so meshes that share a material still differ.
+ *
+ * @param {NodeBuilder} builder - The current node builder.
+ * @param {NodeMaterial} material - The node material being set up. `builder.material` can be the
+ * source material of a converted one, such as a glTF `MeshStandardMaterial`.
+ */
+function applyShadowCasterDebug( builder, material ) {
+
+	const colorNode = uniform( new Color() ).onObjectUpdate( ( { object }, self ) => {
+
+		if ( object === null ) return;
+
+		return self.value.copy( object.castShadow === true ? CASTS_COLOR : NONE_COLOR );
+
+	} );
+
+	diffuseColor.rgb.assign( colorNode );
+
+	if ( material.lights !== true ) return;
+
+	metalness.assign( float( 0 ) );
+	diffuseContribution.assign( colorNode );
+	roughness.assign( float( 1 ) );
+	specularColor.assign( vec3( 0 ) );
+	specularColorBlended.assign( vec3( 0 ) );
+	specularF90.assign( float( 0 ) );
+
+	builder.context.ambientOcclusion = null;
+
+	if ( material.useClearcoat === true ) clearcoat.assign( float( 0 ) );
+
+	if ( material.useSheen === true ) sheen.assign( vec3( 0 ) );
+
+	if ( material.useIridescence === true ) iridescence.assign( float( 0 ) );
+
+	if ( material.useAnisotropy === true ) anisotropy.assign( float( 0 ) );
+
+	if ( material.useTransmission === true ) transmission.assign( float( 0 ) );
+
+	if ( material.useRetroreflection === true ) retroreflectivity.assign( float( 0 ) );
+
+}
+
 /**
  * Replaces the color a material writes with a debug output. With MRT, only the `output`
  * attachment is replaced so the other attachments keep their members. Converting the
@@ -23613,6 +23679,10 @@ class NodeMaterial extends Material {
 
 				applyFrontBackFaceDebug( builder, this );
 
+			} else if ( renderer.debug.view === DEBUG_VIEW_SHADOW_CASTER && this.isShadowPassMaterial !== true ) {
+
+				applyShadowCasterDebug( builder, this );
+
 			}
 			// !WITH_GENESYS
 
@@ -24071,7 +24141,7 @@ class NodeMaterial extends Material {
 	setupNormal( builder ) {
 
 		// WITH_GENESYS
-		if ( ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY || builder.renderer.debug.view === DEBUG_VIEW_DRAW_CALL || builder.renderer.debug.view === DEBUG_VIEW_FRONT_BACK_FACE ) && this.isShadowPassMaterial !== true && this.fragmentNode === null ) {
+		if ( ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY || builder.renderer.debug.view === DEBUG_VIEW_DRAW_CALL || builder.renderer.debug.view === DEBUG_VIEW_FRONT_BACK_FACE || builder.renderer.debug.view === DEBUG_VIEW_SHADOW_CASTER ) && this.isShadowPassMaterial !== true && this.fragmentNode === null ) {
 
 			return lightingOnlyNormal();
 
@@ -24276,7 +24346,7 @@ class NodeMaterial extends Material {
 			// WITH_GENESYS
 			// Lighting only and draw call substitute a plain lit material, so emissive is dropped.
 			// Detail lighting keeps it.
-			if ( ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY || builder.renderer.debug.view === DEBUG_VIEW_DRAW_CALL || builder.renderer.debug.view === DEBUG_VIEW_FRONT_BACK_FACE ) && this.isShadowPassMaterial !== true ) {
+			if ( ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY || builder.renderer.debug.view === DEBUG_VIEW_DRAW_CALL || builder.renderer.debug.view === DEBUG_VIEW_FRONT_BACK_FACE || builder.renderer.debug.view === DEBUG_VIEW_SHADOW_CASTER ) && this.isShadowPassMaterial !== true ) {
 
 				return outgoingLightNode;
 
@@ -64566,7 +64636,7 @@ class Renderer {
 		 * @property {?Function} onNodeBuilderCreated - A callback function that is executed after a node builder has been created and before it is built.
 		 * @property {?Function} onShaderError - A callback function that is executed when a shader error happens. Only supported with WebGL 2 right now.
 		 * @property {Function} getShaderAsync - Allows the get the raw shader code for the given scene, camera and 3D object.
-		 * @property {string} view - Debug view. `shaderComplexity`, `lightingComplexity`, `overdraw`, and `shaderComplexityAndQuads` replace the shaded color with a heatmap. `shaderComplexityAndQuads` multiplies the shader cost by the overdraw count. `bufferVisualization` shows one material channel. `lightingOnly` and `detailLighting` light a flat gray surface. `drawCall` lights each submitted draw with its own diffuse color. `frontBackFace` draws both windings and tints the side facing the camera.
+		 * @property {string} view - Debug view. `shaderComplexity`, `lightingComplexity`, `overdraw`, and `shaderComplexityAndQuads` replace the shaded color with a heatmap. `shaderComplexityAndQuads` multiplies the shader cost by the overdraw count. `bufferVisualization` shows one material channel. `lightingOnly` and `detailLighting` light a flat gray surface. `drawCall` lights each submitted draw with its own diffuse color. `frontBackFace` draws both windings and tints the side facing the camera. `shadowCaster` lights a mesh green when it casts shadows and gray when it does not.
 		 * @property {string} buffer - Channel drawn by `bufferVisualization`: `baseColor`, `worldNormal`, `roughness`, `metallic`, `ambientOcclusion`, or `emissive`.
 		 * @property {number} shaderComplexityBudget - Proxy budget that fills the shader-complexity ramp.
 		 * @property {number} quadOverdrawBudget - Overlapping fragments that fill the quad-overdraw ramp.
