@@ -22,7 +22,7 @@
 			<small>
 				Back: basic, standard, physical, 8 cheap layers, 4 physical layers, 2 Lambert layers, light overlap, glTF model.<br/>
 				Middle: RGB, rough/smooth, metal/plastic, emissive, normal/flat, AO.<br/>
-				Front: near LOD, far LOD, open box, caster / non-caster, separate meshes, one instanced mesh.<br/>
+				Front: near LOD, far LOD, open box, closed double-sided box, single-sided box, double-sided card, caster / non-caster, separate meshes, one instanced mesh.<br/>
 				Render path: direct to canvas, a scene pass, or an MRT scene pass (output, normal, emissive) like a post-processing stack, optionally with a HUD pass blended on top.<br/>
 				WASD moves the camera, mouse orbits.
 			</small>
@@ -74,6 +74,7 @@
 				{ id: 'detailLighting', view: 'detailLighting', label: 'Detail lighting' },
 				{ id: 'frontBackFace', view: 'frontBackFace', label: 'Front/back face' },
 				{ id: 'shadowCaster', view: 'shadowCaster', label: 'Shadow caster' },
+				{ id: 'doubleSide', view: 'doubleSide', label: 'Double side' },
 				{ id: 'baseColor', view: 'bufferVisualization', buffer: 'baseColor', label: 'Buffer: Base color', key: '5' },
 				{ id: 'worldNormal', view: 'bufferVisualization', buffer: 'worldNormal', label: 'Buffer: World normal', key: '6' },
 				{ id: 'roughness', view: 'bufferVisualization', buffer: 'roughness', label: 'Buffer: Roughness', key: '7' },
@@ -429,6 +430,28 @@
 
 				// Front/back: open top, double sided, so inner walls are back faces.
 				addOpenBox( - 2.2, 3.5 );
+
+				// Double side: a closed shell that should be single sided, a single-sided box, and a card that needs both sides.
+				const closedDouble = addMesh(
+					new THREE.BoxGeometry( 0.7, 0.7, 0.7 ),
+					new THREE.MeshStandardNodeMaterial( { color: 0xdddddd, roughness: 0.5, side: THREE.DoubleSide } ),
+					- 0.4, 0.35, 5.2
+				);
+				closedDouble.castShadow = true;
+				closedDouble.receiveShadow = true;
+				const closedSingle = addMesh(
+					new THREE.BoxGeometry( 0.7, 0.7, 0.7 ),
+					new THREE.MeshStandardNodeMaterial( { color: 0xdddddd, roughness: 0.5 } ),
+					1.0, 0.35, 5.2
+				);
+				closedSingle.castShadow = true;
+				closedSingle.receiveShadow = true;
+				const card = addUprightPlane( new THREE.MeshStandardNodeMaterial( {
+					color: 0xdddddd,
+					roughness: 0.5,
+					side: THREE.DoubleSide
+				} ), 2.4, 5.2, 0.7 );
+				card.castShadow = true;
 
 				// Shadow casters: identical meshes, only one casts.
 				const casterMaterial = new THREE.MeshStandardNodeMaterial( { color: 0xdddddd, roughness: 0.5 } );

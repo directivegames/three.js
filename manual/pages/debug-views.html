@@ -225,6 +225,20 @@ renderer.debug.view = 'none';
             </p>
             <div class="threejs_center"><img src="../resources/images/debug-views/front-back-face.jpg" alt="Front/back face. Surfaces facing the camera are warm gray. The inside of the open box is blue." style="width: 100%;"></div>
 
+            <h2 id="double-side">Double side</h2>
+
+            <p>
+              Gray is a single-sided material, or the front of a double-sided one.
+              Blue is a double-sided back face you can see, so that material needs both sides.
+              Red is a double-sided back face hidden behind the front. It is drawn on the outside, over the gray.
+              A single-sided material would look the same there.
+            </p>
+            <p>
+              A closed double-sided box goes red from the outside. The single-sided box beside it stays gray.
+              A card stays gray from the front and turns blue from the back.
+            </p>
+            <div class="threejs_center"><img src="../resources/images/debug-views/double-side.jpg" alt="Double side. The closed double-sided box is red. The open box shows a blue inner wall where the back face is visible." style="width: 100%;"></div>
+
             <h2 id="shadow-caster">Shadow caster</h2>
 
             <p>

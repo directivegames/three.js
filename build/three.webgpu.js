@@ -3,7 +3,7 @@
  * Copyright 2010-2026 Three.js Authors
  * SPDX-License-Identifier: MIT
  */
-import { DynamicDrawUsage, RenderObjectRefreshType, Color, Vector2, Vector3, Vector4, Matrix2, Matrix3, Matrix4, error, UnsignedIntType, IntType, RedFormat, RedIntegerFormat, DepthFormat, DepthStencilFormat, AlphaFormat, RGFormat, RGIntegerFormat, RGBFormat, RGBIntegerFormat, EventDispatcher, MathUtils, warn, WebGLCoordinateSystem, WebGPUCoordinateSystem, ColorManagement, SRGBTransfer, NoToneMapping, StaticDrawUsage, InterleavedBufferAttribute, InterleavedBuffer, NoColorSpace, log as log$1, warnOnce, Texture, Compatibility, LessCompare, LessEqualCompare, GreaterCompare, GreaterEqualCompare, NearestFilter, Sphere, BackSide, DoubleSide, CubeTexture, CubeReflectionMapping, CubeRefractionMapping, TangentSpaceNormalMap, NoNormalPacking, NormalRGPacking, NormalGAPacking, ObjectSpaceNormalMap, RED_GREEN_RGTC2_Format, RG11_EAC_Format, InstancedBufferAttribute, InstancedInterleavedBuffer, DataTexture, RGBAFormat, FloatType, DataArrayTexture, FramebufferTexture, LinearMipmapLinearFilter, DepthTexture, NormalBlending, SrcAlphaFactor, OneMinusSrcAlphaFactor, AddEquation, MaterialBlending, NoBlending, Material, LineBasicMaterial, LineDashedMaterial, MeshNormalMaterial, SRGBColorSpace, RenderTarget, BoxGeometry, Mesh, Scene, LinearFilter, CubeCamera, EquirectangularReflectionMapping, EquirectangularRefractionMapping, AddOperation, MixOperation, MultiplyOperation, MeshBasicMaterial, MeshLambertMaterial, MeshPhongMaterial, HalfFloatType, ClampToEdgeWrapping, BufferGeometry, OrthographicCamera, PerspectiveCamera, LinearSRGBColorSpace, CubeUVReflectionMapping, BufferAttribute, MeshStandardMaterial, MeshPhysicalMaterial, MeshToonMaterial, MeshMatcapMaterial, SpriteMaterial, PointsMaterial, ShadowMaterial, Uint32BufferAttribute, Uint16BufferAttribute, ByteType, UnsignedByteType, ShortType, UnsignedShortType, UnsignedShort4444Type, UnsignedShort5551Type, UnsignedInt248Type, UnsignedInt5999Type, UnsignedInt101111Type, Object3D, LinearMipMapLinearFilter, Plane, Float32BufferAttribute, UVMapping, Data3DTexture, VSMShadowMap, PCFShadowMap, ProfilerService, BasicShadowMap, CubeDepthTexture, SphereGeometry, LinearMipmapNearestFilter, NearestMipmapLinearFilter, Float16BufferAttribute, yieldToMain, REVISION, ArrayCamera, PlaneGeometry, FrontSide, CustomBlending, ZeroFactor, CylinderGeometry, Quaternion, WebXRController, RAD2DEG, PCFSoftShadowMap, FrustumArray, Frustum, RGBAIntegerFormat, TimestampQuery, createCanvasElement, MaxEquation, MinEquation, ReverseSubtractEquation, SubtractEquation, OneMinusConstantAlphaFactor, ConstantAlphaFactor, OneMinusConstantColorFactor, ConstantColorFactor, OneMinusDstAlphaFactor, OneMinusDstColorFactor, OneMinusSrcColorFactor, DstAlphaFactor, DstColorFactor, SrcAlphaSaturateFactor, SrcColorFactor, OneFactor, CullFaceNone, CullFaceBack, CullFaceFront, MultiplyBlending, SubtractiveBlending, AdditiveBlending, NotEqualDepth, GreaterDepth, GreaterEqualDepth, EqualDepth, LessEqualDepth, LessDepth, AlwaysDepth, NeverDepth, ReversedDepthFuncs, RGB_S3TC_DXT1_Format, RGBA_S3TC_DXT1_Format, RGBA_S3TC_DXT3_Format, RGBA_S3TC_DXT5_Format, RGB_PVRTC_4BPPV1_Format, RGB_PVRTC_2BPPV1_Format, RGBA_PVRTC_4BPPV1_Format, RGBA_PVRTC_2BPPV1_Format, RGB_ETC1_Format, RGB_ETC2_Format, RGBA_ETC2_EAC_Format, R11_EAC_Format, SIGNED_R11_EAC_Format, SIGNED_RG11_EAC_Format, RGBA_ASTC_4x4_Format, RGBA_ASTC_5x4_Format, RGBA_ASTC_5x5_Format, RGBA_ASTC_6x5_Format, RGBA_ASTC_6x6_Format, RGBA_ASTC_8x5_Format, RGBA_ASTC_8x6_Format, RGBA_ASTC_8x8_Format, RGBA_ASTC_10x5_Format, RGBA_ASTC_10x6_Format, RGBA_ASTC_10x8_Format, RGBA_ASTC_10x10_Format, RGBA_ASTC_12x10_Format, RGBA_ASTC_12x12_Format, RGBA_BPTC_Format, RGB_BPTC_SIGNED_Format, RGB_BPTC_UNSIGNED_Format, RED_RGTC1_Format, SIGNED_RED_RGTC1_Format, SIGNED_RED_GREEN_RGTC2_Format, MirroredRepeatWrapping, RepeatWrapping, NearestMipmapNearestFilter, NotEqualCompare, EqualCompare, AlwaysCompare, NeverCompare, LinearTransfer, getByteLength, isTypedArray, NotEqualStencilFunc, GreaterStencilFunc, GreaterEqualStencilFunc, EqualStencilFunc, LessEqualStencilFunc, LessStencilFunc, AlwaysStencilFunc, NeverStencilFunc, DecrementWrapStencilOp, IncrementWrapStencilOp, DecrementStencilOp, IncrementStencilOp, InvertStencilOp, ReplaceStencilOp, ZeroStencilOp, KeepStencilOp, SpotLight, PointLight, DirectionalLight, RectAreaLight, AmbientLight, HemisphereLight, LightProbe, LinearToneMapping, ReinhardToneMapping, CineonToneMapping, ACESFilmicToneMapping, AgXToneMapping, NeutralToneMapping, Group, Loader, FileLoader, MaterialLoader, ObjectLoader } from './three.core.js';
+import { DynamicDrawUsage, RenderObjectRefreshType, Color, Vector2, Vector3, Vector4, Matrix2, Matrix3, Matrix4, error, UnsignedIntType, IntType, RedFormat, RedIntegerFormat, DepthFormat, DepthStencilFormat, AlphaFormat, RGFormat, RGIntegerFormat, RGBFormat, RGBIntegerFormat, EventDispatcher, MathUtils, warn, WebGLCoordinateSystem, WebGPUCoordinateSystem, ColorManagement, SRGBTransfer, NoToneMapping, StaticDrawUsage, InterleavedBufferAttribute, InterleavedBuffer, NoColorSpace, log as log$1, warnOnce, Texture, Compatibility, LessCompare, LessEqualCompare, GreaterCompare, GreaterEqualCompare, NearestFilter, Sphere, BackSide, DoubleSide, CubeTexture, CubeReflectionMapping, CubeRefractionMapping, TangentSpaceNormalMap, NoNormalPacking, NormalRGPacking, NormalGAPacking, ObjectSpaceNormalMap, RED_GREEN_RGTC2_Format, RG11_EAC_Format, InstancedBufferAttribute, InstancedInterleavedBuffer, DataTexture, RGBAFormat, FloatType, DataArrayTexture, FramebufferTexture, LinearMipmapLinearFilter, DepthTexture, NormalBlending, SrcAlphaFactor, OneMinusSrcAlphaFactor, AddEquation, MaterialBlending, NoBlending, Material, LineBasicMaterial, LineDashedMaterial, MeshNormalMaterial, SRGBColorSpace, RenderTarget, BoxGeometry, Mesh, Scene, LinearFilter, CubeCamera, EquirectangularReflectionMapping, EquirectangularRefractionMapping, AddOperation, MixOperation, MultiplyOperation, MeshBasicMaterial, MeshLambertMaterial, MeshPhongMaterial, HalfFloatType, ClampToEdgeWrapping, BufferGeometry, OrthographicCamera, PerspectiveCamera, LinearSRGBColorSpace, CubeUVReflectionMapping, BufferAttribute, MeshStandardMaterial, MeshPhysicalMaterial, MeshToonMaterial, MeshMatcapMaterial, SpriteMaterial, PointsMaterial, ShadowMaterial, Uint32BufferAttribute, Uint16BufferAttribute, ByteType, UnsignedByteType, ShortType, UnsignedShortType, UnsignedShort4444Type, UnsignedShort5551Type, UnsignedInt248Type, UnsignedInt5999Type, UnsignedInt101111Type, Object3D, LinearMipMapLinearFilter, Plane, Float32BufferAttribute, UVMapping, Data3DTexture, VSMShadowMap, PCFShadowMap, ProfilerService, BasicShadowMap, CubeDepthTexture, SphereGeometry, LinearMipmapNearestFilter, NearestMipmapLinearFilter, Float16BufferAttribute, yieldToMain, REVISION, ArrayCamera, PlaneGeometry, FrontSide, CustomBlending, ZeroFactor, CylinderGeometry, Quaternion, WebXRController, RAD2DEG, PCFSoftShadowMap, FrustumArray, Frustum, EqualDepth, RGBAIntegerFormat, TimestampQuery, createCanvasElement, MaxEquation, MinEquation, ReverseSubtractEquation, SubtractEquation, OneMinusConstantAlphaFactor, ConstantAlphaFactor, OneMinusConstantColorFactor, ConstantColorFactor, OneMinusDstAlphaFactor, OneMinusDstColorFactor, OneMinusSrcColorFactor, DstAlphaFactor, DstColorFactor, SrcAlphaSaturateFactor, SrcColorFactor, OneFactor, CullFaceNone, CullFaceBack, CullFaceFront, MultiplyBlending, SubtractiveBlending, AdditiveBlending, NotEqualDepth, GreaterDepth, GreaterEqualDepth, LessEqualDepth, LessDepth, AlwaysDepth, NeverDepth, ReversedDepthFuncs, RGB_S3TC_DXT1_Format, RGBA_S3TC_DXT1_Format, RGBA_S3TC_DXT3_Format, RGBA_S3TC_DXT5_Format, RGB_PVRTC_4BPPV1_Format, RGB_PVRTC_2BPPV1_Format, RGBA_PVRTC_4BPPV1_Format, RGBA_PVRTC_2BPPV1_Format, RGB_ETC1_Format, RGB_ETC2_Format, RGBA_ETC2_EAC_Format, R11_EAC_Format, SIGNED_R11_EAC_Format, SIGNED_RG11_EAC_Format, RGBA_ASTC_4x4_Format, RGBA_ASTC_5x4_Format, RGBA_ASTC_5x5_Format, RGBA_ASTC_6x5_Format, RGBA_ASTC_6x6_Format, RGBA_ASTC_8x5_Format, RGBA_ASTC_8x6_Format, RGBA_ASTC_8x8_Format, RGBA_ASTC_10x5_Format, RGBA_ASTC_10x6_Format, RGBA_ASTC_10x8_Format, RGBA_ASTC_10x10_Format, RGBA_ASTC_12x10_Format, RGBA_ASTC_12x12_Format, RGBA_BPTC_Format, RGB_BPTC_SIGNED_Format, RGB_BPTC_UNSIGNED_Format, RED_RGTC1_Format, SIGNED_RED_RGTC1_Format, SIGNED_RED_GREEN_RGTC2_Format, MirroredRepeatWrapping, RepeatWrapping, NearestMipmapNearestFilter, NotEqualCompare, EqualCompare, AlwaysCompare, NeverCompare, LinearTransfer, getByteLength, isTypedArray, NotEqualStencilFunc, GreaterStencilFunc, GreaterEqualStencilFunc, EqualStencilFunc, LessEqualStencilFunc, LessStencilFunc, AlwaysStencilFunc, NeverStencilFunc, DecrementWrapStencilOp, IncrementWrapStencilOp, DecrementStencilOp, IncrementStencilOp, InvertStencilOp, ReplaceStencilOp, ZeroStencilOp, KeepStencilOp, SpotLight, PointLight, DirectionalLight, RectAreaLight, AmbientLight, HemisphereLight, LightProbe, LinearToneMapping, ReinhardToneMapping, CineonToneMapping, ACESFilmicToneMapping, AgXToneMapping, NeutralToneMapping, Group, Loader, FileLoader, MaterialLoader, ObjectLoader } from './three.core.js';
 export { AdditiveAnimationBlendMode, AnimationAction, AnimationClip, AnimationLoader, AnimationMixer, AnimationObjectGroup, AnimationUtils, ArcCurve, ArrowHelper, AttachedBindMode, Audio, AudioAnalyser, AudioContext, AudioListener, AudioLoader, AxesHelper, BasicDepthPacking, BatchedMesh, BezierInterpolant, Bone, BooleanKeyframeTrack, Box2, Box3, Box3Helper, BoxHelper, BufferGeometryLoader, Cache, Camera, CameraHelper, CanvasTexture, CapsuleGeometry, CatmullRomCurve3, CircleGeometry, Clock, ColorKeyframeTrack, CompressedArrayTexture, CompressedCubeTexture, CompressedTexture, CompressedTextureLoader, ConeGeometry, Controls, CubeTextureLoader, CubicBezierCurve, CubicBezierCurve3, CubicInterpolant, CullFaceFrontBack, Curve, CurvePath, CustomToneMapping, Cylindrical, DataTextureLoader, DataUtils, DefaultLoadingManager, DetachedBindMode, DirectionalLightHelper, DiscreteInterpolant, DodecahedronGeometry, DynamicCopyUsage, DynamicReadUsage, EdgesGeometry, EllipseCurve, Euler, ExternalTexture, ExtrudeGeometry, Fog, FogExp2, GLBufferAttribute, GLSL1, GLSL3, GridHelper, HTMLTexture, HemisphereLightHelper, IcosahedronGeometry, ImageBitmapLoader, ImageLoader, ImageUtils, InstancedBufferGeometry, InstancedMesh, Int16BufferAttribute, Int32BufferAttribute, Int8BufferAttribute, Interpolant, InterpolateBezier, InterpolateDiscrete, InterpolateLinear, InterpolateSmooth, InterpolationSamplingMode, InterpolationSamplingType, KeyframeTrack, LOD, LatheGeometry, Layers, Light, LightShadow, Line, Line3, LineCurve, LineCurve3, LineLoop, LineSegments, LinearInterpolant, LinearMipMapNearestFilter, LoaderUtils, LoadingManager, LoopOnce, LoopPingPong, LoopRepeat, MOUSE, MeshDepthMaterial, MeshDistanceMaterial, NearestMipMapLinearFilter, NearestMipMapNearestFilter, NodePath, NormalAnimationBlendMode, NumberKeyframeTrack, OctahedronGeometry, Path, PlaneHelper, PointLightHelper, Points, PolarGridHelper, PolyhedronGeometry, PositionalAudio, PropertyBinding, PropertyMixer, QuadraticBezierCurve, QuadraticBezierCurve3, QuaternionKeyframeTrack, QuaternionLinearInterpolant, RGBADepthPacking, RGBDepthPacking, RGDepthPacking, RawShaderMaterial, Ray, Raycaster, RenderTarget3D, RingGeometry, ShaderMaterial, Shape, ShapeGeometry, ShapePath, ShapeUtils, Skeleton, SkeletonHelper, SkinnedMesh, Source, Spherical, SphericalHarmonics3, SplineCurve, SpotLightHelper, Sprite, StaticCopyUsage, StaticReadUsage, StereoCamera, StreamCopyUsage, StreamDrawUsage, StreamReadUsage, StringKeyframeTrack, TOUCH, TetrahedronGeometry, TextureLoader, TextureSource, TextureUtils, Timer, TorusGeometry, TorusKnotGeometry, Triangle, TriangleFanDrawMode, TriangleStripDrawMode, TrianglesDrawMode, TubeGeometry, Uint8BufferAttribute, Uint8ClampedBufferAttribute, Uniform, UniformsGroup, VectorKeyframeTrack, VideoFrameTexture, VideoTexture, WebGL3DRenderTarget, WebGLArrayRenderTarget, WebGLRenderTarget, WireframeGeometry, WrapAroundEnding, XorShift32, ZeroCurvatureEnding, ZeroSlopeEnding, allocateNodeId, collectSiblingNodeIds, configureNodeIdSeed, ensureUniqueNodeIdAmongParentChildren, generateNodeId, getConsoleFunction, hashStringToUint32, isValidNodeId, nodeIdFromKey, nodeIdFromString, nodeIdToString, profile, profileClass, randomSeedUint32, setConsoleFunction, xorshift32 } from './three.core.js';
 
 const refreshUniforms = [
@@ -23000,7 +23000,7 @@ const DEBUG_VIEW_FRONT_BACK_FACE = 'frontBackFace';
  * Rasterizer front face, ignoring the material side shortcut in {@link frontFacing}.
  * `BackSide` materials otherwise report every fragment as back facing.
  */
-class GeometricFrontFacingNode extends Node {
+let GeometricFrontFacingNode$1 = class GeometricFrontFacingNode extends Node {
 
 	static get type() {
 
@@ -23022,12 +23022,12 @@ class GeometricFrontFacingNode extends Node {
 
 	}
 
-}
+};
 
-const geometricFrontFacing = /*@__PURE__*/ nodeImmutable( GeometricFrontFacingNode );
+const geometricFrontFacing$1 = /*@__PURE__*/ nodeImmutable( GeometricFrontFacingNode$1 );
 
-const FRONT_COLOR = /*@__PURE__*/ vec3( 0.72, 0.70, 0.66 );
-const BACK_COLOR = /*@__PURE__*/ vec3( 0.25, 0.45, 0.85 );
+const FRONT_COLOR$1 = /*@__PURE__*/ vec3( 0.72, 0.70, 0.66 );
+const BACK_COLOR$1 = /*@__PURE__*/ vec3( 0.25, 0.45, 0.85 );
 
 /**
  * Replaces albedo with the front or back color after the material has written its channels.
@@ -23038,7 +23038,7 @@ const BACK_COLOR = /*@__PURE__*/ vec3( 0.25, 0.45, 0.85 );
  */
 function applyFrontBackFaceDebug( builder, material ) {
 
-	const colorNode = select( geometricFrontFacing, FRONT_COLOR, BACK_COLOR );
+	const colorNode = select( geometricFrontFacing$1, FRONT_COLOR$1, BACK_COLOR$1 );
 
 	diffuseColor.rgb.assign( colorNode );
 
@@ -23130,6 +23130,153 @@ function applyShadowCasterDebug( builder, material ) {
 	if ( material.useTransmission === true ) transmission.assign( float( 0 ) );
 
 	if ( material.useRetroreflection === true ) retroreflectivity.assign( float( 0 ) );
+
+}
+
+// WITH_GENESYS
+// Double sided. Gray is a single-sided surface or the front of a double-sided one.
+// Blue is a double-sided back face you can see. Red is a double-sided back face hidden behind the front.
+// !WITH_GENESYS
+
+
+/**
+ * Double sided. A single-sided material is gray. A double-sided front face is gray.
+ * A double-sided back face that is the nearest surface is blue. A later pass paints
+ * a hidden double-sided back face red over the front.
+ *
+ * @type {string}
+ */
+const DEBUG_VIEW_DOUBLE_SIDE = 'doubleSide';
+
+/**
+ * Rasterizer front face, ignoring the material side shortcut in {@link frontFacing}.
+ */
+class GeometricFrontFacingNode extends Node {
+
+	static get type() {
+
+		return 'GeometricFrontFacingNode';
+
+	}
+
+	constructor() {
+
+		super( 'bool' );
+
+	}
+
+	generate( builder ) {
+
+		if ( builder.shaderStage !== 'fragment' ) return 'true';
+
+		return builder.getFrontFacing();
+
+	}
+
+}
+
+const geometricFrontFacing = /*@__PURE__*/ nodeImmutable( GeometricFrontFacingNode );
+
+const hideCache = new WeakMap();
+
+/**
+ * A flat card or wall has normals that all point the same way, so its back face is the same
+ * surface. A box or a closed shell has normals that face each other, so one side can hide the other.
+ *
+ * @param {BufferGeometry} geometry - The mesh geometry.
+ * @return {boolean} `true` when some normals oppose the first one.
+ */
+function meshCanHideOwnBack( geometry ) {
+
+	const normal = geometry.getAttribute( 'normal' );
+	const cached = hideCache.get( geometry );
+
+	if ( cached !== undefined && cached.version === geometry.version ) return cached.hides;
+
+	let hides = false;
+
+	if ( normal !== undefined && normal.count > 1 ) {
+
+		const ax = normal.getX( 0 );
+		const ay = normal.getY( 0 );
+		const az = normal.getZ( 0 );
+		const step = Math.max( 1, Math.floor( normal.count / 64 ) );
+
+		for ( let i = step; i < normal.count; i += step ) {
+
+			if ( ax * normal.getX( i ) + ay * normal.getY( i ) + az * normal.getZ( i ) < 0.25 ) {
+
+				hides = true;
+				break;
+
+			}
+
+		}
+
+	}
+
+	hideCache.set( geometry, { version: geometry.version, hides } );
+
+	return hides;
+
+}
+
+const FRONT_COLOR = /*@__PURE__*/ vec3( 0.5, 0.5, 0.5 );
+const BACK_COLOR = /*@__PURE__*/ vec3( 0.25, 0.45, 0.85 );
+const HIDDEN_COLOR = /*@__PURE__*/ vec3( 0.85, 0.12, 0.1 );
+
+/**
+ * Makes a lit material a matte dielectric in the debug color. An unlit material stays flat.
+ *
+ * @param {NodeBuilder} builder - The current node builder.
+ * @param {NodeMaterial} material - The node material being set up.
+ * @param {Node} colorNode - The albedo written for this fragment.
+ */
+function assignLitColor( builder, material, colorNode ) {
+
+	diffuseColor.rgb.assign( colorNode );
+
+	if ( material.lights !== true ) return;
+
+	metalness.assign( float( 0 ) );
+	diffuseContribution.assign( colorNode );
+	roughness.assign( float( 1 ) );
+	specularColor.assign( vec3( 0 ) );
+	specularColorBlended.assign( vec3( 0 ) );
+	specularF90.assign( float( 0 ) );
+
+	builder.context.ambientOcclusion = null;
+
+	if ( material.useClearcoat === true ) clearcoat.assign( float( 0 ) );
+
+	if ( material.useSheen === true ) sheen.assign( vec3( 0 ) );
+
+	if ( material.useIridescence === true ) iridescence.assign( float( 0 ) );
+
+	if ( material.useAnisotropy === true ) anisotropy.assign( float( 0 ) );
+
+	if ( material.useTransmission === true ) transmission.assign( float( 0 ) );
+
+	if ( material.useRetroreflection === true ) retroreflectivity.assign( float( 0 ) );
+
+}
+
+/**
+ * Replaces albedo after the material has written its channels.
+ * The hidden pass forces red. The first pass uses gray, or blue on a visible double-sided back face.
+ *
+ * @param {NodeBuilder} builder - The current node builder.
+ * @param {NodeMaterial} material - The node material being set up. `builder.material` can be the
+ * source material of a converted one, such as a glTF `MeshStandardMaterial`.
+ */
+function applyDoubleSideDebug( builder, material ) {
+
+	const hidden = builder.renderer.debug.doubleSideHidden === true;
+	const visibleBack = builder.renderer.debug.doubleSideBack === true;
+	const doubleSided = material.side === DoubleSide;
+	const colorNode = hidden ? HIDDEN_COLOR : ( visibleBack ? BACK_COLOR : ( doubleSided ? select( geometricFrontFacing, FRONT_COLOR, BACK_COLOR ) : FRONT_COLOR ) );
+
+	assignLitColor( builder, material, colorNode );
 
 }
 
@@ -23683,6 +23830,10 @@ class NodeMaterial extends Material {
 
 				applyShadowCasterDebug( builder, this );
 
+			} else if ( renderer.debug.view === DEBUG_VIEW_DOUBLE_SIDE && this.isShadowPassMaterial !== true ) {
+
+				applyDoubleSideDebug( builder, this );
+
 			}
 			// !WITH_GENESYS
 
@@ -24141,7 +24292,7 @@ class NodeMaterial extends Material {
 	setupNormal( builder ) {
 
 		// WITH_GENESYS
-		if ( ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY || builder.renderer.debug.view === DEBUG_VIEW_DRAW_CALL || builder.renderer.debug.view === DEBUG_VIEW_FRONT_BACK_FACE || builder.renderer.debug.view === DEBUG_VIEW_SHADOW_CASTER ) && this.isShadowPassMaterial !== true && this.fragmentNode === null ) {
+		if ( ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY || builder.renderer.debug.view === DEBUG_VIEW_DRAW_CALL || builder.renderer.debug.view === DEBUG_VIEW_FRONT_BACK_FACE || builder.renderer.debug.view === DEBUG_VIEW_SHADOW_CASTER || builder.renderer.debug.view === DEBUG_VIEW_DOUBLE_SIDE ) && this.isShadowPassMaterial !== true && this.fragmentNode === null ) {
 
 			return lightingOnlyNormal();
 
@@ -24346,7 +24497,7 @@ class NodeMaterial extends Material {
 			// WITH_GENESYS
 			// Lighting only and draw call substitute a plain lit material, so emissive is dropped.
 			// Detail lighting keeps it.
-			if ( ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY || builder.renderer.debug.view === DEBUG_VIEW_DRAW_CALL || builder.renderer.debug.view === DEBUG_VIEW_FRONT_BACK_FACE || builder.renderer.debug.view === DEBUG_VIEW_SHADOW_CASTER ) && this.isShadowPassMaterial !== true ) {
+			if ( ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY || builder.renderer.debug.view === DEBUG_VIEW_DRAW_CALL || builder.renderer.debug.view === DEBUG_VIEW_FRONT_BACK_FACE || builder.renderer.debug.view === DEBUG_VIEW_SHADOW_CASTER || builder.renderer.debug.view === DEBUG_VIEW_DOUBLE_SIDE ) && this.isShadowPassMaterial !== true ) {
 
 				return outgoingLightNode;
 
@@ -33257,7 +33408,7 @@ class RenderObject {
 
 		// WITH_GENESYS
 		// hash() xors each argument as a number, so a view name has to be hashed first.
-		cacheKey = hash$1( cacheKey, hashString( this.renderer.debug.view ), hashString( this.renderer.debug.buffer ), this.renderer.debug.shaderComplexityBudget, this.renderer.debug.quadOverdrawBudget );
+		cacheKey = hash$1( cacheKey, hashString( this.renderer.debug.view ), hashString( this.renderer.debug.buffer ), this.renderer.debug.shaderComplexityBudget, this.renderer.debug.quadOverdrawBudget, this.renderer.debug.doubleSideHidden === true ? 1 : 0, this.renderer.debug.doubleSideBack === true ? 1 : 0 );
 		// !WITH_GENESYS
 
 		return cacheKey;
@@ -64636,7 +64787,7 @@ class Renderer {
 		 * @property {?Function} onNodeBuilderCreated - A callback function that is executed after a node builder has been created and before it is built.
 		 * @property {?Function} onShaderError - A callback function that is executed when a shader error happens. Only supported with WebGL 2 right now.
 		 * @property {Function} getShaderAsync - Allows the get the raw shader code for the given scene, camera and 3D object.
-		 * @property {string} view - Debug view. `shaderComplexity`, `lightingComplexity`, `overdraw`, and `shaderComplexityAndQuads` replace the shaded color with a heatmap. `shaderComplexityAndQuads` multiplies the shader cost by the overdraw count. `bufferVisualization` shows one material channel. `lightingOnly` and `detailLighting` light a flat gray surface. `drawCall` lights each submitted draw with its own diffuse color. `frontBackFace` draws both windings and tints the side facing the camera. `shadowCaster` lights a mesh green when it casts shadows and gray when it does not.
+		 * @property {string} view - Debug view. `shaderComplexity`, `lightingComplexity`, `overdraw`, and `shaderComplexityAndQuads` replace the shaded color with a heatmap. `shaderComplexityAndQuads` multiplies the shader cost by the overdraw count. `bufferVisualization` shows one material channel. `lightingOnly` and `detailLighting` light a flat gray surface. `drawCall` lights each submitted draw with its own diffuse color. `frontBackFace` draws both windings and tints the side facing the camera. `shadowCaster` lights a mesh green when it casts shadows and gray when it does not. `doubleSide` lights a single-sided surface gray, a visible double-sided back face blue, and a hidden double-sided back face red.
 		 * @property {string} buffer - Channel drawn by `bufferVisualization`: `baseColor`, `worldNormal`, `roughness`, `metallic`, `ambientOcclusion`, or `emissive`.
 		 * @property {number} shaderComplexityBudget - Proxy budget that fills the shader-complexity ramp.
 		 * @property {number} quadOverdrawBudget - Overlapping fragments that fill the quad-overdraw ramp.
@@ -64659,6 +64810,8 @@ class Renderer {
 			buffer: DEFAULT_BUFFER,
 			shaderComplexityBudget: DEFAULT_SHADER_COMPLEXITY_BUDGET,
 			quadOverdrawBudget: DEFAULT_QUAD_OVERDRAW_BUDGET,
+			doubleSideHidden: false,
+			doubleSideBack: false,
 			// !WITH_GENESYS
 			getShaderAsync: async ( scene, camera, object ) => {
 
@@ -65878,6 +66031,10 @@ class Renderer {
 		if ( bundles.length > 0 ) this._renderBundles( bundles, sceneRef, lightsNode );
 		if ( this.opaque === true && opaqueObjects.length > 0 ) this._renderObjects( opaqueObjects, camera, sceneRef, lightsNode );
 		if ( this.transparent === true && transparentObjects.length > 0 ) this._renderTransparents( transparentObjects, transparentDoublePassObjects, camera, sceneRef, lightsNode );
+
+		// WITH_GENESYS
+		this._renderDoubleSideHidden( opaqueObjects, transparentObjects, camera, sceneRef, lightsNode );
+		// !WITH_GENESYS
 
 		// finish render pass
 
@@ -67448,6 +67605,82 @@ class Renderer {
 		}
 
 	}
+
+	// WITH_GENESYS
+	/**
+	 * Paints a double-sided mesh red where its own front face is the nearest surface and the
+	 * mesh has faces pointing the other way. A different mesh in front keeps its own color.
+	 * A flat card has no opposing faces, so it stays gray or blue. A shadow pass is left alone.
+	 *
+	 * @private
+	 * @param {Array<Object>} opaqueObjects - The opaque render list.
+	 * @param {Array<Object>} transparentObjects - The transparent render list.
+	 * @param {Camera} camera - The camera.
+	 * @param {Scene} scene - The scene.
+	 * @param {LightsNode} lightsNode - The current lights node.
+	 */
+	_renderDoubleSideHidden( opaqueObjects, transparentObjects, camera, scene, lightsNode ) {
+
+		if ( this.debug.view !== DEBUG_VIEW_DOUBLE_SIDE ) return;
+
+		if ( scene.overrideMaterial !== null && scene.overrideMaterial.isShadowPassMaterial === true ) return;
+
+		const list = [];
+		const saved = new Map();
+
+		const collect = ( objects ) => {
+
+			for ( let i = 0, l = objects.length; i < l; i ++ ) {
+
+				const entry = objects[ i ];
+				const material = entry.material;
+				const geometry = entry.object.geometry;
+
+				if ( entry.object.isMesh !== true || material.side !== DoubleSide || material.isShadowPassMaterial === true ) continue;
+
+				if ( geometry === undefined || meshCanHideOwnBack( geometry ) !== true ) continue;
+
+				list.push( entry );
+
+				if ( saved.has( material ) ) continue;
+
+				saved.set( material, {
+					side: material.side,
+					depthFunc: material.depthFunc,
+					depthWrite: material.depthWrite
+				} );
+
+			}
+
+		};
+
+		collect( opaqueObjects );
+		collect( transparentObjects );
+
+		if ( list.length === 0 ) return;
+
+		for ( const material of saved.keys() ) {
+
+			material.side = FrontSide;
+			material.depthFunc = EqualDepth;
+			material.depthWrite = false;
+
+		}
+
+		this.debug.doubleSideHidden = true;
+		this._renderObjects( list, camera, scene, lightsNode, 'doubleSideHidden' );
+		this.debug.doubleSideHidden = false;
+
+		for ( const [ material, state ] of saved ) {
+
+			material.side = state.side;
+			material.depthFunc = state.depthFunc;
+			material.depthWrite = state.depthWrite;
+
+		}
+
+	}
+	// !WITH_GENESYS
 
 	/**
 	 * Renders the transparent objects from the given render lists.

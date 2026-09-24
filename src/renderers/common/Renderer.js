@@ -30,7 +30,7 @@ import { Matrix4 } from '../../math/Matrix4.js';
 import { Vector2 } from '../../math/Vector2.js';
 import { Vector4 } from '../../math/Vector4.js';
 import { RenderTarget } from '../../core/RenderTarget.js';
-import { DoubleSide, BackSide, FrontSide, SRGBColorSpace, NoToneMapping, LinearFilter, HalfFloatType, RGBAFormat, PCFShadowMap, PCFSoftShadowMap, VSMShadowMap, RenderObjectRefreshType } from '../../constants.js';
+import { DoubleSide, BackSide, FrontSide, EqualDepth, SRGBColorSpace, NoToneMapping, LinearFilter, HalfFloatType, RGBAFormat, PCFShadowMap, PCFSoftShadowMap, VSMShadowMap, RenderObjectRefreshType } from '../../constants.js';
 
 import { float, vec3, vec4, Fn } from '../../nodes/tsl/TSLCore.js';
 // WITH_GENESYS
@@ -38,6 +38,7 @@ import { detachRendererReference } from '../../nodes/accessors/RendererReference
 import { toneMappingExposure } from '../../nodes/display/ToneMappingNode.js';
 import { ProfilerService } from '../../profiler/ProfilerService.js';
 import { DEBUG_VIEW_NONE, DEFAULT_QUAD_OVERDRAW_BUDGET, DEFAULT_SHADER_COMPLEXITY_BUDGET, debugViewAccumulates, debugViewSkipsToneMapping } from '../../nodes/display/ComplexityDebug.js';
+import { DEBUG_VIEW_DOUBLE_SIDE, meshCanHideOwnBack } from '../../nodes/display/DoubleSideDebug.js';
 import { DEFAULT_BUFFER } from '../../nodes/display/BufferDebug.js';
 // !WITH_GENESYS
 import { reference } from '../../nodes/accessors/ReferenceNode.js';
@@ -745,7 +746,7 @@ class Renderer {
 		 * @property {?Function} onNodeBuilderCreated - A callback function that is executed after a node builder has been created and before it is built.
 		 * @property {?Function} onShaderError - A callback function that is executed when a shader error happens. Only supported with WebGL 2 right now.
 		 * @property {Function} getShaderAsync - Allows the get the raw shader code for the given scene, camera and 3D object.
-		 * @property {string} view - Debug view. `shaderComplexity`, `lightingComplexity`, `overdraw`, and `shaderComplexityAndQuads` replace the shaded color with a heatmap. `shaderComplexityAndQuads` multiplies the shader cost by the overdraw count. `bufferVisualization` shows one material channel. `lightingOnly` and `detailLighting` light a flat gray surface. `drawCall` lights each submitted draw with its own diffuse color. `frontBackFace` draws both windings and tints the side facing the camera. `shadowCaster` lights a mesh green when it casts shadows and gray when it does not.
+		 * @property {string} view - Debug view. `shaderComplexity`, `lightingComplexity`, `overdraw`, and `shaderComplexityAndQuads` replace the shaded color with a heatmap. `shaderComplexityAndQuads` multiplies the shader cost by the overdraw count. `bufferVisualization` shows one material channel. `lightingOnly` and `detailLighting` light a flat gray surface. `drawCall` lights each submitted draw with its own diffuse color. `frontBackFace` draws both windings and tints the side facing the camera. `shadowCaster` lights a mesh green when it casts shadows and gray when it does not. `doubleSide` lights a single-sided surface gray, a visible double-sided back face blue, and a hidden double-sided back face red.
 		 * @property {string} buffer - Channel drawn by `bufferVisualization`: `baseColor`, `worldNormal`, `roughness`, `metallic`, `ambientOcclusion`, or `emissive`.
 		 * @property {number} shaderComplexityBudget - Proxy budget that fills the shader-complexity ramp.
 		 * @property {number} quadOverdrawBudget - Overlapping fragments that fill the quad-overdraw ramp.
@@ -768,6 +769,8 @@ class Renderer {
 			buffer: DEFAULT_BUFFER,
 			shaderComplexityBudget: DEFAULT_SHADER_COMPLEXITY_BUDGET,
 			quadOverdrawBudget: DEFAULT_QUAD_OVERDRAW_BUDGET,
+			doubleSideHidden: false,
+			doubleSideBack: false,
 			// !WITH_GENESYS
 			getShaderAsync: async ( scene, camera, object ) => {
 
@@ -1987,6 +1990,10 @@ class Renderer {
 		if ( bundles.length > 0 ) this._renderBundles( bundles, sceneRef, lightsNode );
 		if ( this.opaque === true && opaqueObjects.length > 0 ) this._renderObjects( opaqueObjects, camera, sceneRef, lightsNode );
 		if ( this.transparent === true && transparentObjects.length > 0 ) this._renderTransparents( transparentObjects, transparentDoublePassObjects, camera, sceneRef, lightsNode );
+
+		// WITH_GENESYS
+		this._renderDoubleSideHidden( opaqueObjects, transparentObjects, camera, sceneRef, lightsNode );
+		// !WITH_GENESYS
 
 		// finish render pass
 
@@ -3557,6 +3564,82 @@ class Renderer {
 		}
 
 	}
+
+	// WITH_GENESYS
+	/**
+	 * Paints a double-sided mesh red where its own front face is the nearest surface and the
+	 * mesh has faces pointing the other way. A different mesh in front keeps its own color.
+	 * A flat card has no opposing faces, so it stays gray or blue. A shadow pass is left alone.
+	 *
+	 * @private
+	 * @param {Array<Object>} opaqueObjects - The opaque render list.
+	 * @param {Array<Object>} transparentObjects - The transparent render list.
+	 * @param {Camera} camera - The camera.
+	 * @param {Scene} scene - The scene.
+	 * @param {LightsNode} lightsNode - The current lights node.
+	 */
+	_renderDoubleSideHidden( opaqueObjects, transparentObjects, camera, scene, lightsNode ) {
+
+		if ( this.debug.view !== DEBUG_VIEW_DOUBLE_SIDE ) return;
+
+		if ( scene.overrideMaterial !== null && scene.overrideMaterial.isShadowPassMaterial === true ) return;
+
+		const list = [];
+		const saved = new Map();
+
+		const collect = ( objects ) => {
+
+			for ( let i = 0, l = objects.length; i < l; i ++ ) {
+
+				const entry = objects[ i ];
+				const material = entry.material;
+				const geometry = entry.object.geometry;
+
+				if ( entry.object.isMesh !== true || material.side !== DoubleSide || material.isShadowPassMaterial === true ) continue;
+
+				if ( geometry === undefined || meshCanHideOwnBack( geometry ) !== true ) continue;
+
+				list.push( entry );
+
+				if ( saved.has( material ) ) continue;
+
+				saved.set( material, {
+					side: material.side,
+					depthFunc: material.depthFunc,
+					depthWrite: material.depthWrite
+				} );
+
+			}
+
+		};
+
+		collect( opaqueObjects );
+		collect( transparentObjects );
+
+		if ( list.length === 0 ) return;
+
+		for ( const material of saved.keys() ) {
+
+			material.side = FrontSide;
+			material.depthFunc = EqualDepth;
+			material.depthWrite = false;
+
+		}
+
+		this.debug.doubleSideHidden = true;
+		this._renderObjects( list, camera, scene, lightsNode, 'doubleSideHidden' );
+		this.debug.doubleSideHidden = false;
+
+		for ( const [ material, state ] of saved ) {
+
+			material.side = state.side;
+			material.depthFunc = state.depthFunc;
+			material.depthWrite = state.depthWrite;
+
+		}
+
+	}
+	// !WITH_GENESYS
 
 	/**
 	 * Renders the transparent objects from the given render lists.
