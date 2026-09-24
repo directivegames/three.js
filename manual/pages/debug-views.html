@@ -213,6 +213,18 @@ renderer.debug.view = 'none';
             </p>
             <div class="threejs_center"><img src="../resources/images/debug-views/detail-lighting.jpg" alt="Detail lighting. Surfaces are gray but normal maps, roughness, and emissive still show." style="width: 100%;"></div>
 
+            <h2 id="front-back-face">Front/back face</h2>
+
+            <p>
+              Draws both sides of each triangle. The side whose winding faces the camera is a warm gray.
+              The opposite winding is blue. Depth still hides a face that sits behind another surface.
+            </p>
+            <p>
+              Use it to see a flipped normal on the outside of a mesh, or the reverse side of a thin double-sided surface.
+              The inside of a closed mesh stays hidden. The open box in the picture is double sided, so the inner wall is blue.
+            </p>
+            <div class="threejs_center"><img src="../resources/images/debug-views/front-back-face.jpg" alt="Front/back face. Surfaces facing the camera are warm gray. The inside of the open box is blue." style="width: 100%;"></div>
+
             <h2 id="draw-call">Draw call</h2>
 
             <p>

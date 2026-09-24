@@ -150,7 +150,8 @@ class Settings extends Parameters {
 			'Buffer Visualization': 'bufferVisualization',
 			'Lighting Only': 'lightingOnly',
 			'Detail Lighting': 'detailLighting',
-			'Draw Call': 'drawCall'
+			'Draw Call': 'drawCall',
+			'Front/Back Face': 'frontBackFace'
 		} ).name( 'Debug View' ).onChange( ( view ) => {
 
 			const renderer = this.inspector.getRenderer();
@@ -161,7 +162,7 @@ class Settings extends Parameters {
 			this._syncBufferRow( view );
 			window.dispatchEvent( new Event( 'genesys-debug-view' ) );
 
-		} ).info( 'Shaded color, a cost heatmap, per-pixel overdraw, shader cost times overdraw, one material channel, lighting on a flat gray surface, or one lit color per draw. The Overdraw toggle above draws on top when both are enabled.' );
+		} ).info( 'Shaded color, a cost heatmap, per-pixel overdraw, shader cost times overdraw, one material channel, lighting on a flat gray surface, one lit color per draw, or a tint for the front and back of each face. The Overdraw toggle above draws on top when both are enabled.' );
 
 		this._bufferControl = modesGroup.add( bufferState, 'buffer', {
 			'Base Color': 'baseColor',
@@ -192,7 +193,7 @@ class Settings extends Parameters {
 		const renderer = this.inspector.getRenderer();
 		const view = renderer !== null && renderer.debug !== undefined ? renderer.debug.view : null;
 
-		if ( view === 'none' || view === 'shaderComplexity' || view === 'lightingComplexity' || view === 'overdraw' || view === 'shaderComplexityAndQuads' || view === 'bufferVisualization' || view === 'lightingOnly' || view === 'detailLighting' || view === 'drawCall' ) {
+		if ( view === 'none' || view === 'shaderComplexity' || view === 'lightingComplexity' || view === 'overdraw' || view === 'shaderComplexityAndQuads' || view === 'bufferVisualization' || view === 'lightingOnly' || view === 'detailLighting' || view === 'drawCall' || view === 'frontBackFace' ) {
 
 			if ( this._debugViewState.view !== view ) {
 

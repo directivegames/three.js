@@ -13,6 +13,7 @@ import { Vector4 } from '../../../math/Vector4.js';
 import { error, ReversedDepthFuncs, warnOnce } from '../../../utils.js';
 // WITH_GENESYS
 import { debugDrawAccumulates, debugDrawReplacesCost } from '../../../nodes/display/ComplexityDebug.js';
+import { DEBUG_VIEW_FRONT_BACK_FACE } from '../../../nodes/display/FrontBackFaceDebug.js';
 // !WITH_GENESYS
 
 let equationToGL, factorToGL;
@@ -947,9 +948,16 @@ class WebGLState {
 
 		const { gl } = this;
 
-		material.side === DoubleSide
+		// WITH_GENESYS
+		const drawBothSides = material.side === DoubleSide || ( this.backend.renderer.debug.view === DEBUG_VIEW_FRONT_BACK_FACE && material.isShadowPassMaterial !== true );
+
+		drawBothSides
 			? this.disable( gl.CULL_FACE )
 			: this.enable( gl.CULL_FACE );
+		// !WITH_GENESYS
+		// material.side === DoubleSide
+		// 	? this.disable( gl.CULL_FACE )
+		// 	: this.enable( gl.CULL_FACE );
 
 		let flipSided = ( material.side === BackSide );
 		if ( frontFaceCW ) flipSided = ! flipSided;

@@ -17,6 +17,7 @@ import {
 import { error, ReversedDepthFuncs, warn, warnOnce } from '../../../utils.js';
 // WITH_GENESYS
 import { debugDrawAccumulates, debugDrawReplacesCost } from '../../../nodes/display/ComplexityDebug.js';
+import { DEBUG_VIEW_FRONT_BACK_FACE } from '../../../nodes/display/FrontBackFaceDebug.js';
 // !WITH_GENESYS
 
 import GPUComputePipelineDescriptor from '../descriptors/GPUComputePipelineDescriptor.js';
@@ -946,7 +947,12 @@ class WebGPUPipelineUtils {
 
 		//
 
-		descriptor.cullMode = ( material.side === DoubleSide ) ? GPUCullMode.None : GPUCullMode.Back;
+		// WITH_GENESYS
+		// Front/back face draws both windings. Depth still hides a face behind the shell.
+		const drawBothSides = material.side === DoubleSide || ( this.backend.renderer.debug.view === DEBUG_VIEW_FRONT_BACK_FACE && material.isShadowPassMaterial !== true );
+		descriptor.cullMode = drawBothSides ? GPUCullMode.None : GPUCullMode.Back;
+		// !WITH_GENESYS
+		// descriptor.cullMode = ( material.side === DoubleSide ) ? GPUCullMode.None : GPUCullMode.Back;
 
 		return descriptor;
 
