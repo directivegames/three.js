@@ -3,12 +3,12 @@
   "version": "0.0.0",
   "description": "JavaScript 3D library",
   "type": "module",
-  "main": "./build/three.cjs",
+  "main": "./build/three.module.js",
   "module": "./build/three.module.js",
   "exports": {
     ".": {
       "import": "./build/three.module.js",
-      "require": "./build/three.cjs"
+      "require": "./build/three.module.js"
     },
     "./examples/fonts/*": "./examples/fonts/*",
     "./examples/jsm/*": "./examples/jsm/*",
