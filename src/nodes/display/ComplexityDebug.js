@@ -15,7 +15,8 @@ import { DEBUG_VIEW_BUFFER } from './BufferDebug.js';
 export const DEBUG_VIEW_NONE = 'none';
 
 /**
- * Material-cost heatmap. Overlapping draws accumulate, then a fullscreen pass applies the ramp.
+ * Material-cost heatmap. The nearest opaque surface wins, translucent draws add on top,
+ * then a fullscreen pass applies the ramp.
  *
  * @type {string}
  */
@@ -34,11 +35,11 @@ export const DEBUG_VIEW_LIGHTING_COMPLEXITY = 'lightingComplexity';
  *
  * @type {string}
  */
-export const DEBUG_VIEW_QUAD_OVERDRAW = 'quadOverdraw';
+export const DEBUG_VIEW_OVERDRAW = 'overdraw';
 
 /**
  * Shader cost multiplied by the number of fragments that shaded the pixel, then the shader-complexity ramp.
- * One opaque surface matches {@link DEBUG_VIEW_SHADER_COMPLEXITY}. Each extra overlapping fragment scales the summed cost.
+ * One opaque surface matches {@link DEBUG_VIEW_SHADER_COMPLEXITY}. Each extra translucent fragment scales the summed cost.
  * WebGPU cannot count wasted lanes in a 2×2 quad, so the count is fragments that pass the depth test.
  *
  * @type {string}
@@ -221,7 +222,7 @@ export const colorizeQuadOverdraw = ( cost ) => {
  */
 export function debugViewAccumulates( view ) {
 
-	return view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_QUAD_OVERDRAW || view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS;
+	return view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_OVERDRAW || view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS;
 
 }
 
@@ -241,6 +242,22 @@ export function debugDrawAccumulates( renderer, material, object ) {
 		material.isShadowPassMaterial !== true &&
 		renderer.isOutputTarget !== true &&
 		( object === null || object === undefined || object.isQuadMesh !== true );
+
+}
+
+/**
+ * Whether an accumulating draw replaces the stored cost instead of adding to it.
+ * Three.js has no depth pre-pass, so adding every opaque fragment counts hidden surfaces
+ * and changes as the camera reorders draws. Replacing, with the material's own depth test
+ * and depth write, leaves the nearest opaque surface. Translucent draws and quad overdraw still add.
+ *
+ * @param {string} view - `renderer.debug.view`.
+ * @param {Material} material - The material being drawn.
+ * @return {boolean} `true` when the draw replaces the stored cost.
+ */
+export function debugDrawReplacesCost( view, material ) {
+
+	return ( view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS ) && material.transparent !== true;
 
 }
 

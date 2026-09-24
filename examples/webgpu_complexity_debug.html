@@ -23,7 +23,7 @@
 				Back: basic, standard, physical, 8 cheap layers, 4 physical layers, 2 Lambert layers, light overlap, glTF model.<br/>
 				Middle: RGB, rough/smooth, metal/plastic, emissive, normal/flat, AO.<br/>
 				Front: near LOD, far LOD, open box, caster / non-caster, separate meshes, one instanced mesh.<br/>
-				Render path: direct to canvas, a scene pass, or an MRT scene pass (output, normal, emissive) like a post-processing stack.<br/>
+				Render path: direct to canvas, a scene pass, or an MRT scene pass (output, normal, emissive) like a post-processing stack, optionally with a HUD pass blended on top.<br/>
 				WASD moves the camera, mouse orbits.
 			</small>
 		</div>
@@ -43,7 +43,7 @@
 
 			// WITH_GENESYS
 			import * as THREE from 'three/webgpu';
-			import { pass, mrt, output, emissive, normalView, packNormalToRGB } from 'three/tsl';
+			import { pass, mrt, output, emissive, normalView, packNormalToRGB, blendColor } from 'three/tsl';
 
 			import { Inspector } from 'three/addons/inspector/Inspector.js';
 			import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -51,6 +51,7 @@
 			import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 
 			let camera, scene, renderer, renderPipeline, controls;
+			let hudCamera, hudScene, hudGizmo;
 			let viewController, shaderBudget, overdrawBudget;
 
 			// WASD moves the camera and the orbit target together on the ground plane.
@@ -64,26 +65,27 @@
 			// New views are added here. `key` is optional.
 			const modes = [
 				{ id: 'shaded', view: 'none', label: 'Shaded', key: '1' },
+				{ id: 'drawCall', view: 'drawCall', label: 'Draw call' },				
 				{ id: 'shaderComplexity', view: 'shaderComplexity', label: 'Shader complexity', key: '2' },
 				{ id: 'lightingComplexity', view: 'lightingComplexity', label: 'Lighting complexity', key: '3' },
-				{ id: 'quadOverdraw', view: 'quadOverdraw', label: 'Quad overdraw', key: '4' },
+				{ id: 'overdraw', view: 'overdraw', label: 'Overdraw', key: '4' },
 				{ id: 'shaderComplexityAndQuads', view: 'shaderComplexityAndQuads', label: 'Shader complexity and quads' },
+				{ id: 'lightingOnly', view: 'lightingOnly', label: 'Lighting only' },
+				{ id: 'detailLighting', view: 'detailLighting', label: 'Detail lighting' },
 				{ id: 'baseColor', view: 'bufferVisualization', buffer: 'baseColor', label: 'Buffer: Base color', key: '5' },
 				{ id: 'worldNormal', view: 'bufferVisualization', buffer: 'worldNormal', label: 'Buffer: World normal', key: '6' },
 				{ id: 'roughness', view: 'bufferVisualization', buffer: 'roughness', label: 'Buffer: Roughness', key: '7' },
 				{ id: 'metallic', view: 'bufferVisualization', buffer: 'metallic', label: 'Buffer: Metallic', key: '8' },
 				{ id: 'ambientOcclusion', view: 'bufferVisualization', buffer: 'ambientOcclusion', label: 'Buffer: Ambient occlusion', key: '9' },
 				{ id: 'emissive', view: 'bufferVisualization', buffer: 'emissive', label: 'Buffer: Emissive', key: '0' },
-				{ id: 'lightingOnly', view: 'lightingOnly', label: 'Lighting only' },
-				{ id: 'detailLighting', view: 'detailLighting', label: 'Detail lighting' },
-				{ id: 'drawCall', view: 'drawCall', label: 'Draw call' }
 			];
 
 			// `direct` draws to the canvas. The pass paths draw the scene into a render target first.
 			const renderPaths = {
 				'Direct': 'direct',
 				'Scene pass': 'scenePass',
-				'MRT scene pass': 'mrtScenePass'
+				'MRT scene pass': 'mrtScenePass',
+				'MRT scene pass + HUD': 'mrtScenePassHud'
 			};
 
 			const params = { view: 'shaded', path: 'direct' };
@@ -477,6 +479,33 @@
 
 				renderPipeline = new THREE.RenderPipeline( renderer );
 
+				// A corner gizmo in its own scene, composited over the scene pass like an editor HUD.
+				hudScene = new THREE.Scene();
+				hudScene.add( new THREE.AmbientLight( 0xffffff, 1 ) );
+
+				hudCamera = new THREE.OrthographicCamera();
+				hudCamera.position.z = 10;
+				updateHudCamera();
+
+				hudGizmo = new THREE.Group();
+				hudGizmo.scale.setScalar( 80 );
+
+				for ( const [ axis, color ] of [ [ 'x', 0xff3653 ], [ 'y', 0x8adb00 ], [ 'z', 0x2c8fff ] ] ) {
+
+					const arm = new THREE.Mesh( new THREE.CylinderGeometry( 0.05, 0.05, 1 ), new THREE.MeshStandardMaterial( { color } ) );
+					const tip = new THREE.Mesh( new THREE.SphereGeometry( 0.18 ), new THREE.MeshStandardMaterial( { color } ) );
+
+					arm.position[ axis ] = 0.5;
+					tip.position[ axis ] = 1;
+					if ( axis === 'x' ) arm.rotation.z = - Math.PI / 2;
+					if ( axis === 'z' ) arm.rotation.x = Math.PI / 2;
+
+					hudGizmo.add( arm, tip );
+
+				}
+
+				hudScene.add( hudGizmo );
+
 				controls = new OrbitControls( camera, renderer.domElement );
 				controls.target.set( 0, 0.5, 0.4 );
 				controls.update();
@@ -518,7 +547,7 @@
 				if ( shaderBudget === undefined || renderer === undefined ) return;
 
 				shaderBudget.show( renderer.debug.view === 'shaderComplexity' || renderer.debug.view === 'shaderComplexityAndQuads' );
-				overdrawBudget.show( renderer.debug.view === 'quadOverdraw' );
+				overdrawBudget.show( renderer.debug.view === 'overdraw' );
 
 			}
 
@@ -544,7 +573,7 @@
 
 				const scenePass = pass( scene, camera );
 
-				if ( path === 'mrtScenePass' ) {
+				if ( path === 'mrtScenePass' || path === 'mrtScenePassHud' ) {
 
 					scenePass.setMRT( mrt( {
 						output,
@@ -554,7 +583,12 @@
 
 				}
 
-				renderPipeline.outputNode = scenePass.getTextureNode( 'output' );
+				let outputNode = scenePass.getTextureNode( 'output' );
+
+				// The HUD target stays transparent where it draws nothing, so the blend keeps the scene there.
+				if ( path === 'mrtScenePassHud' ) outputNode = blendColor( outputNode, pass( hudScene, hudCamera ) );
+
+				renderPipeline.outputNode = outputNode;
 				renderPipeline.needsUpdate = true;
 
 			}
@@ -647,7 +681,19 @@
 
 				camera.aspect = window.innerWidth / window.innerHeight;
 				camera.updateProjectionMatrix();
+				updateHudCamera();
 				renderer.setSize( window.innerWidth, window.innerHeight );
+
+			}
+
+			// Pixel units with the origin in the bottom-right corner, 100px in from each edge.
+			function updateHudCamera() {
+
+				hudCamera.left = 100 - window.innerWidth;
+				hudCamera.right = 100;
+				hudCamera.top = window.innerHeight - 100;
+				hudCamera.bottom = - 100;
+				hudCamera.updateProjectionMatrix();
 
 			}
 
@@ -657,6 +703,8 @@
 				lastTime = time;
 
 				updateMovement( delta );
+
+				hudGizmo.quaternion.copy( camera.quaternion ).invert();
 
 				if ( params.path === 'direct' ) {
 

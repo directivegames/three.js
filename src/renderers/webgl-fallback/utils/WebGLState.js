@@ -12,7 +12,7 @@ import { Color } from '../../../math/Color.js';
 import { Vector4 } from '../../../math/Vector4.js';
 import { error, ReversedDepthFuncs, warnOnce } from '../../../utils.js';
 // WITH_GENESYS
-import { debugDrawAccumulates } from '../../../nodes/display/ComplexityDebug.js';
+import { debugDrawAccumulates, debugDrawReplacesCost } from '../../../nodes/display/ComplexityDebug.js';
 // !WITH_GENESYS
 
 let equationToGL, factorToGL;
@@ -288,7 +288,7 @@ class WebGLState {
 
 	}
 
-	setMRTBlending( textures, mrt, material ) {
+	setMRTBlending( textures, mrt, material, object = null ) {
 
 		const gl = this.gl;
 		const drawBuffersIndexedExt = this.backend.drawBuffersIndexedExt;
@@ -300,6 +300,24 @@ class WebGLState {
 			return;
 
 		}
+
+		// WITH_GENESYS
+		// Every attachment matches the single-target path. Opaque material blending would replace a sum that should add.
+		if ( debugDrawAccumulates( this.backend.renderer, material, object ) ) {
+
+			const dst = debugDrawReplacesCost( this.backend.renderer.debug.view, material ) ? gl.ZERO : gl.ONE;
+
+			for ( let i = 0; i < textures.length; i ++ ) {
+
+				drawBuffersIndexedExt.blendEquationSeparateiOES( i, gl.FUNC_ADD, gl.FUNC_ADD );
+				drawBuffersIndexedExt.blendFuncSeparateiOES( i, gl.ONE, dst, gl.ONE, gl.ZERO );
+
+			}
+
+			return;
+
+		}
+		// !WITH_GENESYS
 
 		for ( let i = 0; i < textures.length; i ++ ) {
 
@@ -939,10 +957,13 @@ class WebGLState {
 		this.setFlipSided( flipSided );
 
 		// WITH_GENESYS
-		// WebGL has no cached render pipeline. One+One is applied on each draw instead.
+		// WebGL has no cached render pipeline. The accumulate blend is applied on each draw instead.
+		// Alpha is replaced so it stays coverage, as in a shaded pass, for later compositing.
 		if ( debugDrawAccumulates( this.backend.renderer, material, object ) ) {
 
-			this.setBlending( AdditiveBlending, AddEquation, OneFactor, OneFactor, AddEquation, OneFactor, OneFactor, material.blendColor, material.blendAlpha, true );
+			const dstFactor = debugDrawReplacesCost( this.backend.renderer.debug.view, material ) ? ZeroFactor : OneFactor;
+
+			this.setBlending( CustomBlending, AddEquation, OneFactor, dstFactor, AddEquation, OneFactor, ZeroFactor, material.blendColor, material.blendAlpha, true );
 
 		} else if ( material.blending === NormalBlending && material.transparent === false ) {
 

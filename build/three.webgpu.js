@@ -21768,7 +21768,8 @@ function bufferVisualizationOutput( buffer ) {
 const DEBUG_VIEW_NONE = 'none';
 
 /**
- * Material-cost heatmap. Overlapping draws accumulate, then a fullscreen pass applies the ramp.
+ * Material-cost heatmap. The nearest opaque surface wins, translucent draws add on top,
+ * then a fullscreen pass applies the ramp.
  *
  * @type {string}
  */
@@ -21787,11 +21788,11 @@ const DEBUG_VIEW_LIGHTING_COMPLEXITY = 'lightingComplexity';
  *
  * @type {string}
  */
-const DEBUG_VIEW_QUAD_OVERDRAW = 'quadOverdraw';
+const DEBUG_VIEW_OVERDRAW = 'overdraw';
 
 /**
  * Shader cost multiplied by the number of fragments that shaded the pixel, then the shader-complexity ramp.
- * One opaque surface matches {@link DEBUG_VIEW_SHADER_COMPLEXITY}. Each extra overlapping fragment scales the summed cost.
+ * One opaque surface matches {@link DEBUG_VIEW_SHADER_COMPLEXITY}. Each extra translucent fragment scales the summed cost.
  * WebGPU cannot count wasted lanes in a 2×2 quad, so the count is fragments that pass the depth test.
  *
  * @type {string}
@@ -21974,7 +21975,7 @@ const colorizeQuadOverdraw = ( cost ) => {
  */
 function debugViewAccumulates( view ) {
 
-	return view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_QUAD_OVERDRAW || view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS;
+	return view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_OVERDRAW || view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS;
 
 }
 
@@ -21994,6 +21995,22 @@ function debugDrawAccumulates( renderer, material, object ) {
 		material.isShadowPassMaterial !== true &&
 		renderer.isOutputTarget !== true &&
 		( object === null || object === undefined || object.isQuadMesh !== true );
+
+}
+
+/**
+ * Whether an accumulating draw replaces the stored cost instead of adding to it.
+ * Three.js has no depth pre-pass, so adding every opaque fragment counts hidden surfaces
+ * and changes as the camera reorders draws. Replacing, with the material's own depth test
+ * and depth write, leaves the nearest opaque surface. Translucent draws and quad overdraw still add.
+ *
+ * @param {string} view - `renderer.debug.view`.
+ * @param {Material} material - The material being drawn.
+ * @return {boolean} `true` when the draw replaces the stored cost.
+ */
+function debugDrawReplacesCost( view, material ) {
+
+	return ( view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS ) && material.transparent !== true;
 
 }
 
@@ -53194,9 +53211,11 @@ class Background extends DataMap {
 		//
 
 		// WITH_GENESYS
+		// Accumulating views start from zero cost. Alpha keeps the shaded pass coverage, so an
+		// overlay pass such as a HUD stays transparent where it draws nothing when composited.
 		if ( debugViewAccumulates( renderer.debug.view ) ) {
 
-			_clearColor.set( 0, 0, 0, 1 );
+			_clearColor.set( 0, 0, 0, background !== null ? 1 : _clearColor.a );
 
 		}
 		// !WITH_GENESYS
@@ -60494,7 +60513,7 @@ class NodeManager extends DataMap {
 
 		}
 
-		if ( renderer.debug.view === DEBUG_VIEW_QUAD_OVERDRAW ) {
+		if ( renderer.debug.view === DEBUG_VIEW_OVERDRAW ) {
 
 			return vec4( colorizeQuadOverdraw( sampled.r ), 1 ).renderOutput( NoToneMapping, renderer.currentColorSpace );
 
@@ -64459,7 +64478,7 @@ class Renderer {
 		 * @property {?Function} onNodeBuilderCreated - A callback function that is executed after a node builder has been created and before it is built.
 		 * @property {?Function} onShaderError - A callback function that is executed when a shader error happens. Only supported with WebGL 2 right now.
 		 * @property {Function} getShaderAsync - Allows the get the raw shader code for the given scene, camera and 3D object.
-		 * @property {string} view - Debug view. `shaderComplexity`, `lightingComplexity`, `quadOverdraw`, and `shaderComplexityAndQuads` replace the shaded color with a heatmap. `shaderComplexityAndQuads` multiplies the shader cost by the overdraw count. `bufferVisualization` shows one material channel. `lightingOnly` and `detailLighting` light a flat gray surface. `drawCall` lights each submitted draw with its own diffuse color.
+		 * @property {string} view - Debug view. `shaderComplexity`, `lightingComplexity`, `overdraw`, and `shaderComplexityAndQuads` replace the shaded color with a heatmap. `shaderComplexityAndQuads` multiplies the shader cost by the overdraw count. `bufferVisualization` shows one material channel. `lightingOnly` and `detailLighting` light a flat gray surface. `drawCall` lights each submitted draw with its own diffuse color.
 		 * @property {string} buffer - Channel drawn by `bufferVisualization`: `baseColor`, `worldNormal`, `roughness`, `metallic`, `ambientOcclusion`, or `emissive`.
 		 * @property {number} shaderComplexityBudget - Proxy budget that fills the shader-complexity ramp.
 		 * @property {number} quadOverdrawBudget - Overlapping fragments that fill the quad-overdraw ramp.
@@ -72553,7 +72572,7 @@ class WebGLState {
 
 	}
 
-	setMRTBlending( textures, mrt, material ) {
+	setMRTBlending( textures, mrt, material, object = null ) {
 
 		const gl = this.gl;
 		const drawBuffersIndexedExt = this.backend.drawBuffersIndexedExt;
@@ -72565,6 +72584,24 @@ class WebGLState {
 			return;
 
 		}
+
+		// WITH_GENESYS
+		// Every attachment matches the single-target path. Opaque material blending would replace a sum that should add.
+		if ( debugDrawAccumulates( this.backend.renderer, material, object ) ) {
+
+			const dst = debugDrawReplacesCost( this.backend.renderer.debug.view, material ) ? gl.ZERO : gl.ONE;
+
+			for ( let i = 0; i < textures.length; i ++ ) {
+
+				drawBuffersIndexedExt.blendEquationSeparateiOES( i, gl.FUNC_ADD, gl.FUNC_ADD );
+				drawBuffersIndexedExt.blendFuncSeparateiOES( i, gl.ONE, dst, gl.ONE, gl.ZERO );
+
+			}
+
+			return;
+
+		}
+		// !WITH_GENESYS
 
 		for ( let i = 0; i < textures.length; i ++ ) {
 
@@ -73204,10 +73241,13 @@ class WebGLState {
 		this.setFlipSided( flipSided );
 
 		// WITH_GENESYS
-		// WebGL has no cached render pipeline. One+One is applied on each draw instead.
+		// WebGL has no cached render pipeline. The accumulate blend is applied on each draw instead.
+		// Alpha is replaced so it stays coverage, as in a shaded pass, for later compositing.
 		if ( debugDrawAccumulates( this.backend.renderer, material, object ) ) {
 
-			this.setBlending( AdditiveBlending, AddEquation, OneFactor, OneFactor, AddEquation, OneFactor, OneFactor, material.blendColor, material.blendAlpha, true );
+			const dstFactor = debugDrawReplacesCost( this.backend.renderer.debug.view, material ) ? ZeroFactor : OneFactor;
+
+			this.setBlending( CustomBlending, AddEquation, OneFactor, dstFactor, AddEquation, OneFactor, ZeroFactor, material.blendColor, material.blendAlpha, true );
 
 		} else if ( material.blending === NormalBlending && material.transparent === false ) {
 
@@ -77462,7 +77502,10 @@ class WebGLBackend extends Backend {
 
 		if ( context.mrt !== null && context.textures !== null ) {
 
-			state.setMRTBlending( context.textures, context.mrt, material );
+			// WITH_GENESYS
+			state.setMRTBlending( context.textures, context.mrt, material, object );
+			// !WITH_GENESYS
+			// state.setMRTBlending( context.textures, context.mrt, material );
 
 		}
 
@@ -87912,18 +87955,22 @@ class WebGPUPipelineUtils {
 		}
 
 		// WITH_GENESYS
-		// Accumulate shader cost with One+One. Opaque materials normally disable blending.
+		// Quad overdraw and translucent shader complexity add. Opaque shader complexity replaces
+		// the stored cost, so the nearest surface wins without a depth pre-pass.
+		// Alpha is replaced so it stays coverage, as in a shaded pass, for later compositing.
 		if ( debugDrawAccumulates( backend.renderer, material, object ) ) {
+
+			const replaceCost = debugDrawReplacesCost( backend.renderer.debug.view, material );
 
 			materialBlending = {
 				color: {
 					srcFactor: GPUBlendFactor.One,
-					dstFactor: GPUBlendFactor.One,
+					dstFactor: replaceCost ? GPUBlendFactor.Zero : GPUBlendFactor.One,
 					operation: GPUBlendOperation.Add
 				},
 				alpha: {
 					srcFactor: GPUBlendFactor.One,
-					dstFactor: GPUBlendFactor.One,
+					dstFactor: GPUBlendFactor.Zero,
 					operation: GPUBlendOperation.Add
 				}
 			};

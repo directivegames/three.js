@@ -16,7 +16,7 @@ import {
 
 import { error, ReversedDepthFuncs, warn, warnOnce } from '../../../utils.js';
 // WITH_GENESYS
-import { debugDrawAccumulates } from '../../../nodes/display/ComplexityDebug.js';
+import { debugDrawAccumulates, debugDrawReplacesCost } from '../../../nodes/display/ComplexityDebug.js';
 // !WITH_GENESYS
 
 import GPUComputePipelineDescriptor from '../descriptors/GPUComputePipelineDescriptor.js';
@@ -110,18 +110,22 @@ class WebGPUPipelineUtils {
 		}
 
 		// WITH_GENESYS
-		// Accumulate shader cost with One+One. Opaque materials normally disable blending.
+		// Quad overdraw and translucent shader complexity add. Opaque shader complexity replaces
+		// the stored cost, so the nearest surface wins without a depth pre-pass.
+		// Alpha is replaced so it stays coverage, as in a shaded pass, for later compositing.
 		if ( debugDrawAccumulates( backend.renderer, material, object ) ) {
+
+			const replaceCost = debugDrawReplacesCost( backend.renderer.debug.view, material );
 
 			materialBlending = {
 				color: {
 					srcFactor: GPUBlendFactor.One,
-					dstFactor: GPUBlendFactor.One,
+					dstFactor: replaceCost ? GPUBlendFactor.Zero : GPUBlendFactor.One,
 					operation: GPUBlendOperation.Add
 				},
 				alpha: {
 					srcFactor: GPUBlendFactor.One,
-					dstFactor: GPUBlendFactor.One,
+					dstFactor: GPUBlendFactor.Zero,
 					operation: GPUBlendOperation.Add
 				}
 			};

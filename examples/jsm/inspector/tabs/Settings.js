@@ -145,7 +145,7 @@ class Settings extends Parameters {
 			'Shaded': 'none',
 			'Shader Complexity': 'shaderComplexity',
 			'Lighting Complexity': 'lightingComplexity',
-			'Quad Overdraw': 'quadOverdraw',
+			'Overdraw': 'overdraw',
 			'Shader Complexity & Quads': 'shaderComplexityAndQuads',
 			'Buffer Visualization': 'bufferVisualization',
 			'Lighting Only': 'lightingOnly',
@@ -192,7 +192,7 @@ class Settings extends Parameters {
 		const renderer = this.inspector.getRenderer();
 		const view = renderer !== null && renderer.debug !== undefined ? renderer.debug.view : null;
 
-		if ( view === 'none' || view === 'shaderComplexity' || view === 'lightingComplexity' || view === 'quadOverdraw' || view === 'shaderComplexityAndQuads' || view === 'bufferVisualization' || view === 'lightingOnly' || view === 'detailLighting' || view === 'drawCall' ) {
+		if ( view === 'none' || view === 'shaderComplexity' || view === 'lightingComplexity' || view === 'overdraw' || view === 'shaderComplexityAndQuads' || view === 'bufferVisualization' || view === 'lightingOnly' || view === 'detailLighting' || view === 'drawCall' ) {
 
 			if ( this._debugViewState.view !== view ) {
 

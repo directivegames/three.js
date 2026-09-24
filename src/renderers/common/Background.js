@@ -227,9 +227,11 @@ class Background extends DataMap {
 		//
 
 		// WITH_GENESYS
+		// Accumulating views start from zero cost. Alpha keeps the shaded pass coverage, so an
+		// overlay pass such as a HUD stays transparent where it draws nothing when composited.
 		if ( debugViewAccumulates( renderer.debug.view ) ) {
 
-			_clearColor.set( 0, 0, 0, 1 );
+			_clearColor.set( 0, 0, 0, background !== null ? 1 : _clearColor.a );
 
 		}
 		// !WITH_GENESYS

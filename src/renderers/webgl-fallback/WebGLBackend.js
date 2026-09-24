@@ -1131,7 +1131,10 @@ class WebGLBackend extends Backend {
 
 		if ( context.mrt !== null && context.textures !== null ) {
 
-			state.setMRTBlending( context.textures, context.mrt, material );
+			// WITH_GENESYS
+			state.setMRTBlending( context.textures, context.mrt, material, object );
+			// !WITH_GENESYS
+			// state.setMRTBlending( context.textures, context.mrt, material );
 
 		}
 
