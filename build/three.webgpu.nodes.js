@@ -21797,7 +21797,7 @@ const DEBUG_VIEW_OVERDRAW = 'overdraw';
  *
  * @type {string}
  */
-const DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS = 'shaderComplexityAndQuads';
+const DEBUG_VIEW_SHADER_COMPLEXITY_AND_OVERDRAW = 'shaderComplexityAndOverdraw';
 
 /**
  * Proxy budget that fills the shader-complexity ramp.
@@ -21817,7 +21817,7 @@ const DEFAULT_SHADER_COMPLEXITY_BUDGET = 800;
 const DEFAULT_QUAD_OVERDRAW_BUDGET = 10;
 
 /**
- * Storage scale for the overdraw count in {@link DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS}.
+ * Storage scale for the overdraw count in {@link DEBUG_VIEW_SHADER_COMPLEXITY_AND_OVERDRAW}.
  * Each fragment adds `1 / scale`, so an 8-bit target can hold this many layers.
  * The output pass multiplies that channel back to a count. Half-float targets hold the same count exactly.
  *
@@ -21975,7 +21975,7 @@ const colorizeQuadOverdraw = ( cost ) => {
  */
 function debugViewAccumulates( view ) {
 
-	return view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_OVERDRAW || view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS;
+	return view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_OVERDRAW || view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_OVERDRAW;
 
 }
 
@@ -22010,7 +22010,7 @@ function debugDrawAccumulates( renderer, material, object ) {
  */
 function debugDrawReplacesCost( view, material ) {
 
-	return ( view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS ) && material.transparent !== true;
+	return ( view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_OVERDRAW ) && material.transparent !== true;
 
 }
 
@@ -22145,7 +22145,7 @@ function shaderComplexityOutput( resultNode ) {
  * @param {Node} resultNode - The material's shaded output.
  * @return {Node<vec4>} Cost ratio in red, one scaled fragment in green.
  */
-function shaderComplexityAndQuadsOutput( resultNode ) {
+function shaderComplexityAndOverdrawOutput( resultNode ) {
 
 	const shaded = vec4( resultNode ).toVar();
 	const ratio = new ShaderComplexityRatioNode();
@@ -23917,10 +23917,10 @@ class NodeMaterial extends Material {
 				builder.shaderComplexityBase = this.getShaderComplexity();
 				resultNode = replaceColorOutput( resultNode, shaderComplexityOutput );
 
-			} else if ( renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS ) {
+			} else if ( renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_OVERDRAW ) {
 
 				builder.shaderComplexityBase = this.getShaderComplexity();
-				resultNode = replaceColorOutput( resultNode, shaderComplexityAndQuadsOutput );
+				resultNode = replaceColorOutput( resultNode, shaderComplexityAndOverdrawOutput );
 
 			} else {
 
@@ -60812,9 +60812,9 @@ class NodeManager extends DataMap {
 		}
 
 		// WITH_GENESYS
-		if ( renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY || renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS ) {
+		if ( renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY || renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_OVERDRAW ) {
 
-			const complexity = renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS
+			const complexity = renderer.debug.view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_OVERDRAW
 				? sampled.r.mul( sampled.g ).mul( SHADER_COMPLEXITY_QUAD_COUNT_SCALE )
 				: sampled.r;
 
@@ -64787,7 +64787,7 @@ class Renderer {
 		 * @property {?Function} onNodeBuilderCreated - A callback function that is executed after a node builder has been created and before it is built.
 		 * @property {?Function} onShaderError - A callback function that is executed when a shader error happens. Only supported with WebGL 2 right now.
 		 * @property {Function} getShaderAsync - Allows the get the raw shader code for the given scene, camera and 3D object.
-		 * @property {string} view - Debug view. `shaderComplexity`, `lightingComplexity`, `overdraw`, and `shaderComplexityAndQuads` replace the shaded color with a heatmap. `shaderComplexityAndQuads` multiplies the shader cost by the overdraw count. `bufferVisualization` shows one material channel. `lightingOnly` and `detailLighting` light a flat gray surface. `drawCall` lights each submitted draw with its own diffuse color. `frontBackFace` draws both windings and tints the side facing the camera. `shadowCaster` lights a mesh green when it casts shadows and gray when it does not. `doubleSide` lights a single-sided surface gray, a visible double-sided back face blue, and a hidden double-sided back face red.
+		 * @property {string} view - Debug view. `shaderComplexity`, `lightingComplexity`, `overdraw`, and `shaderComplexityAndOverdraw` replace the shaded color with a heatmap. `shaderComplexityAndOverdraw` multiplies the shader cost by the overdraw count. `bufferVisualization` shows one material channel. `lightingOnly` and `detailLighting` light a flat gray surface. `drawCall` lights each submitted draw with its own diffuse color. `frontBackFace` draws both windings and tints the side facing the camera. `shadowCaster` lights a mesh green when it casts shadows and gray when it does not. `doubleSide` lights a single-sided surface gray, a visible double-sided back face blue, and a hidden double-sided back face red.
 		 * @property {string} buffer - Channel drawn by `bufferVisualization`: `baseColor`, `worldNormal`, `roughness`, `metallic`, `ambientOcclusion`, or `emissive`.
 		 * @property {number} shaderComplexityBudget - Proxy budget that fills the shader-complexity ramp.
 		 * @property {number} quadOverdrawBudget - Overlapping fragments that fill the quad-overdraw ramp.

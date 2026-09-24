@@ -44,7 +44,7 @@ export const DEBUG_VIEW_OVERDRAW = 'overdraw';
  *
  * @type {string}
  */
-export const DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS = 'shaderComplexityAndQuads';
+export const DEBUG_VIEW_SHADER_COMPLEXITY_AND_OVERDRAW = 'shaderComplexityAndOverdraw';
 
 /**
  * Proxy budget that fills the shader-complexity ramp.
@@ -64,7 +64,7 @@ export const DEFAULT_SHADER_COMPLEXITY_BUDGET = 800;
 export const DEFAULT_QUAD_OVERDRAW_BUDGET = 10;
 
 /**
- * Storage scale for the overdraw count in {@link DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS}.
+ * Storage scale for the overdraw count in {@link DEBUG_VIEW_SHADER_COMPLEXITY_AND_OVERDRAW}.
  * Each fragment adds `1 / scale`, so an 8-bit target can hold this many layers.
  * The output pass multiplies that channel back to a count. Half-float targets hold the same count exactly.
  *
@@ -222,7 +222,7 @@ export const colorizeQuadOverdraw = ( cost ) => {
  */
 export function debugViewAccumulates( view ) {
 
-	return view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_OVERDRAW || view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS;
+	return view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_OVERDRAW || view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_OVERDRAW;
 
 }
 
@@ -257,7 +257,7 @@ export function debugDrawAccumulates( renderer, material, object ) {
  */
 export function debugDrawReplacesCost( view, material ) {
 
-	return ( view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_QUADS ) && material.transparent !== true;
+	return ( view === DEBUG_VIEW_SHADER_COMPLEXITY || view === DEBUG_VIEW_SHADER_COMPLEXITY_AND_OVERDRAW ) && material.transparent !== true;
 
 }
 
@@ -392,7 +392,7 @@ export function shaderComplexityOutput( resultNode ) {
  * @param {Node} resultNode - The material's shaded output.
  * @return {Node<vec4>} Cost ratio in red, one scaled fragment in green.
  */
-export function shaderComplexityAndQuadsOutput( resultNode ) {
+export function shaderComplexityAndOverdrawOutput( resultNode ) {
 
 	const shaded = vec4( resultNode ).toVar();
 	const ratio = new ShaderComplexityRatioNode();

@@ -143,17 +143,17 @@ class Settings extends Parameters {
 		this._bufferState = bufferState;
 		this._debugViewControl = modesGroup.add( debugViewState, 'view', {
 			'Shaded': 'none',
+			'Draw Call': 'drawCall',
 			'Shader Complexity': 'shaderComplexity',
 			'Lighting Complexity': 'lightingComplexity',
+			'Shadow Caster': 'shadowCaster',
+			'Double Side': 'doubleSide',
 			'Overdraw': 'overdraw',
-			'Shader Complexity & Quads': 'shaderComplexityAndQuads',
-			'Buffer Visualization': 'bufferVisualization',
+			'Shader Complexity & Overdraw': 'shaderComplexityAndOverdraw',
 			'Lighting Only': 'lightingOnly',
 			'Detail Lighting': 'detailLighting',
-			'Draw Call': 'drawCall',
 			'Front/Back Face': 'frontBackFace',
-			'Shadow Caster': 'shadowCaster',
-			'Double Side': 'doubleSide'
+			'Buffer Visualization': 'bufferVisualization',
 		} ).name( 'Debug View' ).onChange( ( view ) => {
 
 			const renderer = this.inspector.getRenderer();
@@ -195,7 +195,7 @@ class Settings extends Parameters {
 		const renderer = this.inspector.getRenderer();
 		const view = renderer !== null && renderer.debug !== undefined ? renderer.debug.view : null;
 
-		if ( view === 'none' || view === 'shaderComplexity' || view === 'lightingComplexity' || view === 'overdraw' || view === 'shaderComplexityAndQuads' || view === 'bufferVisualization' || view === 'lightingOnly' || view === 'detailLighting' || view === 'drawCall' || view === 'frontBackFace' || view === 'shadowCaster' || view === 'doubleSide' ) {
+		if ( view === 'none' || view === 'shaderComplexity' || view === 'lightingComplexity' || view === 'overdraw' || view === 'shaderComplexityAndOverdraw' || view === 'bufferVisualization' || view === 'lightingOnly' || view === 'detailLighting' || view === 'drawCall' || view === 'frontBackFace' || view === 'shadowCaster' || view === 'doubleSide' ) {
 
 			if ( this._debugViewState.view !== view ) {
 

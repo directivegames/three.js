@@ -69,7 +69,7 @@
 				{ id: 'shaderComplexity', view: 'shaderComplexity', label: 'Shader complexity', key: '2' },
 				{ id: 'lightingComplexity', view: 'lightingComplexity', label: 'Lighting complexity', key: '3' },
 				{ id: 'overdraw', view: 'overdraw', label: 'Overdraw', key: '4' },
-				{ id: 'shaderComplexityAndQuads', view: 'shaderComplexityAndQuads', label: 'Shader complexity and quads' },
+				{ id: 'shaderComplexityAndOverdraw', view: 'shaderComplexityAndOverdraw', label: 'Shader complexity and overdraw' },
 				{ id: 'lightingOnly', view: 'lightingOnly', label: 'Lighting only' },
 				{ id: 'detailLighting', view: 'detailLighting', label: 'Detail lighting' },
 				{ id: 'frontBackFace', view: 'frontBackFace', label: 'Front/back face' },
@@ -571,7 +571,7 @@
 
 				if ( shaderBudget === undefined || renderer === undefined ) return;
 
-				shaderBudget.show( renderer.debug.view === 'shaderComplexity' || renderer.debug.view === 'shaderComplexityAndQuads' );
+				shaderBudget.show( renderer.debug.view === 'shaderComplexity' || renderer.debug.view === 'shaderComplexityAndOverdraw' );
 				overdrawBudget.show( renderer.debug.view === 'overdraw' );
 
 			}
