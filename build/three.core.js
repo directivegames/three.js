@@ -28570,7 +28570,15 @@ class BatchedMesh extends Mesh {
 		// the vertices to draw (3 lines per triangle) so we multiply the draw counts / starts and make
 		// assumptions about the index buffer byte size.
 		let multiDrawMultiplier = 1;
-		if ( material.wireframe ) {
+		// WITH_GENESYS
+		// Same rule as materialDrawsWireframe, inlined so this core class does not import the node library.
+		// A legacy renderer has no debug view, so only the material flag applies there.
+		const debugView = renderer !== null && renderer !== undefined && renderer.debug !== undefined ? renderer.debug.view : undefined;
+		const wireframe = material.wireframe === true || ( debugView === 'wireframe' && material.isShadowPassMaterial !== true && material.allowOverride !== false );
+		// !WITH_GENESYS
+		// const wireframe = material.wireframe === true;
+
+		if ( wireframe ) {
 
 			multiDrawMultiplier = 2;
 			bytesPerElement = geometry.attributes.position.count > 65535 ? 4 : 2;

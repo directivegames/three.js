@@ -12,6 +12,9 @@ import { GLFeatureName } from './utils/WebGLConstants.js';
 import { WebGLBufferRenderer } from './WebGLBufferRenderer.js';
 
 import { isTypedArray, warnOnce, warn, error } from '../../utils.js';
+// WITH_GENESYS
+import { materialDrawsWireframe } from '../../nodes/display/WireframeDebug.js';
+// !WITH_GENESYS
 import { WebGLCoordinateSystem, TimestampQuery, Compatibility } from '../../constants.js';
 import WebGLTimestampQueryPool from './utils/WebGLTimestampQueryPool.js';
 
@@ -1207,9 +1210,16 @@ class WebGLBackend extends Backend {
 		else if ( object.isLineLoop ) renderer.mode = gl.LINE_LOOP;
 		else {
 
-			if ( material.wireframe === true ) {
+			// WITH_GENESYS
+			const wireframe = materialDrawsWireframe( material, this.renderer, object );
+			const linewidth = material.wireframeLinewidth !== undefined ? material.wireframeLinewidth : 1;
+			// !WITH_GENESYS
+			// const wireframe = material.wireframe === true;
+			// const linewidth = material.wireframeLinewidth;
 
-				state.setLineWidth( material.wireframeLinewidth * this.renderer.getPixelRatio() );
+			if ( wireframe === true ) {
+
+				state.setLineWidth( linewidth * this.renderer.getPixelRatio() );
 				renderer.mode = gl.LINES;
 
 			} else {

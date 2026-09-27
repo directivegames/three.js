@@ -32456,6 +32456,69 @@ class ChainMap {
 
 }
 
+// WITH_GENESYS
+// Wireframe debug view. Scene meshes are drawn as lines. Lighting is unchanged.
+// !WITH_GENESYS
+
+/**
+ * Wireframe. Each scene mesh is drawn as lines along its triangle edges.
+ * Lighting, color, and tone mapping stay the same as the shaded view.
+ * Shadow passes and fullscreen quads stay triangles.
+ *
+ * @type {string}
+ */
+const DEBUG_VIEW_WIREFRAME = 'wireframe';
+
+/**
+ * Whether the wireframe debug view should take over this draw.
+ * Shadow passes stay triangles so shadows still cover the surface. Fullscreen quads stay
+ * triangles so post-processing still fills the screen. A material with `allowOverride`
+ * false (the renderer skybox) stays shaded behind the edges.
+ *
+ * @param {Material} material - The material being drawn.
+ * @param {?Renderer} renderer - The renderer. May be null.
+ * @param {?Object3D} [object=null] - The object being drawn.
+ * @return {boolean} `true` when the debug view forces a wireframe.
+ */
+function debugViewForcesWireframe( material, renderer, object = null ) {
+
+	const debug = renderer !== null && renderer !== undefined ? renderer.debug : undefined;
+
+	if ( debug === undefined || debug.view !== DEBUG_VIEW_WIREFRAME ) return false;
+
+	if ( material.isShadowPassMaterial === true ) return false;
+
+	if ( material.allowOverride === false ) return false;
+
+	// Lines and points already draw as lines. Rewriting their index as triangle edges
+	// would skip vertices. Quad meshes are fullscreen passes.
+	if ( object === null || object === undefined || object.isMesh !== true || object.isQuadMesh === true ) return false;
+
+	return true;
+
+}
+
+/**
+ * Whether this draw should use line topology.
+ * A material that already sets `wireframe` stays a wireframe in every view.
+ * The wireframe debug view forces it for scene meshes. A renderer without `debug`
+ * (the legacy WebGL renderer) only honors the material flag.
+ *
+ * @param {Material} material - The material being drawn.
+ * @param {?Renderer} renderer - The renderer. May be null.
+ * @param {?Object3D} [object=null] - The object being drawn.
+ * @return {boolean} `true` when the draw is lines.
+ */
+function materialDrawsWireframe( material, renderer, object = null ) {
+
+	if ( material.wireframe === true ) return true;
+
+	return debugViewForcesWireframe( material, renderer, object );
+
+}
+
+// !WITH_GENESYS
+
 let _id$a = 0;
 const _protoKeysCache = new WeakMap();
 
@@ -33090,7 +33153,12 @@ class RenderObject {
 
 		let rangeFactor = 1;
 
-		if ( material.wireframe === true && ! object.isPoints && ! object.isLineSegments && ! object.isLine && ! object.isLineLoop ) {
+		// WITH_GENESYS
+		const wireframe = materialDrawsWireframe( material, this.renderer, object );
+		// !WITH_GENESYS
+		// const wireframe = material.wireframe === true;
+
+		if ( wireframe === true && ! object.isPoints && ! object.isLineSegments && ! object.isLine && ! object.isLineLoop ) {
 
 			rangeFactor = 2;
 
@@ -33978,6 +34046,8 @@ class Attributes extends DataMap {
 
 }
 
+// !WITH_GENESYS
+
 /**
  * Returns the wireframe version for the given geometry.
  *
@@ -34345,7 +34415,12 @@ class Geometries extends DataMap {
 
 		let index = geometry.index;
 
-		if ( material.wireframe === true ) {
+		// WITH_GENESYS
+		const wireframe = materialDrawsWireframe( material, renderObject.renderer, renderObject.object );
+		// !WITH_GENESYS
+		// const wireframe = material.wireframe === true;
+
+		if ( wireframe === true ) {
 
 			const wireframes = this.wireframes;
 
@@ -64787,7 +64862,7 @@ class Renderer {
 		 * @property {?Function} onNodeBuilderCreated - A callback function that is executed after a node builder has been created and before it is built.
 		 * @property {?Function} onShaderError - A callback function that is executed when a shader error happens. Only supported with WebGL 2 right now.
 		 * @property {Function} getShaderAsync - Allows the get the raw shader code for the given scene, camera and 3D object.
-		 * @property {string} view - Debug view. `shaderComplexity`, `lightingComplexity`, `overdraw`, and `shaderComplexityAndOverdraw` replace the shaded color with a heatmap. `shaderComplexityAndOverdraw` multiplies the shader cost by the overdraw count. `bufferVisualization` shows one material channel. `lightingOnly` and `detailLighting` light a flat gray surface. `drawCall` lights each submitted draw with its own diffuse color. `frontBackFace` draws both windings and tints the side facing the camera. `shadowCaster` lights a mesh green when it casts shadows and gray when it does not. `doubleSide` lights a single-sided surface gray, a visible double-sided back face blue, and a hidden double-sided back face red.
+		 * @property {string} view - Debug view. `shaderComplexity`, `lightingComplexity`, `overdraw`, and `shaderComplexityAndOverdraw` replace the shaded color with a heatmap. `shaderComplexityAndOverdraw` multiplies the shader cost by the overdraw count. `bufferVisualization` shows one material channel. `lightingOnly` and `detailLighting` light a flat gray surface. `drawCall` lights each submitted draw with its own diffuse color. `frontBackFace` draws both windings and tints the side facing the camera. `shadowCaster` lights a mesh green when it casts shadows and gray when it does not. `doubleSide` lights a single-sided surface gray, a visible double-sided back face blue, and a hidden double-sided back face red. `wireframe` draws each mesh as lines along its triangle edges. Lighting stays the same as the shaded view. Shadow passes and fullscreen quads stay triangles.
 		 * @property {string} buffer - Channel drawn by `bufferVisualization`: `baseColor`, `worldNormal`, `roughness`, `metallic`, `ambientOcclusion`, or `emissive`.
 		 * @property {number} shaderComplexityBudget - Proxy budget that fills the shader-complexity ramp.
 		 * @property {number} quadOverdrawBudget - Overlapping fragments that fill the quad-overdraw ramp.
@@ -77976,9 +78051,16 @@ class WebGLBackend extends Backend {
 		else if ( object.isLineLoop ) renderer.mode = gl.LINE_LOOP;
 		else {
 
-			if ( material.wireframe === true ) {
+			// WITH_GENESYS
+			const wireframe = materialDrawsWireframe( material, this.renderer, object );
+			const linewidth = material.wireframeLinewidth !== undefined ? material.wireframeLinewidth : 1;
+			// !WITH_GENESYS
+			// const wireframe = material.wireframe === true;
+			// const linewidth = material.wireframeLinewidth;
 
-				state.setLineWidth( material.wireframeLinewidth * this.renderer.getPixelRatio() );
+			if ( wireframe === true ) {
+
+				state.setLineWidth( linewidth * this.renderer.getPixelRatio() );
 				renderer.mode = gl.LINES;
 
 			} else {
@@ -80216,6 +80298,8 @@ class NodeStorageBuffer extends StorageBuffer {
 
 }
 
+// !WITH_GENESYS
+
 const _commandList = [ null ];
 
 /**
@@ -80430,7 +80514,10 @@ class WebGPUUtils {
 	getPrimitiveTopology( object, material ) {
 
 		if ( object.isPoints ) return GPUPrimitiveTopology.PointList;
-		else if ( object.isLineSegments || ( object.isMesh && material.wireframe === true ) ) return GPUPrimitiveTopology.LineList;
+		// WITH_GENESYS
+		else if ( object.isLineSegments || ( object.isMesh && materialDrawsWireframe( material, this.backend.renderer, object ) ) ) return GPUPrimitiveTopology.LineList;
+		// !WITH_GENESYS
+		// else if ( object.isLineSegments || ( object.isMesh && material.wireframe === true ) ) return GPUPrimitiveTopology.LineList;
 		else if ( object.isLine ) return GPUPrimitiveTopology.LineStrip;
 		else if ( object.isMesh ) return GPUPrimitiveTopology.TriangleList;
 

@@ -65,6 +65,7 @@
 			// New views are added here. `key` is optional.
 			const modes = [
 				{ id: 'shaded', view: 'none', label: 'Shaded', key: '1' },
+				{ id: 'wireframe', view: 'wireframe', label: 'Wireframe' },
 				{ id: 'drawCall', view: 'drawCall', label: 'Draw call' },
 				{ id: 'shaderComplexity', view: 'shaderComplexity', label: 'Shader complexity', key: '2' },
 				{ id: 'lightingComplexity', view: 'lightingComplexity', label: 'Lighting complexity', key: '3' },
@@ -536,6 +537,15 @@
 				controls.update();
 
 				createDebugUI();
+
+				// `?view=wireframe` opens on that row. The manual screenshots use it.
+				const requestedView = new URLSearchParams( window.location.search ).get( 'view' );
+
+				if ( requestedView !== null && modeById( requestedView ) !== undefined ) {
+
+					applyMode( requestedView );
+
+				}
 
 				window.addEventListener( 'resize', onWindowResize );
 				window.addEventListener( 'keydown', onKeyDown );

@@ -143,6 +143,7 @@ class Settings extends Parameters {
 		this._bufferState = bufferState;
 		this._debugViewControl = modesGroup.add( debugViewState, 'view', {
 			'Shaded': 'none',
+			'Wireframe': 'wireframe',
 			'Draw Call': 'drawCall',
 			'Shader Complexity': 'shaderComplexity',
 			'Lighting Complexity': 'lightingComplexity',
@@ -164,7 +165,7 @@ class Settings extends Parameters {
 			this._syncBufferRow( view );
 			window.dispatchEvent( new Event( 'genesys-debug-view' ) );
 
-		} ).info( 'Shaded color, a cost heatmap, per-pixel overdraw, shader cost times overdraw, one material channel, lighting on a flat gray surface, one lit color per draw, a tint for the front and back of each face, green and gray for objects that do and do not cast shadows, or red where a double-sided back face is hidden. The Overdraw toggle above draws on top when both are enabled.' );
+		} ).info( 'Shaded color, mesh edges with the same lighting, a cost heatmap, per-pixel overdraw, shader cost times overdraw, one material channel, lighting on a flat gray surface, one lit color per draw, a tint for the front and back of each face, green and gray for objects that do and do not cast shadows, or red where a double-sided back face is hidden. The Overdraw toggle above draws on top when both are enabled.' );
 
 		this._bufferControl = modesGroup.add( bufferState, 'buffer', {
 			'Base Color': 'baseColor',
@@ -195,7 +196,7 @@ class Settings extends Parameters {
 		const renderer = this.inspector.getRenderer();
 		const view = renderer !== null && renderer.debug !== undefined ? renderer.debug.view : null;
 
-		if ( view === 'none' || view === 'shaderComplexity' || view === 'lightingComplexity' || view === 'overdraw' || view === 'shaderComplexityAndOverdraw' || view === 'bufferVisualization' || view === 'lightingOnly' || view === 'detailLighting' || view === 'drawCall' || view === 'frontBackFace' || view === 'shadowCaster' || view === 'doubleSide' ) {
+		if ( view === 'none' || view === 'wireframe' || view === 'shaderComplexity' || view === 'lightingComplexity' || view === 'overdraw' || view === 'shaderComplexityAndOverdraw' || view === 'bufferVisualization' || view === 'lightingOnly' || view === 'detailLighting' || view === 'drawCall' || view === 'frontBackFace' || view === 'shadowCaster' || view === 'doubleSide' ) {
 
 			if ( this._debugViewState.view !== view ) {
 

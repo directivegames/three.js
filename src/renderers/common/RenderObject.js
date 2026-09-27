@@ -1,4 +1,7 @@
 import { hash, hashString } from '../../nodes/core/NodeUtils.js';
+// WITH_GENESYS
+import { materialDrawsWireframe } from '../../nodes/display/WireframeDebug.js';
+// !WITH_GENESYS
 
 let _id = 0;
 const _protoKeysCache = new WeakMap();
@@ -634,7 +637,12 @@ class RenderObject {
 
 		let rangeFactor = 1;
 
-		if ( material.wireframe === true && ! object.isPoints && ! object.isLineSegments && ! object.isLine && ! object.isLineLoop ) {
+		// WITH_GENESYS
+		const wireframe = materialDrawsWireframe( material, this.renderer, object );
+		// !WITH_GENESYS
+		// const wireframe = material.wireframe === true;
+
+		if ( wireframe === true && ! object.isPoints && ! object.isLineSegments && ! object.isLine && ! object.isLineLoop ) {
 
 			rangeFactor = 2;
 

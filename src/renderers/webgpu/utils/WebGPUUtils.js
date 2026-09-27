@@ -1,5 +1,8 @@
 import { HalfFloatType, UnsignedByteType } from '../../../constants.js';
 import { GPUPrimitiveTopology, GPUTextureFormat } from './WebGPUConstants.js';
+// WITH_GENESYS
+import { materialDrawsWireframe } from '../../../nodes/display/WireframeDebug.js';
+// !WITH_GENESYS
 
 const _commandList = [ null ];
 
@@ -215,7 +218,10 @@ class WebGPUUtils {
 	getPrimitiveTopology( object, material ) {
 
 		if ( object.isPoints ) return GPUPrimitiveTopology.PointList;
-		else if ( object.isLineSegments || ( object.isMesh && material.wireframe === true ) ) return GPUPrimitiveTopology.LineList;
+		// WITH_GENESYS
+		else if ( object.isLineSegments || ( object.isMesh && materialDrawsWireframe( material, this.backend.renderer, object ) ) ) return GPUPrimitiveTopology.LineList;
+		// !WITH_GENESYS
+		// else if ( object.isLineSegments || ( object.isMesh && material.wireframe === true ) ) return GPUPrimitiveTopology.LineList;
 		else if ( object.isLine ) return GPUPrimitiveTopology.LineStrip;
 		else if ( object.isMesh ) return GPUPrimitiveTopology.TriangleList;
 

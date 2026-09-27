@@ -2,6 +2,9 @@ import DataMap from './DataMap.js';
 import { AttributeType } from './Constants.js';
 
 import { Uint16BufferAttribute, Uint32BufferAttribute } from '../../core/BufferAttribute.js';
+// WITH_GENESYS
+import { materialDrawsWireframe } from '../../nodes/display/WireframeDebug.js';
+// !WITH_GENESYS
 
 /**
  * Returns the wireframe version for the given geometry.
@@ -370,7 +373,12 @@ class Geometries extends DataMap {
 
 		let index = geometry.index;
 
-		if ( material.wireframe === true ) {
+		// WITH_GENESYS
+		const wireframe = materialDrawsWireframe( material, renderObject.renderer, renderObject.object );
+		// !WITH_GENESYS
+		// const wireframe = material.wireframe === true;
+
+		if ( wireframe === true ) {
 
 			const wireframes = this.wireframes;
 

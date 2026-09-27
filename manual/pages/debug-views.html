@@ -60,6 +60,22 @@ renderer.debug.view = 'none';
               Front: an open box, separate meshes, and one instanced mesh.
             </p>
 
+            <h2 id="wireframe">Wireframe</h2>
+
+            <p>
+              Draws each mesh as lines along its triangle edges.
+              Lighting, color, and tone mapping stay the same as the shaded view. Only the primitive type changes.
+              A mask still cuts out, because the material shader is unchanged.
+              A clear color or a skybox stays behind the edges. Shadow passes and fullscreen passes stay triangles, so shadows and post-processing still cover the screen.
+            </p>
+            <p>
+              Use it to read tessellation: where a mesh is coarse, where it is dense, and whether two LODs actually differ.
+              In the picture the nearer sphere is a fine net of lines and the farther one has dropped to a tetrahedron.
+              A very dense mesh, such as the physical sphere in the back row, fills into a silhouette of its shaded color because the edges cover those pixels.
+              Lines and points are left as they were. Depth still hides edges that sit behind another surface.
+            </p>
+            <div class="threejs_center"><img src="../resources/images/debug-views/wireframe.jpg" alt="Wireframe. Meshes keep their lighting and are drawn as edges. The nearer sphere is a dense net and the farther one is a tetrahedron." style="width: 100%;"></div>
+
             <h2 id="draw-call">Draw call</h2>
 
             <p>
