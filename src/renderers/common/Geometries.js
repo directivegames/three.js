@@ -237,6 +237,8 @@ class Geometries extends DataMap {
 
 			this._geometryDisposeListeners.delete( geometry );
 
+			this.delete( geometry );
+
 		};
 
 		geometry.addEventListener( 'dispose', onDispose );

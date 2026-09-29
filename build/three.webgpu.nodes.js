@@ -76,7 +76,8 @@ const refreshUniforms = [
 	'steps',
 	'thickness',
 	'transmission',
-	'transmissionMap'
+	'transmissionMap',
+	'wireframe'
 ];
 
 
@@ -271,14 +272,12 @@ class NodeMaterialObserver {
 
 			}
 
-			if ( renderObject.material.transmission > 0 ) {
+			// global data
 
-				const { width, height } = renderObject.context;
+			const { width, height } = renderObject.context;
 
-				data.bufferWidth = width;
-				data.bufferHeight = height;
-
-			}
+			data.bufferWidth = width;
+			data.bufferHeight = height;
 
 			const { environmentIntensity, environmentRotation } = renderObject.scene;
 
@@ -599,18 +598,14 @@ class NodeMaterialObserver {
 
 		}
 
-		if ( materialData.transmission > 0 ) {
+		const { width, height } = renderObject.context;
 
-			const { width, height } = renderObject.context;
+		if ( renderObjectData.bufferWidth !== width || renderObjectData.bufferHeight !== height ) {
 
-			if ( renderObjectData.bufferWidth !== width || renderObjectData.bufferHeight !== height ) {
+			renderObjectData.bufferWidth = width;
+			renderObjectData.bufferHeight = height;
 
-				renderObjectData.bufferWidth = width;
-				renderObjectData.bufferHeight = height;
-
-				return false;
-
-			}
+			return false;
 
 		}
 
@@ -34279,6 +34274,8 @@ class Geometries extends DataMap {
 
 			this._geometryDisposeListeners.delete( geometry );
 
+			this.delete( geometry );
+
 		};
 
 		geometry.addEventListener( 'dispose', onDispose );
@@ -43351,7 +43348,7 @@ class VelocityNode extends TempNode {
 		 * @type {UniformNode<mat4>}
 		 * @default null
 		 */
-		this.previousCameraViewMatrix = uniform( new Matrix4() );
+		this.previousCameraViewMatrix = uniform( new Matrix4() ).setGroup( renderGroup );
 
 	}
 
@@ -56085,6 +56082,8 @@ class NodeBuilder {
 		delete context.getAO;
 		delete context.getGI;
 		delete context.getShadow;
+		delete context.nodeLoop;
+		delete context.nodeBlock;
 
 		return context;
 
