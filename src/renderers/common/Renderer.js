@@ -41,6 +41,7 @@ import { DEBUG_VIEW_NONE, DEFAULT_QUAD_OVERDRAW_BUDGET, DEFAULT_SHADER_COMPLEXIT
 import { DEFAULT_LOD_COLORATION_COLORS } from '../../nodes/display/LODColorationDebug.js';
 import { DEBUG_VIEW_DOUBLE_SIDE, meshCanHideOwnBack } from '../../nodes/display/DoubleSideDebug.js';
 import { DEFAULT_BUFFER } from '../../nodes/display/BufferDebug.js';
+import { DebugViewLegend, wrapDebugConfigForLegend } from './DebugViewLegend.js';
 // !WITH_GENESYS
 import { reference } from '../../nodes/accessors/ReferenceNode.js';
 import { highpModelNormalViewMatrix, highpModelViewMatrix } from '../../nodes/accessors/ModelNode.js';
@@ -796,7 +797,29 @@ class Renderer {
 			}
 		};
 
+		this._debugViewLegend = typeof document !== 'undefined' ? new DebugViewLegend() : null;
+		this.debug = wrapDebugConfigForLegend( this, this.debug );
+
 	}
+
+	// WITH_GENESYS
+
+	/**
+	 * Keeps the debug-view legend aligned with `renderer.debug`.
+	 *
+	 * @private
+	 */
+	_syncDebugViewLegend() {
+
+		if ( this._debugViewLegend !== null ) {
+
+			this._debugViewLegend.sync( this );
+
+		}
+
+	}
+
+	// !WITH_GENESYS
 
 	/**
 	 * Initializes the renderer so it is ready for usage.
@@ -864,6 +887,10 @@ class Renderer {
 
 			this._animation.start();
 			this._initialized = true;
+
+			// WITH_GENESYS
+			this._syncDebugViewLegend();
+			// !WITH_GENESYS
 
 			resolve( this );
 
@@ -2813,6 +2840,15 @@ class Renderer {
 		if ( this._initialized === true ) {
 
 			this.info.dispose();
+
+			// WITH_GENESYS
+			if ( this._debugViewLegend !== null ) {
+
+				this._debugViewLegend.dispose();
+				this._debugViewLegend = null;
+
+			}
+			// !WITH_GENESYS
 
 			this._inspector.dispose();
 			this._animation.dispose();
