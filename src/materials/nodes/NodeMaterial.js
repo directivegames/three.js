@@ -33,6 +33,7 @@ import { DEBUG_VIEW_DETAIL_LIGHTING, DEBUG_VIEW_LIGHTING_ONLY, applyLightingDebu
 import { DEBUG_VIEW_DRAW_CALL, applyDrawCallDebug } from '../../nodes/display/DrawCallDebug.js';
 import { DEBUG_VIEW_FRONT_BACK_FACE, applyFrontBackFaceDebug } from '../../nodes/display/FrontBackFaceDebug.js';
 import { DEBUG_VIEW_SHADOW_CASTER, applyShadowCasterDebug } from '../../nodes/display/ShadowCasterDebug.js';
+import { DEBUG_VIEW_LOD_COLORATION, applyLODColorationDebug } from '../../nodes/display/LODColorationDebug.js';
 import { DEBUG_VIEW_DOUBLE_SIDE, applyDoubleSideDebug } from '../../nodes/display/DoubleSideDebug.js';
 
 /**
@@ -585,6 +586,10 @@ class NodeMaterial extends Material {
 
 				applyShadowCasterDebug( builder, this );
 
+			} else if ( renderer.debug.view === DEBUG_VIEW_LOD_COLORATION && this.isShadowPassMaterial !== true ) {
+
+				applyLODColorationDebug( builder, this );
+
 			} else if ( renderer.debug.view === DEBUG_VIEW_DOUBLE_SIDE && this.isShadowPassMaterial !== true ) {
 
 				applyDoubleSideDebug( builder, this );
@@ -1047,7 +1052,7 @@ class NodeMaterial extends Material {
 	setupNormal( builder ) {
 
 		// WITH_GENESYS
-		if ( ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY || builder.renderer.debug.view === DEBUG_VIEW_DRAW_CALL || builder.renderer.debug.view === DEBUG_VIEW_FRONT_BACK_FACE || builder.renderer.debug.view === DEBUG_VIEW_SHADOW_CASTER || builder.renderer.debug.view === DEBUG_VIEW_DOUBLE_SIDE ) && this.isShadowPassMaterial !== true && this.fragmentNode === null ) {
+		if ( ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY || builder.renderer.debug.view === DEBUG_VIEW_DRAW_CALL || builder.renderer.debug.view === DEBUG_VIEW_FRONT_BACK_FACE || builder.renderer.debug.view === DEBUG_VIEW_SHADOW_CASTER || builder.renderer.debug.view === DEBUG_VIEW_LOD_COLORATION || builder.renderer.debug.view === DEBUG_VIEW_DOUBLE_SIDE ) && this.isShadowPassMaterial !== true && this.fragmentNode === null ) {
 
 			return lightingOnlyNormal();
 
@@ -1252,7 +1257,7 @@ class NodeMaterial extends Material {
 			// WITH_GENESYS
 			// Lighting only and draw call substitute a plain lit material, so emissive is dropped.
 			// Detail lighting keeps it.
-			if ( ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY || builder.renderer.debug.view === DEBUG_VIEW_DRAW_CALL || builder.renderer.debug.view === DEBUG_VIEW_FRONT_BACK_FACE || builder.renderer.debug.view === DEBUG_VIEW_SHADOW_CASTER || builder.renderer.debug.view === DEBUG_VIEW_DOUBLE_SIDE ) && this.isShadowPassMaterial !== true ) {
+			if ( ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY || builder.renderer.debug.view === DEBUG_VIEW_DRAW_CALL || builder.renderer.debug.view === DEBUG_VIEW_FRONT_BACK_FACE || builder.renderer.debug.view === DEBUG_VIEW_SHADOW_CASTER || builder.renderer.debug.view === DEBUG_VIEW_LOD_COLORATION || builder.renderer.debug.view === DEBUG_VIEW_DOUBLE_SIDE ) && this.isShadowPassMaterial !== true ) {
 
 				return outgoingLightNode;
 

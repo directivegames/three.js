@@ -143,6 +143,19 @@ renderer.debug.view = 'none';
             </p>
             <div class="threejs_center"><img src="../resources/images/debug-views/shadow-caster.jpg" alt="Shadow caster. The left box is green because it casts shadows. The right box is gray because it does not." style="width: 100%;"></div>
 
+            <h2 id="lod-coloration">LOD coloration</h2>
+
+            <p>
+              Colors geometry by its LOD index, then lights that color.
+              The default palette matches Unreal `LODColorationColors`: white for LOD&nbsp;0, then red, green, blue, yellow, fuchsia, cyan, and purple.
+              Set <code>renderer.debug.lodColorationColors</code> to override the palette.
+            </p>
+            <p>
+              For <code>THREE.LOD</code>, the active level object is matched to a palette entry.
+              Meshes can also set <code>userData.lodColorationIndex</code> (Genesys instanced LOD tiers tag each draw this way).
+              Geometry without LOD metadata is treated as LOD&nbsp;0.
+            </p>
+
             <h2 id="double-side">Double side</h2>
 
             <p>

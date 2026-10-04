@@ -23129,6 +23129,165 @@ function applyShadowCasterDebug( builder, material ) {
 }
 
 // WITH_GENESYS
+// LOD coloration. Each drawn LOD tier gets a fixed color from the palette, then lit.
+// !WITH_GENESYS
+
+
+/**
+ * LOD coloration. Colors geometry by its active LOD index, then lights that color.
+ * Matches Unreal `LODColorationColors` from `BaseEngine.ini`.
+ *
+ * @type {string}
+ */
+const DEBUG_VIEW_LOD_COLORATION = 'lodColoration';
+
+/**
+ * Default palette when `renderer.debug.lodColorationColors` is not set.
+ * Unreal: white, red, green, blue, yellow, fuchsia, cyan, purple.
+ *
+ * @type {Color[]}
+ */
+const DEFAULT_LOD_COLORATION_COLORS = [
+	new Color( 1, 1, 1 ),
+	new Color( 1, 0, 0 ),
+	new Color( 0, 1, 0 ),
+	new Color( 0, 0, 1 ),
+	new Color( 1, 1, 0 ),
+	new Color( 1, 0, 1 ),
+	new Color( 0, 1, 1 ),
+	new Color( 0.5, 0, 0.5 ),
+];
+
+const INVALID_LOD_COLOR = new Color( 1, 0, 1 );
+
+/**
+ * Resolves the LOD index used for coloration on a drawn object.
+ * `userData.lodColorationIndex` on the object or an ancestor wins (Genesys instanced LOD tiers).
+ * Otherwise the nearest `THREE.LOD` parent is consulted: the level object that owns the draw,
+ * or the parent's current level as a fallback.
+ *
+ * @param {?Object3D} object - The drawn object.
+ * @return {number} LOD index, or `-1` when no palette entry should be used.
+ */
+function resolveLODColorationIndex( object ) {
+
+	if ( object === null ) return -1;
+
+	let node = object;
+
+	while ( node !== null ) {
+
+		const tagged = node.userData.lodColorationIndex;
+
+		if ( typeof tagged === 'number' && Number.isFinite( tagged ) ) {
+
+			return tagged;
+
+		}
+
+		node = node.parent;
+
+	}
+
+	node = object;
+
+	while ( node !== null ) {
+
+		const parent = node.parent;
+
+		if ( parent !== null && parent.isLOD === true ) {
+
+			const levels = parent.levels;
+
+			for ( let i = 0; i < levels.length; i ++ ) {
+
+				const levelObject = levels[ i ].object;
+
+				if ( levelObject === object || levelObject.getObjectById( object.id ) !== undefined ) {
+
+					return i;
+
+				}
+
+			}
+
+			return parent.getCurrentLevel();
+
+		}
+
+		node = parent;
+
+	}
+
+	return 0;
+
+}
+
+/**
+ * @param {Color} color - Destination color.
+ * @param {?Object3D} object - The drawn object.
+ * @param {Renderer~DebugConfig} debug - Renderer debug state.
+ * @return {Color} `color`.
+ */
+function writeLODColorationColor( color, object, debug ) {
+
+	const index = resolveLODColorationIndex( object );
+	const palette = debug.lodColorationColors ?? DEFAULT_LOD_COLORATION_COLORS;
+
+	if ( index < 0 || index >= palette.length ) {
+
+		return color.copy( INVALID_LOD_COLOR );
+
+	}
+
+	return color.copy( palette[ index ] );
+
+}
+
+/**
+ * Replaces albedo with the LOD palette color after the material has written its channels.
+ *
+ * @param {NodeBuilder} builder - The current node builder.
+ * @param {NodeMaterial} material - The node material being set up.
+ */
+function applyLODColorationDebug( builder, material ) {
+
+	const colorNode = uniform( new Color() ).onObjectUpdate( ( { object }, self ) => {
+
+		if ( object === null ) return;
+
+		return writeLODColorationColor( self.value, object, builder.renderer.debug );
+
+	} );
+
+	diffuseColor.rgb.assign( colorNode );
+
+	if ( material.lights !== true ) return;
+
+	metalness.assign( float( 0 ) );
+	diffuseContribution.assign( colorNode );
+	roughness.assign( float( 1 ) );
+	specularColor.assign( vec3( 0 ) );
+	specularColorBlended.assign( vec3( 0 ) );
+	specularF90.assign( float( 0 ) );
+
+	builder.context.ambientOcclusion = null;
+
+	if ( material.useClearcoat === true ) clearcoat.assign( float( 0 ) );
+
+	if ( material.useSheen === true ) sheen.assign( vec3( 0 ) );
+
+	if ( material.useIridescence === true ) iridescence.assign( float( 0 ) );
+
+	if ( material.useAnisotropy === true ) anisotropy.assign( float( 0 ) );
+
+	if ( material.useTransmission === true ) transmission.assign( float( 0 ) );
+
+	if ( material.useRetroreflection === true ) retroreflectivity.assign( float( 0 ) );
+
+}
+
+// WITH_GENESYS
 // Double sided. Gray is a single-sided surface or the front of a double-sided one.
 // Blue is a double-sided back face you can see. Red is a double-sided back face hidden behind the front.
 // !WITH_GENESYS
@@ -23825,6 +23984,10 @@ class NodeMaterial extends Material {
 
 				applyShadowCasterDebug( builder, this );
 
+			} else if ( renderer.debug.view === DEBUG_VIEW_LOD_COLORATION && this.isShadowPassMaterial !== true ) {
+
+				applyLODColorationDebug( builder, this );
+
 			} else if ( renderer.debug.view === DEBUG_VIEW_DOUBLE_SIDE && this.isShadowPassMaterial !== true ) {
 
 				applyDoubleSideDebug( builder, this );
@@ -24287,7 +24450,7 @@ class NodeMaterial extends Material {
 	setupNormal( builder ) {
 
 		// WITH_GENESYS
-		if ( ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY || builder.renderer.debug.view === DEBUG_VIEW_DRAW_CALL || builder.renderer.debug.view === DEBUG_VIEW_FRONT_BACK_FACE || builder.renderer.debug.view === DEBUG_VIEW_SHADOW_CASTER || builder.renderer.debug.view === DEBUG_VIEW_DOUBLE_SIDE ) && this.isShadowPassMaterial !== true && this.fragmentNode === null ) {
+		if ( ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY || builder.renderer.debug.view === DEBUG_VIEW_DRAW_CALL || builder.renderer.debug.view === DEBUG_VIEW_FRONT_BACK_FACE || builder.renderer.debug.view === DEBUG_VIEW_SHADOW_CASTER || builder.renderer.debug.view === DEBUG_VIEW_LOD_COLORATION || builder.renderer.debug.view === DEBUG_VIEW_DOUBLE_SIDE ) && this.isShadowPassMaterial !== true && this.fragmentNode === null ) {
 
 			return lightingOnlyNormal();
 
@@ -24492,7 +24655,7 @@ class NodeMaterial extends Material {
 			// WITH_GENESYS
 			// Lighting only and draw call substitute a plain lit material, so emissive is dropped.
 			// Detail lighting keeps it.
-			if ( ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY || builder.renderer.debug.view === DEBUG_VIEW_DRAW_CALL || builder.renderer.debug.view === DEBUG_VIEW_FRONT_BACK_FACE || builder.renderer.debug.view === DEBUG_VIEW_SHADOW_CASTER || builder.renderer.debug.view === DEBUG_VIEW_DOUBLE_SIDE ) && this.isShadowPassMaterial !== true ) {
+			if ( ( builder.renderer.debug.view === DEBUG_VIEW_LIGHTING_ONLY || builder.renderer.debug.view === DEBUG_VIEW_DRAW_CALL || builder.renderer.debug.view === DEBUG_VIEW_FRONT_BACK_FACE || builder.renderer.debug.view === DEBUG_VIEW_SHADOW_CASTER || builder.renderer.debug.view === DEBUG_VIEW_LOD_COLORATION || builder.renderer.debug.view === DEBUG_VIEW_DOUBLE_SIDE ) && this.isShadowPassMaterial !== true ) {
 
 				return outgoingLightNode;
 
@@ -64861,7 +65024,8 @@ class Renderer {
 		 * @property {?Function} onNodeBuilderCreated - A callback function that is executed after a node builder has been created and before it is built.
 		 * @property {?Function} onShaderError - A callback function that is executed when a shader error happens. Only supported with WebGL 2 right now.
 		 * @property {Function} getShaderAsync - Allows the get the raw shader code for the given scene, camera and 3D object.
-		 * @property {string} view - Debug view. `shaderComplexity`, `lightingComplexity`, `overdraw`, and `shaderComplexityAndOverdraw` replace the shaded color with a heatmap. `shaderComplexityAndOverdraw` multiplies the shader cost by the overdraw count. `bufferVisualization` shows one material channel. `lightingOnly` and `detailLighting` light a flat gray surface. `drawCall` lights each submitted draw with its own diffuse color. `frontBackFace` draws both windings and tints the side facing the camera. `shadowCaster` lights a mesh green when it casts shadows and gray when it does not. `doubleSide` lights a single-sided surface gray, a visible double-sided back face blue, and a hidden double-sided back face red. `wireframe` draws each mesh as lines along its triangle edges. Lighting stays the same as the shaded view. Shadow passes and fullscreen quads stay triangles.
+		 * @property {string} view - Debug view. `shaderComplexity`, `lightingComplexity`, `overdraw`, and `shaderComplexityAndOverdraw` replace the shaded color with a heatmap. `shaderComplexityAndOverdraw` multiplies the shader cost by the overdraw count. `bufferVisualization` shows one material channel. `lightingOnly` and `detailLighting` light a flat gray surface. `drawCall` lights each submitted draw with its own diffuse color. `lodColoration` lights geometry with the palette entry for its LOD index. `frontBackFace` draws both windings and tints the side facing the camera. `shadowCaster` lights a mesh green when it casts shadows and gray when it does not. `doubleSide` lights a single-sided surface gray, a visible double-sided back face blue, and a hidden double-sided back face red. `wireframe` draws each mesh as lines along its triangle edges. Lighting stays the same as the shaded view. Shadow passes and fullscreen quads stay triangles.
+		 * @property {Color[]} lodColorationColors - Palette for `lodColoration`. Defaults to Unreal `LODColorationColors`.
 		 * @property {string} buffer - Channel drawn by `bufferVisualization`: `baseColor`, `worldNormal`, `roughness`, `metallic`, `ambientOcclusion`, or `emissive`.
 		 * @property {number} shaderComplexityBudget - Proxy budget that fills the shader-complexity ramp.
 		 * @property {number} quadOverdrawBudget - Overlapping fragments that fill the quad-overdraw ramp.
@@ -64886,6 +65050,7 @@ class Renderer {
 			quadOverdrawBudget: DEFAULT_QUAD_OVERDRAW_BUDGET,
 			doubleSideHidden: false,
 			doubleSideBack: false,
+			lodColorationColors: DEFAULT_LOD_COLORATION_COLORS.map( color => color.clone() ),
 			// !WITH_GENESYS
 			getShaderAsync: async ( scene, camera, object ) => {
 

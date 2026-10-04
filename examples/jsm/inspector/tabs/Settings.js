@@ -148,6 +148,7 @@ class Settings extends Parameters {
 			'Shader Complexity': 'shaderComplexity',
 			'Lighting Complexity': 'lightingComplexity',
 			'Shadow Caster': 'shadowCaster',
+			'LOD Coloration': 'lodColoration',
 			'Double Side': 'doubleSide',
 			'Overdraw': 'overdraw',
 			'Shader Complexity & Overdraw': 'shaderComplexityAndOverdraw',
@@ -196,7 +197,7 @@ class Settings extends Parameters {
 		const renderer = this.inspector.getRenderer();
 		const view = renderer !== null && renderer.debug !== undefined ? renderer.debug.view : null;
 
-		if ( view === 'none' || view === 'wireframe' || view === 'shaderComplexity' || view === 'lightingComplexity' || view === 'overdraw' || view === 'shaderComplexityAndOverdraw' || view === 'bufferVisualization' || view === 'lightingOnly' || view === 'detailLighting' || view === 'drawCall' || view === 'frontBackFace' || view === 'shadowCaster' || view === 'doubleSide' ) {
+		if ( view === 'none' || view === 'wireframe' || view === 'shaderComplexity' || view === 'lightingComplexity' || view === 'overdraw' || view === 'shaderComplexityAndOverdraw' || view === 'bufferVisualization' || view === 'lightingOnly' || view === 'detailLighting' || view === 'drawCall' || view === 'frontBackFace' || view === 'shadowCaster' || view === 'lodColoration' || view === 'doubleSide' ) {
 
 			if ( this._debugViewState.view !== view ) {
 

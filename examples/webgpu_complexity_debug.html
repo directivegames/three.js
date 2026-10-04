@@ -23,6 +23,7 @@
 				Back: basic, standard, physical, 8 cheap layers, 4 physical layers, 2 Lambert layers, light overlap, glTF model.<br/>
 				Middle: RGB, rough/smooth, metal/plastic, emissive, normal/flat, AO.<br/>
 				Front: near LOD, far LOD, open box, closed double-sided box, single-sided box, double-sided card, caster / non-caster, separate meshes, one instanced mesh.<br/>
+				Left-back corner: instanced LOD tiers only (three columns, <code>userData.lodColorationIndex</code> 0–2).<br/>
 				Render path: direct to canvas, a scene pass, or an MRT scene pass (output, normal, emissive) like a post-processing stack, optionally with a HUD pass blended on top.<br/>
 				WASD moves the camera, mouse orbits.
 			</small>
@@ -70,6 +71,7 @@
 				{ id: 'shaderComplexity', view: 'shaderComplexity', label: 'Shader complexity', key: '2' },
 				{ id: 'lightingComplexity', view: 'lightingComplexity', label: 'Lighting complexity', key: '3' },
 				{ id: 'shadowCaster', view: 'shadowCaster', label: 'Shadow caster' },
+				{ id: 'lodColoration', view: 'lodColoration', label: 'LOD coloration' },
 				{ id: 'doubleSide', view: 'doubleSide', label: 'Double side' },
 				{ id: 'overdraw', view: 'overdraw', label: 'Overdraw', key: '4' },
 				{ id: 'shaderComplexityAndOverdraw', view: 'shaderComplexityAndOverdraw', label: 'Shader complexity and overdraw' },
@@ -188,6 +190,44 @@
 
 					const mesh = addMesh( new THREE.PlaneGeometry( 1.15, 1.15 ), material, x, 0.7, z - 0.35 + i * 0.08 );
 					mesh.renderOrder = i;
+
+				}
+
+			}
+
+			function addInstancedLODTiers( originX, originZ ) {
+
+				// Three independent instanced draws (Genesys-style `userData.lodColorationIndex`).
+				// Each LOD index gets its own column on +X so tiers never share the same world position.
+				const tierMaterial = new THREE.MeshStandardNodeMaterial( { color: 0xdddddd, roughness: 0.5 } );
+				const tierGeometry = new THREE.BoxGeometry( 0.26, 0.26, 0.26 );
+				const dummy = new THREE.Object3D();
+				const cell = 0.38;
+				const tierStrideX = 1.1;
+
+				for ( let tier = 0; tier < 3; tier ++ ) {
+
+					const instances = new THREE.InstancedMesh( tierGeometry, tierMaterial, 4 );
+					instances.userData.lodColorationIndex = tier;
+					instances.castShadow = true;
+					instances.receiveShadow = true;
+
+					const columnX = originX + tier * tierStrideX;
+
+					for ( let i = 0; i < 4; i ++ ) {
+
+						dummy.position.set(
+							columnX + ( i % 2 ) * cell,
+							0.13,
+							originZ + Math.floor( i / 2 ) * cell
+						);
+						dummy.updateMatrix();
+						instances.setMatrixAt( i, dummy.matrix );
+
+					}
+
+					instances.instanceMatrix.needsUpdate = true;
+					scene.add( instances );
 
 				}
 
@@ -425,7 +465,7 @@
 					aoMap: makeAOMap()
 				} ), 4.2, 1.5, 0.85 );
 
-				// LOD coloration: the near object stays on level 0, the far one drops to the tetrahedron.
+				// `THREE.LOD`: fly to the far sphere to see coarser levels (LOD coloration view).
 				addLOD( - 5.2, 3.5 );
 				addLOD( 8.2, - 5.4 );
 
@@ -493,6 +533,9 @@
 				}
 
 				scene.add( instances );
+
+				// Away from the front-row props (draw call / casters / open box at z ~ 3.5).
+				addInstancedLODTiers( - 9.0, - 6.8 );
 
 				renderer = new THREE.WebGPURenderer( { antialias: true } );
 				renderer.setPixelRatio( window.devicePixelRatio );
