@@ -4,7 +4,6 @@ import { CONSOLE_LEVEL } from '../../utils/console-wrapper.js';
 import {
 	assertClose,
 	captureConsole,
-	clearGnsxMarks,
 	countGnsxUserTimingEntries,
 	findPartialOverlaps,
 	installFakeClock,
@@ -67,7 +66,7 @@ export default QUnit.module( 'Profiler', () => {
 				assert.true( Object.isFrozen( span ), 'no-op span handle is frozen' );
 				assert.strictEqual( ProfilerService.beginGpu( 'idle-gpu', {} )._seq, 0, 'beginGpu returns the no-op handle' );
 				assert.deepEqual( ProfilerService.getAllStats(), [], 'no stats collected' );
-				assert.strictEqual( ProfilerService.traceEvents.length, 0, 'no trace events collected' );
+				assert.strictEqual( sliceEvents().length, 0, 'no trace events collected' );
 
 			} );
 
@@ -81,7 +80,7 @@ export default QUnit.module( 'Profiler', () => {
 				ProfilerService.disable();
 				assert.false( ProfilerService.isEnabled(), 'disabled' );
 				assert.deepEqual( ProfilerService.getAllStats(), [], 'stats cleared on disable' );
-				assert.strictEqual( ProfilerService.traceEvents.length, 0, 'trace cleared on disable' );
+				assert.strictEqual( sliceEvents().length, 0, 'trace cleared on disable' );
 
 				recordScope( 'session', 1 );
 				assert.strictEqual( ProfilerService.getStats( 'session' ), null, 'recording stops after disable' );
@@ -109,7 +108,7 @@ export default QUnit.module( 'Profiler', () => {
 
 				assert.true( ProfilerService.isEnabled(), 'still enabled' );
 				assert.strictEqual( ProfilerService.getStats( 'before-reset' ), null, 'samples cleared' );
-				assert.strictEqual( ProfilerService.traceEvents.length, 0, 'trace cleared' );
+				assert.strictEqual( sliceEvents().length, 0, 'trace cleared' );
 
 				recordScope( 'after-reset', 1 );
 				assert.ok( ProfilerService.getStats( 'after-reset' ), 'records after reset' );
@@ -176,7 +175,7 @@ export default QUnit.module( 'Profiler', () => {
 				ProfilerService.end( 'ghost' );
 
 				assert.strictEqual( ProfilerService.getStats( 'ghost' ), null, 'no sample' );
-				assert.strictEqual( ProfilerService.traceEvents.length, 0, 'no trace event' );
+				assert.strictEqual( sliceEvents().length, 0, 'no trace event' );
 
 			} );
 
@@ -211,7 +210,6 @@ export default QUnit.module( 'Profiler', () => {
 				assert.strictEqual( stats.avg, 6, 'outer call' );
 				assert.strictEqual( stats.selfAvg, 3, 'self time still covers both calls' );
 				assert.strictEqual( stats.totalInvocations, 2, 'both calls are counted' );
-				assert.deepEqual( ProfilerService.getValidSamples( 'recurse' ), [ 6 ], 'no placeholder for the inner call' );
 
 			} );
 
@@ -303,6 +301,28 @@ export default QUnit.module( 'Profiler', () => {
 				const slice = events.find( event => event.name === 'load (out of order)' );
 				assert.ok( slice, 'slice named as out of order' );
 				assert.strictEqual( slice.tid, 2, 'async row' );
+
+			} );
+
+			QUnit.test( 'a late end() of a scope left inside a span with the same label is a recursive call', assert => {
+
+				const span = ProfilerService.beginSpan( 'recurse' );
+				clock.advance( 1 );
+				ProfilerService.begin( 'mid' );
+				clock.advance( 1 );
+				ProfilerService.begin( 'recurse' );
+				clock.advance( 2 );
+				ProfilerService.end( 'mid' );
+				clock.advance( 3 );
+				ProfilerService.end( 'recurse' );
+				clock.advance( 4 );
+				ProfilerService.endSpan( span );
+
+				const stats = ProfilerService.getStats( 'recurse' );
+				assert.strictEqual( stats.samples, 1, 'the inner call is already inside the span' );
+				assert.strictEqual( stats.avg, 11, 'outer span' );
+				assert.strictEqual( stats.selfAvg, 8, 'only the span has self time: 11 ms - 3 ms mid' );
+				assert.strictEqual( stats.totalInvocations, 2, 'both calls are counted' );
 
 			} );
 
@@ -471,6 +491,29 @@ export default QUnit.module( 'Profiler', () => {
 
 			} );
 
+			QUnit.test( 'ignores a second endSpan() of the same handle', assert => {
+
+				const span = ProfilerService.beginSpan( 'once' );
+				clock.advance( 2 );
+				ProfilerService.endSpan( span );
+				clock.advance( 3 );
+				ProfilerService.endSpan( span );
+
+				const asyncSpan = ProfilerService.beginSpan( 'once-async' );
+				clock.advance( 4 );
+				ProfilerService.endSpan( asyncSpan, { asyncTimeline: true } );
+				clock.advance( 5 );
+				ProfilerService.endSpan( asyncSpan, { asyncTimeline: true } );
+
+				const stats = ProfilerService.getStats( 'once' );
+				assert.strictEqual( stats.samples, 1, 'one sample' );
+				assert.strictEqual( stats.avg, 2, 'from the first end' );
+				assert.strictEqual( stats.totalInvocations, 1, 'one invocation' );
+				assert.strictEqual( ProfilerService.getStats( 'once-async' ).samples, 1, 'async end is not repeated either' );
+				assert.strictEqual( sliceEvents().length, 2, 'one slice per span' );
+
+			} );
+
 			QUnit.test( 'asyncTimeline spans use the async lane', assert => {
 
 				const span = ProfilerService.beginSpan( 'download' );
@@ -505,7 +548,6 @@ export default QUnit.module( 'Profiler', () => {
 			QUnit.test( 'getStats() returns null for unknown labels', assert => {
 
 				assert.strictEqual( ProfilerService.getStats( 'unknown' ), null, 'null' );
-				assert.deepEqual( ProfilerService.getValidSamples( 'unknown' ), [], 'no samples' );
 
 			} );
 
@@ -554,18 +596,6 @@ export default QUnit.module( 'Profiler', () => {
 				const stats = ProfilerService.getStats( 'mixed' );
 				assert.strictEqual( stats.samples, 2, 'both calls in the inclusive window' );
 				assert.strictEqual( stats.selfAvg, 2, 'async call has no self time and is skipped' );
-
-			} );
-
-			QUnit.test( 'getValidSamples() returns a copy of the recorded samples', assert => {
-
-				recordScope( 'copy', 1 );
-				recordScope( 'copy', 2 );
-
-				const samples = ProfilerService.getValidSamples( 'copy' );
-				assert.deepEqual( samples, [ 1, 2 ], 'samples in recording order' );
-				samples[ 0 ] = 99;
-				assert.deepEqual( ProfilerService.getValidSamples( 'copy' ), [ 1, 2 ], 'internal buffer untouched' );
 
 			} );
 
@@ -694,7 +724,7 @@ export default QUnit.module( 'Profiler', () => {
 					[ 'long' ],
 					'short slice omitted'
 				);
-				assert.strictEqual( ProfilerService.traceEvents.length, 2, 'capture keeps every slice' );
+				assert.strictEqual( sliceEvents().length, 2, 'capture keeps every slice' );
 
 				for ( const threshold of [ NaN, - 1, Infinity ] ) {
 
@@ -727,7 +757,7 @@ export default QUnit.module( 'Profiler', () => {
 				recordScope( 'stats-only', 1 );
 
 				assert.ok( ProfilerService.getStats( 'stats-only' ), 'stats still collected' );
-				assert.strictEqual( ProfilerService.traceEvents.length, 0, 'no trace events retained' );
+				assert.strictEqual( sliceEvents().length, 0, 'no trace events retained' );
 
 			} );
 
@@ -745,7 +775,7 @@ export default QUnit.module( 'Profiler', () => {
 
 				}
 
-				assert.strictEqual( ProfilerService.traceEvents.length, 2, 'trace capped' );
+				assert.strictEqual( sliceEvents().length, 2, 'trace capped' );
 				assert.strictEqual( ProfilerService.getStats( 'capped' ).samples, 5, 'stats unaffected by the cap' );
 
 			} );
@@ -847,7 +877,7 @@ export default QUnit.module( 'Profiler', () => {
 				const declared = trace.traceEvents.filter( event => event.ph === 'M' ).map( event => event.tid );
 				assert.strictEqual( new Set( rows ).size, 2, 'two rows' );
 				assert.true( rows.every( tid => declared.includes( tid ) ), 'every row has a thread_name' );
-				assert.true( ProfilerService.traceEvents.every( event => event.tid === 2 ), 'captured events untouched' );
+				assert.deepEqual( ProfilerService.exportChromeTrace(), trace, 'exporting does not change the capture' );
 
 			} );
 
@@ -943,93 +973,63 @@ export default QUnit.module( 'Profiler', () => {
 
 		QUnit.module( 'User Timing', () => {
 
-			QUnit.test( 'names scope measures after the trace name', assert => {
+			QUnit.test( 'the full profile creates no User Timing entries', assert => {
 
 				ProfilerService.enable();
+				const before = countGnsxUserTimingEntries();
+				recordScope( 'ut-scope', 1 );
 				ProfilerService.begin( 'ut-named', 'ut-named (Tree - Bark)' );
 				clock.advance( 1 );
 				ProfilerService.end( 'ut-named' );
+				const span = ProfilerService.beginSpan( 'ut-span' );
+				clock.advance( 1 );
+				ProfilerService.endSpan( span );
 
-				assert.strictEqual( performance.getEntriesByName( 'gnsx:ut-named (Tree - Bark)', 'measure' ).length, 1, 'measure uses the trace name' );
-				assert.strictEqual( performance.getEntriesByName( 'gnsx:ut-named', 'measure' ).length, 0, 'not the stats label' );
+				assert.strictEqual( countGnsxUserTimingEntries() - before, 0, 'no marks or measures added' );
+				assert.strictEqual( sliceEvents().length, 3, 'the Chrome trace still records every slice' );
 
 			} );
 
-			QUnit.test( 'mirrors scopes and spans as gnsx measures', assert => {
+		} );
 
-				ProfilerService.enable();
-				const before = performance.getEntriesByName( 'gnsx:ut-scope', 'measure' ).length;
-				recordScope( 'ut-scope', 1 );
-				const span = ProfilerService.beginSpan( 'ut-span' );
-				ProfilerService.endSpan( span );
+		QUnit.module( 'call stack', innerHooks => {
 
-				assert.strictEqual( performance.getEntriesByName( 'gnsx:ut-scope', 'measure' ).length, before + 1, 'scope measure' );
-				assert.true(
-					performance.getEntriesByType( 'measure' ).some( entry => entry.name === `gnsx:ut-span#${span._seq}` ),
-					'span measure'
+			innerHooks.beforeEach( () => ProfilerService.enable() );
+
+			QUnit.test( 'a scope left open by an exception does not leak into later frames', assert => {
+
+				for ( let i = 0; i < 3; i ++ ) {
+
+					ProfilerService.begin( 'frame' );
+					ProfilerService.begin( 'thrown' );
+					clock.advance( 1 );
+					ProfilerService.end( 'frame' );
+
+				}
+
+				recordScope( 'after', 2 );
+
+				assert.strictEqual( ProfilerService.getStats( 'frame' ).samples, 3, 'every frame closes' );
+				assert.strictEqual( ProfilerService.getStats( 'after' ).selfAvg, 2, 'later scopes are not nested in the dropped ones' );
+				assert.deepEqual(
+					sliceEvents().filter( event => event.name === 'after' ).map( event => event.tid ),
+					[ 1 ],
+					'later scopes stay on the main row'
 				);
 
 			} );
 
-			QUnit.test( 'stats profile creates no User Timing entries', assert => {
+			QUnit.test( 'deep nesting closes every level in order', assert => {
 
-				ProfilerService.setProfile( 'stats' );
-				ProfilerService.enable();
-				const before = countGnsxUserTimingEntries();
-				recordScope( 'ut-stats', 1 );
-				ProfilerService.endSpan( ProfilerService.beginSpan( 'ut-stats-span' ) );
-
-				assert.strictEqual( countGnsxUserTimingEntries() - before, 0, 'no marks or measures added' );
-
-			} );
-
-			QUnit.test( 'disable() removes the User Timing entries it created', assert => {
-
-				ProfilerService.enable();
-				recordScope( 'ut-cleanup', 1 );
-				ProfilerService.disable();
-
-				assert.strictEqual( countGnsxUserTimingEntries(), 0, 'no gnsx marks or measures left behind' );
-
-			} );
-
-			QUnit.test( 'end() survives marks cleared by other code', assert => {
-
-				ProfilerService.enable();
-				ProfilerService.begin( 'ut-cleared' );
+				const depth = 200;
+				for ( let i = 0; i < depth; i ++ ) ProfilerService.begin( `level ${i}` );
 				clock.advance( 1 );
-				clearGnsxMarks();
+				for ( let i = depth - 1; i >= 0; i -- ) ProfilerService.end( `level ${i}` );
 
-				try {
-
-					ProfilerService.end( 'ut-cleared' );
-					assert.ok( ProfilerService.getStats( 'ut-cleared' ), 'sample recorded' );
-
-				} catch ( error ) {
-
-					assert.ok( false, `end() threw: ${error.message}` );
-
-				}
-
-			} );
-
-			QUnit.test( 'endSpan() survives marks cleared by other code', assert => {
-
-				ProfilerService.enable();
-				const span = ProfilerService.beginSpan( 'ut-span-cleared' );
-				clock.advance( 1 );
-				clearGnsxMarks();
-
-				try {
-
-					ProfilerService.endSpan( span );
-					assert.ok( ProfilerService.getStats( 'ut-span-cleared' ), 'sample recorded' );
-
-				} catch ( error ) {
-
-					assert.ok( false, `endSpan() threw: ${error.message}` );
-
-				}
+				assert.strictEqual( ProfilerService.getAllStats().length, depth, 'one record per level' );
+				assert.strictEqual( ProfilerService.getStats( 'level 0' ).selfAvg, 0, 'outer level has no self time' );
+				assert.strictEqual( ProfilerService.getStats( `level ${depth - 1}` ).selfAvg, 1, 'innermost level owns the time' );
+				assert.deepEqual( findPartialOverlaps( ProfilerService.exportChromeTrace().traceEvents ), [], 'trace slices nest' );
 
 			} );
 

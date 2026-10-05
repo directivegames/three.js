@@ -65,7 +65,8 @@ export function installFakeClock( startMs = 1000 ) {
  * and resolves them on `resolveTimestampsAsync()`, mirroring `TimestampQueryPool`.
  *
  * Reporting the same uid twice accumulates its duration and widens its range, like a pool
- * that owns several offsets for one render context.
+ * that owns several offsets for one render context. Like `WebGPUTimestampQueryPool`, each
+ * resolve that runs replaces the earlier timestamps of its type.
  *
  * @param {Object} [options]
  * @param {boolean} [options.timestampFeature=true] Whether `hasFeature( 'timestamp-query' )` is true.
@@ -78,6 +79,7 @@ export function createCommonRenderer( { timestampFeature = true, deferResolves =
 	const pending = new Map();
 	const resolved = new Map();
 	const resolvedRanges = new Map();
+	const resolvedTypes = new Map();
 	let gpuTime = 0n;
 	let deferredResolvesLeft = deferResolves;
 
@@ -149,11 +151,24 @@ export function createCommonRenderer( { timestampFeature = true, deferResolves =
 
 			}
 
+			for ( const [ uid, entryType ] of resolvedTypes ) {
+
+				if ( entryType === type ) {
+
+					resolved.delete( uid );
+					resolvedRanges.delete( uid );
+					resolvedTypes.delete( uid );
+
+				}
+
+			}
+
 			for ( const [ uid, entry ] of pending ) {
 
 				if ( entry.type === type ) {
 
 					resolved.set( uid, entry.duration );
+					resolvedTypes.set( uid, type );
 					if ( entry.range !== null ) resolvedRanges.set( uid, entry.range );
 					pending.delete( uid );
 
@@ -347,20 +362,6 @@ export function countGnsxUserTimingEntries() {
 	return [ ...performance.getEntriesByType( 'mark' ), ...performance.getEntriesByType( 'measure' ) ]
 		.filter( entry => entry.name.startsWith( 'gnsx:' ) )
 		.length;
-
-}
-
-/**
- * Clears the profiler's User Timing marks, simulating third-party code calling
- * `performance.clearMarks()` without touching QUnit's own `qunit_*` marks.
- */
-export function clearGnsxMarks() {
-
-	for ( const entry of performance.getEntriesByType( 'mark' ) ) {
-
-		if ( entry.name.startsWith( 'gnsx:' ) ) performance.clearMarks( entry.name );
-
-	}
 
 }
 

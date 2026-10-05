@@ -478,7 +478,10 @@ export default QUnit.module( 'Profiler', () => {
 				await ProfilerService.flushGpu( renderer );
 
 				assert.ok( ProfilerService.getGpuStats( 'stats-gpu' ), 'GPU stats collected' );
-				assert.false( ProfilerService.traceEvents.some( event => event.tid === 3 ), 'no GPU trace events' );
+				assert.false(
+					ProfilerService.exportChromeTrace().traceEvents.some( event => event.ph === 'X' && event.tid === 3 ),
+					'no GPU trace events'
+				);
 
 			} );
 
@@ -578,13 +581,15 @@ export default QUnit.module( 'Profiler', () => {
 				renderer.backend.emit( 'render', 'r:0:1:f1', 2 );
 				ProfilerService.endGpu( span );
 				for ( let i = 0; i < 3; i ++ ) await ProfilerService.flushGpu( renderer );
+				const resolveCalls = renderer.backend.resolveCalls;
+				await ProfilerService.flushGpu( renderer );
 
-				assert.strictEqual( ProfilerService.gpuRendererStates.get( renderer ).pendingSpans.length, 0, 'span dropped after retries' );
+				assert.strictEqual( renderer.backend.resolveCalls, resolveCalls, 'span dropped after retries: nothing left to resolve' );
 				assert.strictEqual( ProfilerService.getGpuStats( 'never' ), null, 'no sample' );
 
 			} );
 
-			QUnit.test( 'does not retain CPU times for queries outside any span', async assert => {
+			QUnit.test( 'ignores unlabeled queries outside any span', async assert => {
 
 				const renderer = createCommonRenderer();
 				await ProfilerService.attachGpuRenderer( renderer );
@@ -592,11 +597,87 @@ export default QUnit.module( 'Profiler', () => {
 				for ( let i = 0; i < 50; i ++ ) renderer.backend.emit( 'render', `r:${i}:1:f1`, 0.1 );
 				await ProfilerService.flushGpu( renderer );
 
-				assert.strictEqual(
-					ProfilerService.gpuRendererStates.get( renderer ).queryCpuTimes.size,
-					0,
-					'queryCpuTimes does not grow with untracked queries'
-				);
+				assert.strictEqual( renderer.backend.resolveCalls, 0, 'nothing queued to resolve' );
+				assert.deepEqual( ProfilerService.getAllGpuStats(), [], 'no samples' );
+
+			} );
+
+			QUnit.test( 'waits for every query of a span before committing it', async assert => {
+
+				const renderer = createCommonRenderer();
+				await ProfilerService.attachGpuRenderer( renderer );
+				const resolve = renderer.backend.resolve;
+				let computeResolves = 0;
+				renderer.backend.resolve = type => {
+
+					// The compute pool skips its first resolve, e.g. while its buffer is mapped.
+					if ( type === 'compute' && computeResolves ++ === 0 ) return;
+					resolve( type );
+
+				};
+
+				const span = ProfilerService.beginGpu( 'mixed', renderer );
+				renderer.backend.emit( 'render', 'r:0:1:f1', 2 );
+				renderer.backend.emit( 'compute', 'c:0:2:f1', 3 );
+				ProfilerService.endGpu( span );
+				await ProfilerService.flushGpu( renderer );
+				assert.strictEqual( ProfilerService.getGpuStats( 'mixed' ), null, 'not committed with a query missing' );
+
+				await ProfilerService.flushGpu( renderer );
+				assert.strictEqual( ProfilerService.getGpuStats( 'mixed' ).avg, 5, 'committed with both queries' );
+
+			} );
+
+			QUnit.test( 'keeps timestamps read before a retry', async assert => {
+
+				const renderer = createCommonRenderer();
+				await ProfilerService.attachGpuRenderer( renderer );
+				const resolve = renderer.backend.resolve;
+				let computeResolves = 0;
+				renderer.backend.resolve = type => {
+
+					if ( type === 'compute' && computeResolves ++ === 0 ) return;
+					resolve( type );
+
+				};
+
+				const render = ProfilerService.beginGpu( 'render-only', renderer );
+				renderer.backend.emit( 'render', 'r:0:1:f1', 2 );
+				ProfilerService.endGpu( render );
+				const compute = ProfilerService.beginGpu( 'compute-only', renderer );
+				renderer.backend.emit( 'compute', 'c:0:2:f1', 3 );
+				ProfilerService.endGpu( compute );
+				await ProfilerService.flushGpu( renderer );
+				assert.strictEqual( ProfilerService.getGpuStats( 'render-only' ), null, 'the batch waits for the compute query' );
+
+				// The second render resolve replaces the timestamp read on the first flush.
+				await ProfilerService.flushGpu( renderer );
+				assert.strictEqual( ProfilerService.getGpuStats( 'render-only' )?.avg, 2, 'render span keeps its first read' );
+				assert.strictEqual( ProfilerService.getGpuStats( 'compute-only' )?.avg, 3, 'compute span resolved on retry' );
+
+			} );
+
+			QUnit.test( 'commits resolved spans when another span in the batch never resolves', async assert => {
+
+				const renderer = createCommonRenderer();
+				await ProfilerService.attachGpuRenderer( renderer );
+				const resolve = renderer.backend.resolve;
+				renderer.backend.resolve = type => {
+
+					if ( type !== 'compute' ) resolve( type );
+
+				};
+
+				const render = ProfilerService.beginGpu( 'render-only', renderer );
+				renderer.backend.emit( 'render', 'r:0:1:f1', 2 );
+				ProfilerService.endGpu( render );
+				const compute = ProfilerService.beginGpu( 'compute-only', renderer );
+				renderer.backend.emit( 'compute', 'c:0:2:f1', 3 );
+				ProfilerService.endGpu( compute );
+				for ( let i = 0; i < 3; i ++ ) await ProfilerService.flushGpu( renderer );
+
+				assert.strictEqual( ProfilerService.getGpuStats( 'render-only' )?.avg, 2, 'resolved span committed after the retry limit' );
+				assert.strictEqual( ProfilerService.getGpuStats( 'compute-only' ), null, 'unresolved span dropped' );
 
 			} );
 
@@ -644,6 +725,40 @@ export default QUnit.module( 'Profiler', () => {
 
 				assert.strictEqual( ProfilerService.getGpuStats( 'polled' ).avg, 4, 'result read once available' );
 				assert.strictEqual( renderer.gl.createdQueries[ 0 ].polls, 4, 'polled until available' );
+
+			} );
+
+			QUnit.test( 'polls on a 4 ms timeout without requestAnimationFrame', async assert => {
+
+				const renderer = createLegacyWebGLRenderer( { availableAfterPolls: 1 } );
+				await ProfilerService.attachGpuRenderer( renderer );
+
+				const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+				const originalSetTimeout = globalThis.setTimeout;
+				const delays = [];
+				globalThis.requestAnimationFrame = undefined;
+				globalThis.setTimeout = ( callback, ms, ...args ) => {
+
+					delays.push( ms );
+					return originalSetTimeout( callback, ms, ...args );
+
+				};
+
+				try {
+
+					ProfilerService.endGpu( ProfilerService.beginGpu( 'polled', renderer ) );
+					await ProfilerService.flushGpu( renderer );
+
+				} finally {
+
+					globalThis.requestAnimationFrame = originalRequestAnimationFrame;
+					globalThis.setTimeout = originalSetTimeout;
+
+				}
+
+				assert.strictEqual( ProfilerService.getGpuStats( 'polled' ).avg, 4, 'result read once available' );
+				assert.true( delays.length > 0, 'fell back to setTimeout' );
+				assert.deepEqual( [ ...new Set( delays ) ], [ 4 ], 'every fallback waits 4 ms' );
 
 			} );
 
