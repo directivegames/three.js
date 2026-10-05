@@ -5,6 +5,42 @@ import { DUMMY_GPU_SPAN, WebGLTimer, WebGPUTimer } from './ProfilerGpu.js';
 import { TRACE_TID_ASYNC, TRACE_TID_GPU, TRACE_TID_MAIN, TraceBuffer, buildChromeTrace } from './ProfilerTrace.js';
 
 /**
+ * @typedef {Object} TraceSink
+ * @property {(event: {name: string, ph: 'X', ts: number, dur: number, pid: 1, tid: number, cat: 'gnsx'|'gnsx-gpu'}) => void} write
+ * @property {(() => void)=} close
+ */
+
+/**
+ * @typedef {Object} SessionDurationStats
+ * @property {number} count
+ * @property {number} totalMs
+ * @property {number} min
+ * @property {number} max
+ */
+
+/**
+ * @typedef {Object} SessionStats
+ * @property {string} label
+ * @property {number} count
+ * @property {number} totalMs
+ * @property {number} min
+ * @property {number} max
+ * @property {number=} selfCount
+ * @property {number=} selfTotalMs
+ * @property {number=} selfMin
+ * @property {number=} selfMax
+ */
+
+/**
+ * @typedef {Object} GpuSessionStats
+ * @property {string} label
+ * @property {number} count
+ * @property {number} totalMs
+ * @property {number} min
+ * @property {number} max
+ */
+
+/**
  * ProfilerService — per-label CPU timing with ring-buffer aggregation and Chrome trace export.
  *
  * Quick start (browser console):
@@ -13,6 +49,7 @@ import { TRACE_TID_ASYNC, TRACE_TID_GPU, TRACE_TID_MAIN, TraceBuffer, buildChrom
  *   __gnsx_profiler.report()         // sorted console.table (aggregated stats)
  *   __gnsx_profiler.downloadTrace()  // download gnsx-trace.json for Speedscope / Perfetto
  *   __gnsx_profiler.downloadTrace('gnsx-trace.json', 0.05)  // omit spans < 0.05 ms
+ *   __gnsx_profiler.setTraceSink(sink) // stream slices instead of retaining them
  *   __gnsx_profiler.reset()          // clear samples and trace
  *   __gnsx_profiler.disable()
  *
@@ -24,7 +61,9 @@ import { TRACE_TID_ASYNC, TRACE_TID_GPU, TRACE_TID_MAIN, TraceBuffer, buildChrom
  * (it outlives its parent, or ends before a span it encloses) is moved to the async rows as
  * `label (out of order)` with a one-time warning.
  *
- * Profiles: `'full'` keeps a Chrome trace; `'stats'` keeps only the per-label ring buffers.
+ * Profiles: `'full'` keeps a Chrome trace; `'stats'` keeps the ring buffers. Trace slices are
+ * also emitted while {@link ProfilerServiceClass#beginTraceCapture} is active, including in
+ * `'stats'`, so a streamed trace does not reset the rings.
  */
 
 const RING_SIZE = 120;
@@ -62,6 +101,18 @@ class ProfilerServiceClass {
 		this._gpuRecords = new Map();
 		this._trace = new TraceBuffer();
 		this._traceStartTime = 0;
+		/** Trace capture is independent from bounded stats collection. */
+		this._traceCaptureEnabled = false;
+		/** @type {TraceSink|null} */
+		this._traceSink = null;
+		/** Spans shorter than this are omitted from the trace. Stats and session totals still record them. */
+		this._traceMinDurationMs = 0;
+		/** @type {Map<string, SessionDurationStats>} Inclusive totals for the whole session, not the ring. */
+		this.sessionTotals = new Map();
+		/** @type {Map<string, SessionDurationStats>} */
+		this.sessionSelfTotals = new Map();
+		/** @type {Map<string, SessionDurationStats>} */
+		this.sessionGpuTotals = new Map();
 
 		/**
 		 * Open scopes and synchronous spans, innermost last. Frames are reused: only
@@ -106,6 +157,75 @@ class ProfilerServiceClass {
 
 	}
 
+	/**
+	 * Route complete trace slices to `sink` instead of retaining them in the trace buffer.
+	 * `disable()` calls `sink.close` before clearing stats. `enable()` and `reset()` do not.
+	 *
+	 * @param {TraceSink|null} sink
+	 */
+	setTraceSink( sink ) {
+
+		if ( sink === this._traceSink ) return;
+
+		this._closeTraceSink();
+		this._traceSink = sink ?? null;
+
+	}
+
+	/**
+	 * Drop complete spans shorter than this from the trace. Unlike {@link ProfilerServiceClass#exportChromeTrace},
+	 * discarded spans are not recoverable. `0` keeps every span. Stats rings and session totals are unaffected.
+	 *
+	 * @param {number} minDurationMs
+	 */
+	setTraceMinDurationMs( minDurationMs ) {
+
+		const value = Number( minDurationMs );
+		this._traceMinDurationMs = Number.isFinite( value ) && value > 0 ? value : 0;
+
+	}
+
+	/**
+	 * @return {number}
+	 */
+	getTraceMinDurationMs() {
+
+		return this._traceMinDurationMs;
+
+	}
+
+	/**
+	 * Start a fresh trace session without clearing bounded stats rings.
+	 * Enables profiling when it is off. The sink may be installed before or after this call.
+	 */
+	beginTraceCapture() {
+
+		if ( this._enabled === false ) this.enable();
+		this._clearTraceState();
+		this._traceCaptureEnabled = true;
+
+	}
+
+	/**
+	 * Stop emitting trace events without disabling bounded stats collection.
+	 * Session totals and retained events remain readable until the next trace or reset.
+	 */
+	endTraceCapture() {
+
+		this._closeTraceSink();
+		this._traceCaptureEnabled = false;
+
+	}
+
+	/**
+	 * @return {boolean}
+	 */
+	isTraceCaptureEnabled() {
+
+		return this._traceCaptureEnabled;
+
+	}
+
 	enable() {
 
 		this._clearState();
@@ -122,7 +242,17 @@ class ProfilerServiceClass {
 
 	disable() {
 
-		this._clearState();
+		try {
+
+			this._closeTraceSink();
+
+		} finally {
+
+			this._traceCaptureEnabled = false;
+			this._clearState();
+
+		}
+
 		this._enabled = false;
 		this._bindNoops();
 		for ( const timer of this._gpuTimers.values() ) timer.detach();
@@ -139,13 +269,14 @@ class ProfilerServiceClass {
 
 	/**
 	 * Whether a trace is being recorded, i.e. `begin()` trace names are used. Call sites
-	 * should only build a trace name when this is true.
+	 * should only build a trace name when this is true. True for the `'full'` profile and
+	 * while {@link ProfilerServiceClass#beginTraceCapture} is active.
 	 *
 	 * @return {boolean}
 	 */
 	isTracing() {
 
-		return this._enabled && this._profile === 'full';
+		return this._enabled && ( this._profile === 'full' || this._traceCaptureEnabled );
 
 	}
 
@@ -172,10 +303,54 @@ class ProfilerServiceClass {
 		this._generation ++;
 		this._records.clear();
 		this._gpuRecords.clear();
-		this._trace.clear();
-		this._traceStartTime = performance.now();
+		this._clearTraceState();
 		this._depth = 0;
 		for ( const timer of this._gpuTimers.values() ) timer.clear();
+
+	}
+
+	/**
+	 * Drop retained slices and session totals. Bounded stats rings are left alone.
+	 */
+	_clearTraceState() {
+
+		this._trace.clear();
+		this._traceStartTime = performance.now();
+		this.sessionTotals.clear();
+		this.sessionSelfTotals.clear();
+		this.sessionGpuTotals.clear();
+
+	}
+
+	_closeTraceSink() {
+
+		const sink = this._traceSink;
+		if ( sink === null ) return;
+
+		this._traceSink = null;
+		if ( typeof sink.close === 'function' ) sink.close();
+
+	}
+
+	/**
+	 * @param {Map<string, SessionDurationStats>} totals
+	 * @param {string} label
+	 * @param {number} durationMs
+	 */
+	_accumulateSession( totals, label, durationMs ) {
+
+		let stats = totals.get( label );
+		if ( stats === undefined ) {
+
+			stats = { count: 0, totalMs: 0, min: Infinity, max: - Infinity };
+			totals.set( label, stats );
+
+		}
+
+		stats.count ++;
+		stats.totalMs += durationMs;
+		if ( durationMs < stats.min ) stats.min = durationMs;
+		if ( durationMs > stats.max ) stats.max = durationMs;
 
 	}
 
@@ -522,7 +697,10 @@ class ProfilerServiceClass {
 
 		pushSample( record, inclusive ? durationMs : NaN, selfTime );
 
-		if ( this._profile === 'full' ) {
+		if ( this._traceCaptureEnabled || this._profile === 'full' ) {
+
+			this._accumulateSession( this.sessionTotals, record.label, durationMs );
+			if ( Number.isFinite( selfTime ) ) this._accumulateSession( this.sessionSelfTotals, record.label, selfTime );
 
 			// Rounding both endpoints keeps rounded children inside their rounded parent.
 			const ts = Math.round( this._toTraceUs( startTime ) );
@@ -544,6 +722,22 @@ class ProfilerServiceClass {
 	_pushTraceSlice( name, ts, dur, tid, depth ) {
 
 		if ( dur <= 0 ) return;
+		if ( this._traceMinDurationMs > 0 && dur < this._traceMinDurationMs * 1000 ) return;
+
+		if ( this._traceSink !== null ) {
+
+			this._traceSink.write( {
+				name,
+				ph: 'X',
+				ts,
+				dur,
+				pid: 1,
+				tid,
+				cat: tid === TRACE_TID_GPU ? 'gnsx-gpu' : 'gnsx',
+			} );
+			return;
+
+		}
 
 		if ( this._trace.length >= this.maxTraceEvents ) {
 
@@ -773,7 +967,12 @@ class ProfilerServiceClass {
 		}
 
 		pushSample( record, durationMs, NaN );
-		if ( this._profile === 'full' ) this._pushTraceSlice( traceName, ts, dur, TRACE_TID_GPU, depth );
+		if ( this._traceCaptureEnabled || this._profile === 'full' ) {
+
+			this._accumulateSession( this.sessionGpuTotals, label, durationMs );
+			this._pushTraceSlice( traceName, ts, dur, TRACE_TID_GPU, depth );
+
+		}
 
 	}
 
@@ -856,6 +1055,76 @@ class ProfilerServiceClass {
 	}
 
 	/**
+	 * Uncapped totals for the current trace session. The stats ring does not affect these.
+	 *
+	 * @param {string} label
+	 * @return {SessionStats|null}
+	 */
+	getSessionStats( label ) {
+
+		const inclusive = this.sessionTotals.get( label );
+		const self = this.sessionSelfTotals.get( label );
+		if ( inclusive === undefined && self === undefined ) return null;
+
+		/** @type {SessionStats} */
+		const stats = {
+			label,
+			count: inclusive?.count ?? 0,
+			totalMs: inclusive?.totalMs ?? 0,
+			min: inclusive?.min ?? 0,
+			max: inclusive?.max ?? 0,
+		};
+
+		if ( self !== undefined && self.count > 0 ) {
+
+			stats.selfCount = self.count;
+			stats.selfTotalMs = self.totalMs;
+			stats.selfMin = self.min;
+			stats.selfMax = self.max;
+
+		}
+
+		return stats;
+
+	}
+
+	/**
+	 * @return {SessionStats[]}
+	 */
+	getAllSessionStats() {
+
+		const labels = new Set( [ ...this.sessionTotals.keys(), ...this.sessionSelfTotals.keys() ] );
+		return [ ...labels ]
+			.map( label => this.getSessionStats( label ) )
+			.filter( stats => stats !== null );
+
+	}
+
+	/**
+	 * @param {string} label
+	 * @return {GpuSessionStats|null}
+	 */
+	getGpuSessionStats( label ) {
+
+		const stats = this.sessionGpuTotals.get( label );
+		if ( stats === undefined ) return null;
+
+		return { label, count: stats.count, totalMs: stats.totalMs, min: stats.min, max: stats.max };
+
+	}
+
+	/**
+	 * @return {GpuSessionStats[]}
+	 */
+	getAllGpuSessionStats() {
+
+		return [ ...this.sessionGpuTotals.keys() ]
+			.map( label => this.getGpuSessionStats( label ) )
+			.filter( stats => stats !== null );
+
+	}
+
+	/**
 	 * @return {ProfilerStats[]}
 	 */
 	exportJSON() {
@@ -931,6 +1200,13 @@ class ProfilerServiceClass {
 	 * @param {number} [minDurationMs=0] Omit complete spans shorter than this duration (ms).
 	 */
 	downloadTrace( filename = 'gnsx-trace.json', minDurationMs = 0 ) {
+
+		if ( this._traceSink !== null ) {
+
+			console.log( '[ProfilerService] Trace is streaming to a sink. downloadTrace() does not read that file.' );
+			return;
+
+		}
 
 		if ( typeof document === 'undefined' ) {
 

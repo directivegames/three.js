@@ -44,6 +44,8 @@ export default QUnit.module( 'Profiler', () => {
 
 		hooks.afterEach( () => {
 
+			ProfilerService.setTraceMinDurationMs( 0 );
+			ProfilerService.endTraceCapture();
 			ProfilerService.disable();
 			ProfilerService.setProfile( 'full' );
 			clock.restore();
@@ -123,13 +125,17 @@ export default QUnit.module( 'Profiler', () => {
 
 			} );
 
-			QUnit.test( 'isTracing() is true only while enabled with the full profile', assert => {
+			QUnit.test( 'isTracing() is true for the full profile and during trace capture', assert => {
 
 				assert.false( ProfilerService.isTracing(), 'disabled' );
 				ProfilerService.enable();
 				assert.true( ProfilerService.isTracing(), 'full profile' );
 				ProfilerService.setProfile( 'stats' );
 				assert.false( ProfilerService.isTracing(), 'stats profile' );
+				ProfilerService.beginTraceCapture();
+				assert.true( ProfilerService.isTracing(), 'stats profile with trace capture' );
+				ProfilerService.endTraceCapture();
+				assert.false( ProfilerService.isTracing(), 'capture ended' );
 
 			} );
 
@@ -1030,6 +1036,100 @@ export default QUnit.module( 'Profiler', () => {
 				assert.strictEqual( ProfilerService.getStats( 'level 0' ).selfAvg, 0, 'outer level has no self time' );
 				assert.strictEqual( ProfilerService.getStats( `level ${depth - 1}` ).selfAvg, 1, 'innermost level owns the time' );
 				assert.deepEqual( findPartialOverlaps( ProfilerService.exportChromeTrace().traceEvents ), [], 'trace slices nest' );
+
+			} );
+
+		} );
+
+		QUnit.module( 'trace sink', () => {
+
+			QUnit.test( 'streams slices without clearing stats rings or retaining events', assert => {
+
+				ProfilerService.setProfile( 'stats' );
+				ProfilerService.enable();
+				recordScope( 'kept', 5 );
+
+				/** @type {Array<{name: string, ph: string, cat: string}>} */
+				const events = [];
+				let closed = 0;
+				ProfilerService.setTraceSink( {
+					write( event ) {
+
+						events.push( event );
+
+					},
+					close() {
+
+						closed ++;
+
+					},
+				} );
+				ProfilerService.setTraceMinDurationMs( 1 );
+				ProfilerService.beginTraceCapture();
+
+				assert.strictEqual( ProfilerService.getStats( 'kept' ).samples, 1, 'rings survive beginTraceCapture' );
+				recordScope( 'short', 0.01 );
+				recordScope( 'long', 2 );
+
+				assert.strictEqual( events.length, 1, 'short span dropped from the sink' );
+				assert.strictEqual( events[ 0 ].name, 'long' );
+				assert.strictEqual( events[ 0 ].ph, 'X' );
+				assert.strictEqual( events[ 0 ].cat, 'gnsx' );
+				assert.strictEqual( sliceEvents().length, 0, 'sink does not retain slices' );
+
+				const short = ProfilerService.getSessionStats( 'short' );
+				const long = ProfilerService.getSessionStats( 'long' );
+				assert.strictEqual( short.count, 1, 'short span still counts in session totals' );
+				assert.strictEqual( long.count, 1, 'long span counts in session totals' );
+				assert.ok( long.selfTotalMs > 0, 'self time is accumulated' );
+
+				ProfilerService.endTraceCapture();
+				assert.strictEqual( closed, 1, 'ending capture closes the sink' );
+				recordScope( 'after', 2 );
+				assert.strictEqual( events.length, 1, 'no further slices after capture ends' );
+				assert.strictEqual( ProfilerService.getStats( 'kept' ).samples, 1, 'insights ring still intact' );
+				assert.ok( ProfilerService.getStats( 'after' ), 'stats keep recording' );
+				assert.strictEqual( ProfilerService.getSessionStats( 'long' ).count, 1, 'session totals remain readable' );
+
+			} );
+
+			QUnit.test( 'beginTraceCapture enables a disabled profiler', assert => {
+
+				ProfilerService.setProfile( 'stats' );
+				ProfilerService.beginTraceCapture();
+
+				assert.true( ProfilerService.isEnabled(), 'enabled' );
+				assert.true( ProfilerService.isTraceCaptureEnabled(), 'capture on' );
+				assert.true( ProfilerService.isTracing(), 'tracing' );
+
+			} );
+
+			QUnit.test( 'a sink is not limited by maxTraceEvents', assert => {
+
+				ProfilerService.setProfile( 'stats' );
+				ProfilerService.enable();
+				const originalLimit = ProfilerService.maxTraceEvents;
+				ProfilerService.maxTraceEvents = 1;
+				try {
+
+					/** @type {unknown[]} */
+					const events = [];
+					ProfilerService.setTraceSink( { write( event ) {
+
+						events.push( event );
+
+					} } );
+					ProfilerService.beginTraceCapture();
+					recordScope( 'a', 1 );
+					recordScope( 'b', 1 );
+
+					assert.strictEqual( events.length, 2, 'both slices streamed' );
+
+				} finally {
+
+					ProfilerService.maxTraceEvents = originalLimit;
+
+				}
 
 			} );
 
