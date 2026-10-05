@@ -5,6 +5,9 @@ import { GPUFeatureName, GPULoadOp, GPUStoreOp, GPUIndexFormat, GPUTextureViewDi
 
 import WGSLNodeBuilder from './nodes/WGSLNodeBuilder.js';
 import Backend from '../common/Backend.js';
+// WITH_GENESYS
+import { PassTimestampLevel } from '../../profiler/PassTimestampLevel.js';
+// !WITH_GENESYS
 
 import WebGPUUtils, { submit } from './utils/WebGPUUtils.js';
 import WebGPUAttributeUtils from './utils/WebGPUAttributeUtils.js';
@@ -45,6 +48,11 @@ const _texelCopyTextureInfoDst = new GPUTexelCopyTextureInfo();
 const _textureDescriptor = new GPUTextureDescriptor();
 const _viewDescriptor = new GPUTextureViewDescriptor();
 const _extent3D = new GPUExtent3D();
+
+// WITH_GENESYS
+/** Share of the render timestamp pool that per-draw spans may use in one resolve cycle. */
+const DRAW_TIMESTAMP_POOL_SHARE = 0.75;
+// !WITH_GENESYS
 
 /**
  * A backend implementation targeting WebGPU.
@@ -189,6 +197,16 @@ class WebGPUBackend extends Backend {
 			[ Compatibility.TEXTURE_COMPARE ]: compatibilityTextureCompare
 		};
 
+		// WITH_GENESYS
+		/**
+		 * Number of pass timestamp spans opened so far; keeps their timestamp uids unique.
+		 *
+		 * @private
+		 * @type {number}
+		 */
+		this._passTimestampSpanCount = 0;
+		// !WITH_GENESYS
+
 	}
 
 	/**
@@ -296,6 +314,10 @@ class WebGPUBackend extends Backend {
 		this.device = device;
 
 		this.trackTimestamp = this.trackTimestamp && this.hasFeature( GPUFeatureName.TimestampQuery );
+
+		// WITH_GENESYS
+		this.supportsPassTimestamps = this.hasFeature( GPUFeatureName.TimestampQuery ) && this.hasFeature( GPUFeatureName.ChromiumExperimentalTimestampQueryInsidePasses );
+		// !WITH_GENESYS
 
 		this.updateSize();
 
@@ -1115,6 +1137,11 @@ class WebGPUBackend extends Backend {
 			const currentPass = encoder.beginRenderPass( descriptor );
 			renderContextData.currentPass = currentPass;
 
+			// WITH_GENESYS
+			// Spans left open by an aborted render belong to a pass that has already ended.
+			if ( renderContextData.passTimestampSpans !== undefined ) renderContextData.passTimestampSpans.length = 0;
+			// !WITH_GENESYS
+
 			if ( renderContext.viewport ) {
 
 				this.updateViewport( renderContext );
@@ -1403,9 +1430,21 @@ class WebGPUBackend extends Backend {
 
 		if ( renderContextData.renderBundles.length > 0 ) {
 
+			// WITH_GENESYS
+			const bundlesSpan = this.beginPassTimestampSpan( renderContext, 'Bundles', PassTimestampLevel.STAGE );
+			// !WITH_GENESYS
+
 			renderContextData.currentPass.executeBundles( renderContextData.renderBundles );
 
+			// WITH_GENESYS
+			this.endPassTimestampSpan( bundlesSpan );
+			// !WITH_GENESYS
+
 		}
+
+		// WITH_GENESYS
+		this._closePassTimestampSpans( renderContextData );
+		// !WITH_GENESYS
 
 		const lastOcclusionObject = renderContextData.lastOcclusionObject;
 
@@ -2627,16 +2666,17 @@ class WebGPUBackend extends Backend {
 	 * @param {string} type - The type of the timestamp query (e.g. 'render', 'compute').
 	 * @param {string} uid - Unique id for the timed work.
 	 * @param {?string} [label=null] - Profiler label for the timed work.
+	 * @param {?string} [parentUid=null] - The pass or pass timestamp span the work is nested in.
 	 * @return {?{querySet: GPUQuerySet, baseOffset: number}} The allocation, or `null` when timestamps are not tracked or the pool has no query set.
 	 */
-	allocateTimestampQuery( type, uid, label = null ) {
+	allocateTimestampQuery( type, uid, label = null, parentUid = null ) {
 
 		if ( ! this.trackTimestamp ) return null;
 
 		if ( ! this.timestampQueryPool[ type ] ) {
 
-			// TODO: Variable maxQueries?
-			this.timestampQueryPool[ type ] = new WebGPUTimestampQueryPool( this.device, type, 2048 );
+			// Per-draw spans need far more queries than passes; 4096 is the WebGPU query set limit.
+			this.timestampQueryPool[ type ] = new WebGPUTimestampQueryPool( this.device, type, this.supportsPassTimestamps ? 4096 : 2048 );
 
 		}
 
@@ -2646,9 +2686,83 @@ class WebGPUBackend extends Backend {
 
 		if ( baseOffset === null || timestampQueryPool.querySet === null ) return null;
 
-		this.notifyTimestampQuery( type, uid, label );
+		this.notifyTimestampQuery( type, uid, label, parentUid );
 
 		return { querySet: timestampQueryPool.querySet, baseOffset };
+
+	}
+
+	beginPassTimestampSpan( renderContext, label, level ) {
+
+		if ( this.passTimestampLevel < level || this.supportsPassTimestamps !== true || this.trackTimestamp !== true ) return null;
+
+		const renderContextData = this.get( renderContext );
+
+		// Render bundle encoders (and array camera layers, which record into bundles) have no writeTimestamp().
+		const pass = renderContextData.currentPass;
+		if ( pass === null || pass === undefined || typeof pass.writeTimestamp !== 'function' ) return null;
+
+		// Draw spans may only fill part of the pool, so passes and stages recorded later in
+		// the frame still get queries before the pool wraps.
+		const pool = this.timestampQueryPool[ TimestampQuery.RENDER ];
+		if ( level === PassTimestampLevel.DRAW && pool !== null && pool.currentQueryIndex + 2 > pool.maxQueries * DRAW_TIMESTAMP_POOL_SHARE ) {
+
+			warnOnce( 'WebGPUBackend: Too many draws to time this frame; later draws are not timed individually.' );
+			return null;
+
+		}
+
+		if ( renderContextData.passTimestampSpans === undefined ) renderContextData.passTimestampSpans = [];
+		const spans = renderContextData.passTimestampSpans;
+		const parentUid = spans.length > 0 ? spans[ spans.length - 1 ].uid : this.getTimestampUID( renderContext );
+
+		const uid = `p:${ ++ this._passTimestampSpanCount }:${ renderContext.id }:f${ this.renderer.info.frame }`;
+		const allocation = this.allocateTimestampQuery( TimestampQuery.RENDER, uid, label, parentUid );
+		if ( allocation === null ) return null;
+
+		pass.writeTimestamp( allocation.querySet, allocation.baseOffset );
+
+		const span = { uid, renderContextData, querySet: allocation.querySet, endIndex: allocation.baseOffset + 1 };
+		spans.push( span );
+
+		return span;
+
+	}
+
+	endPassTimestampSpan( span ) {
+
+		if ( span === null ) return;
+
+		const spans = span.renderContextData.passTimestampSpans;
+		const index = spans.lastIndexOf( span );
+		if ( index === - 1 ) return;
+
+		this._closePassTimestampSpans( span.renderContextData, index );
+
+	}
+
+	/**
+	 * Writes the end timestamp of every open pass timestamp span from `index` on. The end goes
+	 * on the current pass, which differs from the begin pass after a framebuffer copy restart.
+	 *
+	 * @private
+	 * @param {Object} renderContextData - The render context data.
+	 * @param {number} [index=0] - The outermost span to close.
+	 */
+	_closePassTimestampSpans( renderContextData, index = 0 ) {
+
+		const spans = renderContextData.passTimestampSpans;
+		if ( spans === undefined || spans.length <= index ) return;
+
+		const pass = renderContextData.currentPass;
+
+		for ( let i = spans.length - 1; i >= index; i -- ) {
+
+			if ( pass !== null && pass !== undefined && typeof pass.writeTimestamp === 'function' ) pass.writeTimestamp( spans[ i ].querySet, spans[ i ].endIndex );
+
+		}
+
+		spans.length = index;
 
 	}
 	// !WITH_GENESYS

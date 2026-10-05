@@ -3,7 +3,7 @@
  * Copyright 2010-2026 Three.js Authors
  * SPDX-License-Identifier: MIT
  */
-import { DynamicDrawUsage, RenderObjectRefreshType, Color, Vector2, Vector3, Vector4, Matrix2, Matrix3, Matrix4, error, UnsignedIntType, IntType, RedFormat, RedIntegerFormat, DepthFormat, DepthStencilFormat, AlphaFormat, RGFormat, RGIntegerFormat, RGBFormat, RGBIntegerFormat, EventDispatcher, MathUtils, warn, WebGLCoordinateSystem, WebGPUCoordinateSystem, ColorManagement, SRGBTransfer, NoToneMapping, StaticDrawUsage, InterleavedBufferAttribute, InterleavedBuffer, NoColorSpace, log as log$1, warnOnce, Texture, Compatibility, LessCompare, LessEqualCompare, GreaterCompare, GreaterEqualCompare, NearestFilter, Sphere, BackSide, DoubleSide, CubeTexture, CubeReflectionMapping, CubeRefractionMapping, TangentSpaceNormalMap, NoNormalPacking, NormalRGPacking, NormalGAPacking, ObjectSpaceNormalMap, RED_GREEN_RGTC2_Format, RG11_EAC_Format, InstancedBufferAttribute, InstancedInterleavedBuffer, DataTexture, RGBAFormat, FloatType, DataArrayTexture, FramebufferTexture, LinearMipmapLinearFilter, DepthTexture, NormalBlending, SrcAlphaFactor, OneMinusSrcAlphaFactor, AddEquation, MaterialBlending, NoBlending, Material, LineBasicMaterial, LineDashedMaterial, MeshNormalMaterial, SRGBColorSpace, RenderTarget, BoxGeometry, Mesh, Scene, LinearFilter, CubeCamera, EquirectangularReflectionMapping, EquirectangularRefractionMapping, AddOperation, MixOperation, MultiplyOperation, MeshBasicMaterial, MeshLambertMaterial, MeshPhongMaterial, HalfFloatType, ClampToEdgeWrapping, BufferGeometry, OrthographicCamera, PerspectiveCamera, LinearSRGBColorSpace, CubeUVReflectionMapping, BufferAttribute, MeshStandardMaterial, MeshPhysicalMaterial, MeshToonMaterial, MeshMatcapMaterial, SpriteMaterial, PointsMaterial, ShadowMaterial, Uint32BufferAttribute, Uint16BufferAttribute, ByteType, UnsignedByteType, ShortType, UnsignedShortType, UnsignedShort4444Type, UnsignedShort5551Type, UnsignedInt248Type, UnsignedInt5999Type, UnsignedInt101111Type, Object3D, LinearMipMapLinearFilter, Plane, Float32BufferAttribute, UVMapping, Data3DTexture, VSMShadowMap, PCFShadowMap, ProfilerService, BasicShadowMap, CubeDepthTexture, SphereGeometry, LinearMipmapNearestFilter, NearestMipmapLinearFilter, Float16BufferAttribute, yieldToMain, REVISION, ArrayCamera, PlaneGeometry, FrontSide, CustomBlending, ZeroFactor, CylinderGeometry, Quaternion, WebXRController, RAD2DEG, PCFSoftShadowMap, FrustumArray, Frustum, EqualDepth, RGBAIntegerFormat, TimestampQuery, createCanvasElement, MaxEquation, MinEquation, ReverseSubtractEquation, SubtractEquation, OneMinusConstantAlphaFactor, ConstantAlphaFactor, OneMinusConstantColorFactor, ConstantColorFactor, OneMinusDstAlphaFactor, OneMinusDstColorFactor, OneMinusSrcColorFactor, DstAlphaFactor, DstColorFactor, SrcAlphaSaturateFactor, SrcColorFactor, OneFactor, CullFaceNone, CullFaceBack, CullFaceFront, MultiplyBlending, SubtractiveBlending, AdditiveBlending, NotEqualDepth, GreaterDepth, GreaterEqualDepth, LessEqualDepth, LessDepth, AlwaysDepth, NeverDepth, ReversedDepthFuncs, RGB_S3TC_DXT1_Format, RGBA_S3TC_DXT1_Format, RGBA_S3TC_DXT3_Format, RGBA_S3TC_DXT5_Format, RGB_PVRTC_4BPPV1_Format, RGB_PVRTC_2BPPV1_Format, RGBA_PVRTC_4BPPV1_Format, RGBA_PVRTC_2BPPV1_Format, RGB_ETC1_Format, RGB_ETC2_Format, RGBA_ETC2_EAC_Format, R11_EAC_Format, SIGNED_R11_EAC_Format, SIGNED_RG11_EAC_Format, RGBA_ASTC_4x4_Format, RGBA_ASTC_5x4_Format, RGBA_ASTC_5x5_Format, RGBA_ASTC_6x5_Format, RGBA_ASTC_6x6_Format, RGBA_ASTC_8x5_Format, RGBA_ASTC_8x6_Format, RGBA_ASTC_8x8_Format, RGBA_ASTC_10x5_Format, RGBA_ASTC_10x6_Format, RGBA_ASTC_10x8_Format, RGBA_ASTC_10x10_Format, RGBA_ASTC_12x10_Format, RGBA_ASTC_12x12_Format, RGBA_BPTC_Format, RGB_BPTC_SIGNED_Format, RGB_BPTC_UNSIGNED_Format, RED_RGTC1_Format, SIGNED_RED_RGTC1_Format, SIGNED_RED_GREEN_RGTC2_Format, MirroredRepeatWrapping, RepeatWrapping, NearestMipmapNearestFilter, NotEqualCompare, EqualCompare, AlwaysCompare, NeverCompare, LinearTransfer, getByteLength, isTypedArray, NotEqualStencilFunc, GreaterStencilFunc, GreaterEqualStencilFunc, EqualStencilFunc, LessEqualStencilFunc, LessStencilFunc, AlwaysStencilFunc, NeverStencilFunc, DecrementWrapStencilOp, IncrementWrapStencilOp, DecrementStencilOp, IncrementStencilOp, InvertStencilOp, ReplaceStencilOp, ZeroStencilOp, KeepStencilOp, SpotLight, PointLight, DirectionalLight, RectAreaLight, AmbientLight, HemisphereLight, LightProbe, LinearToneMapping, ReinhardToneMapping, CineonToneMapping, ACESFilmicToneMapping, AgXToneMapping, NeutralToneMapping, Group, Loader, FileLoader, MaterialLoader, ObjectLoader } from './three.core.js';
+import { DynamicDrawUsage, RenderObjectRefreshType, Color, Vector2, Vector3, Vector4, Matrix2, Matrix3, Matrix4, error, UnsignedIntType, IntType, RedFormat, RedIntegerFormat, DepthFormat, DepthStencilFormat, AlphaFormat, RGFormat, RGIntegerFormat, RGBFormat, RGBIntegerFormat, EventDispatcher, MathUtils, warn, WebGLCoordinateSystem, WebGPUCoordinateSystem, ColorManagement, SRGBTransfer, NoToneMapping, StaticDrawUsage, InterleavedBufferAttribute, InterleavedBuffer, NoColorSpace, log as log$1, warnOnce, Texture, Compatibility, LessCompare, LessEqualCompare, GreaterCompare, GreaterEqualCompare, NearestFilter, Sphere, BackSide, DoubleSide, CubeTexture, CubeReflectionMapping, CubeRefractionMapping, TangentSpaceNormalMap, NoNormalPacking, NormalRGPacking, NormalGAPacking, ObjectSpaceNormalMap, RED_GREEN_RGTC2_Format, RG11_EAC_Format, InstancedBufferAttribute, InstancedInterleavedBuffer, DataTexture, RGBAFormat, FloatType, DataArrayTexture, FramebufferTexture, LinearMipmapLinearFilter, DepthTexture, NormalBlending, SrcAlphaFactor, OneMinusSrcAlphaFactor, AddEquation, MaterialBlending, NoBlending, Material, LineBasicMaterial, LineDashedMaterial, MeshNormalMaterial, SRGBColorSpace, RenderTarget, BoxGeometry, Mesh, Scene, LinearFilter, CubeCamera, EquirectangularReflectionMapping, EquirectangularRefractionMapping, AddOperation, MixOperation, MultiplyOperation, MeshBasicMaterial, MeshLambertMaterial, MeshPhongMaterial, HalfFloatType, ClampToEdgeWrapping, BufferGeometry, OrthographicCamera, PerspectiveCamera, LinearSRGBColorSpace, CubeUVReflectionMapping, BufferAttribute, MeshStandardMaterial, MeshPhysicalMaterial, MeshToonMaterial, MeshMatcapMaterial, SpriteMaterial, PointsMaterial, ShadowMaterial, Uint32BufferAttribute, Uint16BufferAttribute, ByteType, UnsignedByteType, ShortType, UnsignedShortType, UnsignedShort4444Type, UnsignedShort5551Type, UnsignedInt248Type, UnsignedInt5999Type, UnsignedInt101111Type, Object3D, LinearMipMapLinearFilter, Plane, Float32BufferAttribute, UVMapping, Data3DTexture, VSMShadowMap, PCFShadowMap, ProfilerService, BasicShadowMap, CubeDepthTexture, SphereGeometry, LinearMipmapNearestFilter, NearestMipmapLinearFilter, Float16BufferAttribute, yieldToMain, REVISION, ArrayCamera, PlaneGeometry, FrontSide, CustomBlending, ZeroFactor, CylinderGeometry, Quaternion, WebXRController, RAD2DEG, PCFSoftShadowMap, FrustumArray, Frustum, PassTimestampLevel, EqualDepth, RGBAIntegerFormat, TimestampQuery, createCanvasElement, MaxEquation, MinEquation, ReverseSubtractEquation, SubtractEquation, OneMinusConstantAlphaFactor, ConstantAlphaFactor, OneMinusConstantColorFactor, ConstantColorFactor, OneMinusDstAlphaFactor, OneMinusDstColorFactor, OneMinusSrcColorFactor, DstAlphaFactor, DstColorFactor, SrcAlphaSaturateFactor, SrcColorFactor, OneFactor, CullFaceNone, CullFaceBack, CullFaceFront, MultiplyBlending, SubtractiveBlending, AdditiveBlending, NotEqualDepth, GreaterDepth, GreaterEqualDepth, LessEqualDepth, LessDepth, AlwaysDepth, NeverDepth, ReversedDepthFuncs, RGB_S3TC_DXT1_Format, RGBA_S3TC_DXT1_Format, RGBA_S3TC_DXT3_Format, RGBA_S3TC_DXT5_Format, RGB_PVRTC_4BPPV1_Format, RGB_PVRTC_2BPPV1_Format, RGBA_PVRTC_4BPPV1_Format, RGBA_PVRTC_2BPPV1_Format, RGB_ETC1_Format, RGB_ETC2_Format, RGBA_ETC2_EAC_Format, R11_EAC_Format, SIGNED_R11_EAC_Format, SIGNED_RG11_EAC_Format, RGBA_ASTC_4x4_Format, RGBA_ASTC_5x4_Format, RGBA_ASTC_5x5_Format, RGBA_ASTC_6x5_Format, RGBA_ASTC_6x6_Format, RGBA_ASTC_8x5_Format, RGBA_ASTC_8x6_Format, RGBA_ASTC_8x8_Format, RGBA_ASTC_10x5_Format, RGBA_ASTC_10x6_Format, RGBA_ASTC_10x8_Format, RGBA_ASTC_10x10_Format, RGBA_ASTC_12x10_Format, RGBA_ASTC_12x12_Format, RGBA_BPTC_Format, RGB_BPTC_SIGNED_Format, RGB_BPTC_UNSIGNED_Format, RED_RGTC1_Format, SIGNED_RED_RGTC1_Format, SIGNED_RED_GREEN_RGTC2_Format, MirroredRepeatWrapping, RepeatWrapping, NearestMipmapNearestFilter, NotEqualCompare, EqualCompare, AlwaysCompare, NeverCompare, LinearTransfer, getByteLength, isTypedArray, NotEqualStencilFunc, GreaterStencilFunc, GreaterEqualStencilFunc, EqualStencilFunc, LessEqualStencilFunc, LessStencilFunc, AlwaysStencilFunc, NeverStencilFunc, DecrementWrapStencilOp, IncrementWrapStencilOp, DecrementStencilOp, IncrementStencilOp, InvertStencilOp, ReplaceStencilOp, ZeroStencilOp, KeepStencilOp, SpotLight, PointLight, DirectionalLight, RectAreaLight, AmbientLight, HemisphereLight, LightProbe, LinearToneMapping, ReinhardToneMapping, CineonToneMapping, ACESFilmicToneMapping, AgXToneMapping, NeutralToneMapping, Group, Loader, FileLoader, MaterialLoader, ObjectLoader } from './three.core.js';
 export { AdditiveAnimationBlendMode, AnimationAction, AnimationClip, AnimationLoader, AnimationMixer, AnimationObjectGroup, AnimationUtils, ArcCurve, ArrowHelper, AttachedBindMode, Audio, AudioAnalyser, AudioContext, AudioListener, AudioLoader, AxesHelper, BasicDepthPacking, BatchedMesh, BezierInterpolant, Bone, BooleanKeyframeTrack, Box2, Box3, Box3Helper, BoxHelper, BufferGeometryLoader, Cache, Camera, CameraHelper, CanvasTexture, CapsuleGeometry, CatmullRomCurve3, CircleGeometry, Clock, ColorKeyframeTrack, CompressedArrayTexture, CompressedCubeTexture, CompressedTexture, CompressedTextureLoader, ConeGeometry, Controls, CubeTextureLoader, CubicBezierCurve, CubicBezierCurve3, CubicInterpolant, CullFaceFrontBack, Curve, CurvePath, CustomToneMapping, Cylindrical, DataTextureLoader, DataUtils, DefaultLoadingManager, DetachedBindMode, DirectionalLightHelper, DiscreteInterpolant, DodecahedronGeometry, DynamicCopyUsage, DynamicReadUsage, EdgesGeometry, EllipseCurve, Euler, ExternalTexture, ExtrudeGeometry, Fog, FogExp2, GLBufferAttribute, GLSL1, GLSL3, GridHelper, HTMLTexture, HemisphereLightHelper, IcosahedronGeometry, ImageBitmapLoader, ImageLoader, ImageUtils, InstancedBufferGeometry, InstancedMesh, Int16BufferAttribute, Int32BufferAttribute, Int8BufferAttribute, Interpolant, InterpolateBezier, InterpolateDiscrete, InterpolateLinear, InterpolateSmooth, InterpolationSamplingMode, InterpolationSamplingType, KeyframeTrack, LOD, LatheGeometry, Layers, Light, LightShadow, Line, Line3, LineCurve, LineCurve3, LineLoop, LineSegments, LinearInterpolant, LinearMipMapNearestFilter, LoaderUtils, LoadingManager, LoopOnce, LoopPingPong, LoopRepeat, MOUSE, MeshDepthMaterial, MeshDistanceMaterial, NearestMipMapLinearFilter, NearestMipMapNearestFilter, NodePath, NormalAnimationBlendMode, NumberKeyframeTrack, OctahedronGeometry, Path, PlaneHelper, PointLightHelper, Points, PolarGridHelper, PolyhedronGeometry, PositionalAudio, PropertyBinding, PropertyMixer, QuadraticBezierCurve, QuadraticBezierCurve3, QuaternionKeyframeTrack, QuaternionLinearInterpolant, RGBADepthPacking, RGBDepthPacking, RGDepthPacking, RawShaderMaterial, Ray, Raycaster, RenderTarget3D, RingGeometry, ShaderMaterial, Shape, ShapeGeometry, ShapePath, ShapeUtils, Skeleton, SkeletonHelper, SkinnedMesh, Source, Spherical, SphericalHarmonics3, SplineCurve, SpotLightHelper, Sprite, StaticCopyUsage, StaticReadUsage, StereoCamera, StreamCopyUsage, StreamDrawUsage, StreamReadUsage, StringKeyframeTrack, TOUCH, TetrahedronGeometry, TextureLoader, TextureSource, TextureUtils, Timer, TorusGeometry, TorusKnotGeometry, Triangle, TriangleFanDrawMode, TriangleStripDrawMode, TrianglesDrawMode, TubeGeometry, Uint8BufferAttribute, Uint8ClampedBufferAttribute, Uniform, UniformsGroup, VectorKeyframeTrack, VideoFrameTexture, VideoTexture, WebGL3DRenderTarget, WebGLArrayRenderTarget, WebGLRenderTarget, WireframeGeometry, WrapAroundEnding, XorShift32, ZeroCurvatureEnding, ZeroSlopeEnding, allocateNodeId, collectSiblingNodeIds, configureNodeIdSeed, ensureUniqueNodeIdAmongParentChildren, generateNodeId, getConsoleFunction, hashStringToUint32, isValidNodeId, nodeIdFromKey, nodeIdFromString, nodeIdToString, profile, profileClass, randomSeedUint32, setConsoleFunction, xorshift32 } from './three.core.js';
 
 const refreshUniforms = [
@@ -66874,8 +66874,25 @@ class Renderer {
 		} = renderList;
 
 		if ( bundles.length > 0 ) this._renderBundles( bundles, sceneRef, lightsNode );
-		if ( this.opaque === true && opaqueObjects.length > 0 ) this._renderObjects( opaqueObjects, camera, sceneRef, lightsNode );
-		if ( this.transparent === true && transparentObjects.length > 0 ) this._renderTransparents( transparentObjects, transparentDoublePassObjects, camera, sceneRef, lightsNode );
+		// WITH_GENESYS
+		if ( this.opaque === true && opaqueObjects.length > 0 ) {
+
+			const opaqueSpan = this.backend.beginPassTimestampSpan( renderContext, 'Opaque', PassTimestampLevel.STAGE );
+			this._renderObjects( opaqueObjects, camera, sceneRef, lightsNode );
+			this.backend.endPassTimestampSpan( opaqueSpan );
+
+		}
+
+		if ( this.transparent === true && transparentObjects.length > 0 ) {
+
+			const transparentSpan = this.backend.beginPassTimestampSpan( renderContext, 'Transparent', PassTimestampLevel.STAGE );
+			this._renderTransparents( transparentObjects, transparentDoublePassObjects, camera, sceneRef, lightsNode );
+			this.backend.endPassTimestampSpan( transparentSpan );
+
+		}
+		// !WITH_GENESYS
+		// if ( this.opaque === true && opaqueObjects.length > 0 ) this._renderObjects( opaqueObjects, camera, sceneRef, lightsNode );
+		// if ( this.transparent === true && transparentObjects.length > 0 ) this._renderTransparents( transparentObjects, transparentDoublePassObjects, camera, sceneRef, lightsNode );
 
 		// WITH_GENESYS
 		this._renderDoubleSideHidden( opaqueObjects, transparentObjects, camera, sceneRef, lightsNode );
@@ -69042,7 +69059,14 @@ class Renderer {
 
 		if ( this._pipelines.isReady( renderObject ) ) {
 
+			// WITH_GENESYS
+			const drawSpan = this.backend.passTimestampLevel >= PassTimestampLevel.DRAW
+				? this.backend.beginPassTimestampSpan( renderObject.context, `${ object.name || object.type } (${ material.name || material.type })`, PassTimestampLevel.DRAW )
+				: null;
 			this.backend.draw( renderObject, this.info );
+			this.backend.endPassTimestampSpan( drawSpan );
+			// !WITH_GENESYS
+			// this.backend.draw( renderObject, this.info );
 
 			if ( refreshType !== RenderObjectRefreshType.NONE ) this._nodes.updateAfter( renderObject );
 
@@ -72294,6 +72318,7 @@ void main() {
 
 let _vector2 = null;
 let _color4 = null;
+// !WITH_GENESYS
 
 /**
  * Most of the rendering related logic is implemented in the
@@ -72358,11 +72383,28 @@ class Backend {
 
 		// WITH_GENESYS
 		/**
-		 * Listeners notified after a timestamp query is successfully allocated.
+		 * Listeners notified after a timestamp query is successfully allocated. The last
+		 * argument is the uid of the pass or pass timestamp span the query is nested in.
 		 *
-		 * @type {Set<function(string, string, ?string): void>}
+		 * @type {Set<function(string, string, ?string, ?string): void>}
 		 */
 		this.timestampQueryListeners = new Set();
+
+		/**
+		 * Whether timestamps can be written inside passes, see {@link Backend#beginPassTimestampSpan}.
+		 *
+		 * @type {boolean}
+		 * @default false
+		 */
+		this.supportsPassTimestamps = false;
+
+		/**
+		 * Which pass timestamp spans are recorded, a {@link PassTimestampLevel}. Set by the profiler.
+		 *
+		 * @type {number}
+		 * @default PassTimestampLevel.OFF
+		 */
+		this.passTimestampLevel = PassTimestampLevel.OFF;
 		// !WITH_GENESYS
 
 		/**
@@ -72835,16 +72877,40 @@ class Backend {
 	 * @param {string} type
 	 * @param {string} uid
 	 * @param {?string} [label=null]
+	 * @param {?string} [parentUid=null] - The pass or pass timestamp span the query is nested in.
 	 */
-	notifyTimestampQuery( type, uid, label = null ) {
+	notifyTimestampQuery( type, uid, label = null, parentUid = null ) {
 
 		for ( const listener of this.timestampQueryListeners ) {
 
-			listener( type, uid, label );
+			listener( type, uid, label, parentUid );
 
 		}
 
 	}
+
+	/**
+	 * Opens a span timed by timestamps written inside the current pass of `renderContext`,
+	 * nested in that pass or in the innermost open span. Backends without in-pass timestamps
+	 * return `null`.
+	 *
+	 * @param {RenderContext} renderContext - The render context.
+	 * @param {string} label - Profiler label of the span.
+	 * @param {number} level - The {@link PassTimestampLevel} the span belongs to.
+	 * @return {?Object} The span, or `null` when it is not recorded.
+	 */
+	beginPassTimestampSpan( /* renderContext, label, level */ ) {
+
+		return null;
+
+	}
+
+	/**
+	 * Closes a span returned by {@link Backend#beginPassTimestampSpan}, and any span still open inside it.
+	 *
+	 * @param {?Object} span - The span, or `null`.
+	 */
+	endPassTimestampSpan( /* span */ ) {}
 
 	/**
 	 * Profiler label for a compute pass. Unnamed groups still get a label: the profiler
@@ -80910,7 +80976,11 @@ const GPUFeatureName = {
 	DualSourceBlending: 'dual-source-blending',
 	Subgroups: 'subgroups',
 	TextureFormatsTier1: 'texture-formats-tier1',
-	TextureFormatsTier2: 'texture-formats-tier2'
+	TextureFormatsTier2: 'texture-formats-tier2',
+	// WITH_GENESYS
+	// Chrome exposes it only with chrome://flags/#enable-unsafe-webgpu (or --enable-unsafe-webgpu).
+	ChromiumExperimentalTimestampQueryInsidePasses: 'chromium-experimental-timestamp-query-inside-passes'
+	// !WITH_GENESYS
 };
 
 const GPUFeatureMap = {
@@ -90811,6 +90881,11 @@ const _textureDescriptor = new GPUTextureDescriptor();
 const _viewDescriptor = new GPUTextureViewDescriptor();
 const _extent3D = new GPUExtent3D();
 
+// WITH_GENESYS
+/** Share of the render timestamp pool that per-draw spans may use in one resolve cycle. */
+const DRAW_TIMESTAMP_POOL_SHARE = 0.75;
+// !WITH_GENESYS
+
 /**
  * A backend implementation targeting WebGPU.
  *
@@ -90954,6 +91029,16 @@ class WebGPUBackend extends Backend {
 			[ Compatibility.TEXTURE_COMPARE ]: compatibilityTextureCompare
 		};
 
+		// WITH_GENESYS
+		/**
+		 * Number of pass timestamp spans opened so far; keeps their timestamp uids unique.
+		 *
+		 * @private
+		 * @type {number}
+		 */
+		this._passTimestampSpanCount = 0;
+		// !WITH_GENESYS
+
 	}
 
 	/**
@@ -91061,6 +91146,10 @@ class WebGPUBackend extends Backend {
 		this.device = device;
 
 		this.trackTimestamp = this.trackTimestamp && this.hasFeature( GPUFeatureName.TimestampQuery );
+
+		// WITH_GENESYS
+		this.supportsPassTimestamps = this.hasFeature( GPUFeatureName.TimestampQuery ) && this.hasFeature( GPUFeatureName.ChromiumExperimentalTimestampQueryInsidePasses );
+		// !WITH_GENESYS
 
 		this.updateSize();
 
@@ -91880,6 +91969,11 @@ class WebGPUBackend extends Backend {
 			const currentPass = encoder.beginRenderPass( descriptor );
 			renderContextData.currentPass = currentPass;
 
+			// WITH_GENESYS
+			// Spans left open by an aborted render belong to a pass that has already ended.
+			if ( renderContextData.passTimestampSpans !== undefined ) renderContextData.passTimestampSpans.length = 0;
+			// !WITH_GENESYS
+
 			if ( renderContext.viewport ) {
 
 				this.updateViewport( renderContext );
@@ -92168,9 +92262,21 @@ class WebGPUBackend extends Backend {
 
 		if ( renderContextData.renderBundles.length > 0 ) {
 
+			// WITH_GENESYS
+			const bundlesSpan = this.beginPassTimestampSpan( renderContext, 'Bundles', PassTimestampLevel.STAGE );
+			// !WITH_GENESYS
+
 			renderContextData.currentPass.executeBundles( renderContextData.renderBundles );
 
+			// WITH_GENESYS
+			this.endPassTimestampSpan( bundlesSpan );
+			// !WITH_GENESYS
+
 		}
+
+		// WITH_GENESYS
+		this._closePassTimestampSpans( renderContextData );
+		// !WITH_GENESYS
 
 		const lastOcclusionObject = renderContextData.lastOcclusionObject;
 
@@ -93392,16 +93498,17 @@ class WebGPUBackend extends Backend {
 	 * @param {string} type - The type of the timestamp query (e.g. 'render', 'compute').
 	 * @param {string} uid - Unique id for the timed work.
 	 * @param {?string} [label=null] - Profiler label for the timed work.
+	 * @param {?string} [parentUid=null] - The pass or pass timestamp span the work is nested in.
 	 * @return {?{querySet: GPUQuerySet, baseOffset: number}} The allocation, or `null` when timestamps are not tracked or the pool has no query set.
 	 */
-	allocateTimestampQuery( type, uid, label = null ) {
+	allocateTimestampQuery( type, uid, label = null, parentUid = null ) {
 
 		if ( ! this.trackTimestamp ) return null;
 
 		if ( ! this.timestampQueryPool[ type ] ) {
 
-			// TODO: Variable maxQueries?
-			this.timestampQueryPool[ type ] = new WebGPUTimestampQueryPool( this.device, type, 2048 );
+			// Per-draw spans need far more queries than passes; 4096 is the WebGPU query set limit.
+			this.timestampQueryPool[ type ] = new WebGPUTimestampQueryPool( this.device, type, this.supportsPassTimestamps ? 4096 : 2048 );
 
 		}
 
@@ -93411,9 +93518,83 @@ class WebGPUBackend extends Backend {
 
 		if ( baseOffset === null || timestampQueryPool.querySet === null ) return null;
 
-		this.notifyTimestampQuery( type, uid, label );
+		this.notifyTimestampQuery( type, uid, label, parentUid );
 
 		return { querySet: timestampQueryPool.querySet, baseOffset };
+
+	}
+
+	beginPassTimestampSpan( renderContext, label, level ) {
+
+		if ( this.passTimestampLevel < level || this.supportsPassTimestamps !== true || this.trackTimestamp !== true ) return null;
+
+		const renderContextData = this.get( renderContext );
+
+		// Render bundle encoders (and array camera layers, which record into bundles) have no writeTimestamp().
+		const pass = renderContextData.currentPass;
+		if ( pass === null || pass === undefined || typeof pass.writeTimestamp !== 'function' ) return null;
+
+		// Draw spans may only fill part of the pool, so passes and stages recorded later in
+		// the frame still get queries before the pool wraps.
+		const pool = this.timestampQueryPool[ TimestampQuery.RENDER ];
+		if ( level === PassTimestampLevel.DRAW && pool !== null && pool.currentQueryIndex + 2 > pool.maxQueries * DRAW_TIMESTAMP_POOL_SHARE ) {
+
+			warnOnce( 'WebGPUBackend: Too many draws to time this frame; later draws are not timed individually.' );
+			return null;
+
+		}
+
+		if ( renderContextData.passTimestampSpans === undefined ) renderContextData.passTimestampSpans = [];
+		const spans = renderContextData.passTimestampSpans;
+		const parentUid = spans.length > 0 ? spans[ spans.length - 1 ].uid : this.getTimestampUID( renderContext );
+
+		const uid = `p:${ ++ this._passTimestampSpanCount }:${ renderContext.id }:f${ this.renderer.info.frame }`;
+		const allocation = this.allocateTimestampQuery( TimestampQuery.RENDER, uid, label, parentUid );
+		if ( allocation === null ) return null;
+
+		pass.writeTimestamp( allocation.querySet, allocation.baseOffset );
+
+		const span = { uid, renderContextData, querySet: allocation.querySet, endIndex: allocation.baseOffset + 1 };
+		spans.push( span );
+
+		return span;
+
+	}
+
+	endPassTimestampSpan( span ) {
+
+		if ( span === null ) return;
+
+		const spans = span.renderContextData.passTimestampSpans;
+		const index = spans.lastIndexOf( span );
+		if ( index === -1 ) return;
+
+		this._closePassTimestampSpans( span.renderContextData, index );
+
+	}
+
+	/**
+	 * Writes the end timestamp of every open pass timestamp span from `index` on. The end goes
+	 * on the current pass, which differs from the begin pass after a framebuffer copy restart.
+	 *
+	 * @private
+	 * @param {Object} renderContextData - The render context data.
+	 * @param {number} [index=0] - The outermost span to close.
+	 */
+	_closePassTimestampSpans( renderContextData, index = 0 ) {
+
+		const spans = renderContextData.passTimestampSpans;
+		if ( spans === undefined || spans.length <= index ) return;
+
+		const pass = renderContextData.currentPass;
+
+		for ( let i = spans.length - 1; i >= index; i -- ) {
+
+			if ( pass !== null && pass !== undefined && typeof pass.writeTimestamp === 'function' ) pass.writeTimestamp( spans[ i ].querySet, spans[ i ].endIndex );
+
+		}
+
+		spans.length = index;
 
 	}
 	// !WITH_GENESYS

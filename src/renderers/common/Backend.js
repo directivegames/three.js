@@ -5,6 +5,9 @@ import Color4 from './Color4.js';
 import { Vector2 } from '../../math/Vector2.js';
 import { createCanvasElement, warnOnce } from '../../utils.js';
 import { REVISION, TimestampQuery } from '../../constants.js';
+// WITH_GENESYS
+import { PassTimestampLevel } from '../../profiler/PassTimestampLevel.js';
+// !WITH_GENESYS
 
 /**
  * Most of the rendering related logic is implemented in the
@@ -69,11 +72,28 @@ class Backend {
 
 		// WITH_GENESYS
 		/**
-		 * Listeners notified after a timestamp query is successfully allocated.
+		 * Listeners notified after a timestamp query is successfully allocated. The last
+		 * argument is the uid of the pass or pass timestamp span the query is nested in.
 		 *
-		 * @type {Set<function(string, string, ?string): void>}
+		 * @type {Set<function(string, string, ?string, ?string): void>}
 		 */
 		this.timestampQueryListeners = new Set();
+
+		/**
+		 * Whether timestamps can be written inside passes, see {@link Backend#beginPassTimestampSpan}.
+		 *
+		 * @type {boolean}
+		 * @default false
+		 */
+		this.supportsPassTimestamps = false;
+
+		/**
+		 * Which pass timestamp spans are recorded, a {@link PassTimestampLevel}. Set by the profiler.
+		 *
+		 * @type {number}
+		 * @default PassTimestampLevel.OFF
+		 */
+		this.passTimestampLevel = PassTimestampLevel.OFF;
 		// !WITH_GENESYS
 
 		/**
@@ -546,16 +566,40 @@ class Backend {
 	 * @param {string} type
 	 * @param {string} uid
 	 * @param {?string} [label=null]
+	 * @param {?string} [parentUid=null] - The pass or pass timestamp span the query is nested in.
 	 */
-	notifyTimestampQuery( type, uid, label = null ) {
+	notifyTimestampQuery( type, uid, label = null, parentUid = null ) {
 
 		for ( const listener of this.timestampQueryListeners ) {
 
-			listener( type, uid, label );
+			listener( type, uid, label, parentUid );
 
 		}
 
 	}
+
+	/**
+	 * Opens a span timed by timestamps written inside the current pass of `renderContext`,
+	 * nested in that pass or in the innermost open span. Backends without in-pass timestamps
+	 * return `null`.
+	 *
+	 * @param {RenderContext} renderContext - The render context.
+	 * @param {string} label - Profiler label of the span.
+	 * @param {number} level - The {@link PassTimestampLevel} the span belongs to.
+	 * @return {?Object} The span, or `null` when it is not recorded.
+	 */
+	beginPassTimestampSpan( /* renderContext, label, level */ ) {
+
+		return null;
+
+	}
+
+	/**
+	 * Closes a span returned by {@link Backend#beginPassTimestampSpan}, and any span still open inside it.
+	 *
+	 * @param {?Object} span - The span, or `null`.
+	 */
+	endPassTimestampSpan( /* span */ ) {}
 
 	/**
 	 * Profiler label for a compute pass. Unnamed groups still get a label: the profiler

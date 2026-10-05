@@ -72,8 +72,9 @@ export function installFakeClock( startMs = 1000 ) {
  * @param {boolean} [options.timestampFeature=true] Whether `hasFeature( 'timestamp-query' )` is true.
  * @param {number} [options.deferResolves=0] Number of resolve calls that resolve nothing.
  * @param {?function(): Promise<void>} [options.init=null] Custom `init()` implementation.
+ * @param {boolean} [options.passTimestamps=false] Whether the backend can time spans inside passes.
  */
-export function createCommonRenderer( { timestampFeature = true, deferResolves = 0, init = null } = {} ) {
+export function createCommonRenderer( { timestampFeature = true, deferResolves = 0, init = null, passTimestamps = false } = {} ) {
 
 	const listeners = new Set();
 	const pending = new Map();
@@ -86,6 +87,8 @@ export function createCommonRenderer( { timestampFeature = true, deferResolves =
 	const backend = {
 		hasTimestamp: true,
 		trackTimestamp: false,
+		supportsPassTimestamps: passTimestamps,
+		passTimestampLevel: 0,
 		listeners,
 		resolveCalls: 0,
 		addTimestampQueryListener( listener ) {
@@ -139,7 +142,7 @@ export function createCommonRenderer( { timestampFeature = true, deferResolves =
 
 			}
 
-			for ( const listener of listeners ) listener( type, uid, label );
+			for ( const listener of listeners ) listener( type, uid, label, options?.parentUid ?? null );
 
 		},
 		resolve( type ) {

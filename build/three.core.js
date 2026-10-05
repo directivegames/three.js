@@ -61327,9 +61327,23 @@ class TextureUtils {
 }
 
 // WITH_GENESYS
+/**
+ * Detail levels for GPU timestamps written inside passes (see `Backend.beginPassTimestampSpan()`).
+ *
+ * @type {{OFF: number, STAGE: number, DRAW: number}}
+ */
+const PassTimestampLevel = Object.freeze( {
+	OFF: 0,
+	STAGE: 1,
+	DRAW: 2
+} );
+// !WITH_GENESYS
+
+// WITH_GENESYS
 
 const FLUSH_MAX_ATTEMPTS = 3;
 const UNLABELED_PASS = 'GPU pass: (unlabeled)';
+const UNLABELED_SPAN = '(unlabeled)';
 const DROPPED_SPANS_WARNING = 'ProfilerService: Dropped GPU spans whose timestamps never resolved; another consumer of resolveTimestampsAsync() (e.g. the Inspector) may be taking them.';
 
 const DUMMY_GPU_SPAN = Object.freeze( { label: '', renderer: null, t0: 0, _seq: 0, _generation: 0 } );
@@ -61449,8 +61463,9 @@ class WebGPUTimer extends GpuTimer {
 
 		super( profiler, renderer, available );
 
-		this._listener = ( type, uid, label ) => this._onQuery( type, uid, label );
+		this._listener = ( type, uid, label, parentUid ) => this._onQuery( type, uid, label, parentUid );
 		this._previousTrackTimestamp = renderer.backend.trackTimestamp;
+		this._previousPassTimestampLevel = renderer.backend.passTimestampLevel;
 		/** @type {GpuQuery[]} Queries reported since the last cut. */
 		this._queries = [];
 		/** @type {Map<string, number>} Log index per uid since the last cut. */
@@ -61469,6 +61484,28 @@ class WebGPUTimer extends GpuTimer {
 			renderer.backend.addTimestampQueryListener( this._listener );
 
 		}
+
+		this.setPassTimestampLevel( profiler._passTimestampLevel );
+
+	}
+
+	/**
+	 * Whether the renderer can time stages and draws inside passes.
+	 *
+	 * @type {boolean}
+	 */
+	get supportsPassTimestamps() {
+
+		return this.available && this.renderer.backend.supportsPassTimestamps === true;
+
+	}
+
+	/**
+	 * @param {number} level A {@link PassTimestampLevel}; ignored without in-pass timestamp support.
+	 */
+	setPassTimestampLevel( level ) {
+
+		if ( this.supportsPassTimestamps ) this.renderer.backend.passTimestampLevel = level;
 
 	}
 
@@ -61513,6 +61550,7 @@ class WebGPUTimer extends GpuTimer {
 
 		this.renderer.backend.removeTimestampQueryListener( this._listener );
 		this.renderer.backend.trackTimestamp = this._previousTrackTimestamp;
+		if ( this.renderer.backend.supportsPassTimestamps === true ) this.renderer.backend.passTimestampLevel = this._previousPassTimestampLevel;
 
 	}
 
@@ -61520,30 +61558,63 @@ class WebGPUTimer extends GpuTimer {
 	 * @param {'render'|'compute'} type
 	 * @param {string} uid
 	 * @param {?string} label
+	 * @param {?string} [parentUid=null] Pass or pass timestamp span the query is nested in.
 	 */
-	_onQuery( type, uid, label ) {
+	_onQuery( type, uid, label, parentUid = null ) {
 
 		const hasLabel = label !== null && label !== undefined && label !== '';
-		const depth = this._openSpans.length;
-		if ( depth === 0 && hasLabel === false ) return;
 
 		// The backend notifies once per query allocation, so a restarted pass reports its uid
 		// again; the pool already accumulates that uid's full duration.
 		if ( this._queryIndex.has( uid ) ) return;
 
+		if ( parentUid !== null && parentUid !== undefined ) {
+
+			// A nested span only means something inside its pass, so it goes when the pass does.
+			const parentIndex = this._queryIndex.get( parentUid );
+			if ( parentIndex === undefined ) return;
+
+			const parent = this._queries[ parentIndex ];
+			const name = hasLabel ? label : UNLABELED_SPAN;
+			this._pushQuery( uid, type, name, `${ parent.statsLabel } / ${ name }`, hasLabel, parent.depth + 1, parent );
+			return;
+
+		}
+
+		const depth = this._openSpans.length;
+		if ( depth === 0 && hasLabel === false ) return;
+
+		const name = hasLabel ? `GPU pass: ${label}` : UNLABELED_PASS;
+		this._pushQuery( uid, type, name, name, hasLabel, depth, null );
+
+		if ( depth === 0 ) this.scheduleFlush();
+
+	}
+
+	/**
+	 * @param {string} uid
+	 * @param {'render'|'compute'} type
+	 * @param {string} label
+	 * @param {string} statsLabel
+	 * @param {boolean} labelled
+	 * @param {number} depth
+	 * @param {?GpuQuery} parent
+	 */
+	_pushQuery( uid, type, label, statsLabel, labelled, depth, parent ) {
+
 		this._queryIndex.set( uid, this._queries.length );
 		this._queries.push( {
 			uid,
 			type,
-			label: hasLabel ? `GPU pass: ${label}` : UNLABELED_PASS,
-			labelled: hasLabel,
+			label,
+			statsLabel,
+			labelled,
 			cpuTime: performance.now(),
 			depth,
+			parent,
 			duration: NaN,
 			range: null,
 		} );
-
-		if ( depth === 0 ) this.scheduleFlush();
 
 	}
 
@@ -61638,7 +61709,7 @@ class WebGPUTimer extends GpuTimer {
 
 		for ( const query of passes ) {
 
-			this.profiler._commitGpuSample( query.label, query.duration, query.traceTs, query.traceDur, query.depth );
+			this.profiler._commitGpuSample( query.statsLabel, query.duration, query.traceTs, query.traceDur, query.depth, query.label );
 
 		}
 
@@ -61675,7 +61746,8 @@ class WebGPUTimer extends GpuTimer {
 	/**
 	 * Places each pass on the CPU timeline (µs): by its GPU timestamps when the backend has
 	 * them, else at the CPU time it was reported. Unlabeled queries without a range would only
-	 * guess a position, so they are not passes.
+	 * guess a position, so they are not passes. Nested spans without a range keep their stats
+	 * but stay out of the trace.
 	 *
 	 * @param {GpuQuery[]} queries
 	 * @return {GpuQuery[]} Resolved passes.
@@ -61691,6 +61763,13 @@ class WebGPUTimer extends GpuTimer {
 			if ( Number.isNaN( query.duration ) ) continue;
 
 			const ranged = query.range !== null && this._gpuOrigin !== null;
+			if ( ranged === false && query.parent !== null ) {
+
+				passes.push( query );
+				continue;
+
+			}
+
 			if ( ranged === false && query.labelled === false ) continue;
 
 			const start = ranged ? this._gpuTimeToCpu( query.range.start ) : query.cpuTime;
@@ -61707,27 +61786,92 @@ class WebGPUTimer extends GpuTimer {
 
 	/**
 	 * Converts traced passes to non-overlapping half-open µs intervals, so they stack on one
-	 * row. Stats keep the measured durations.
+	 * row. Nested spans keep their measured times clipped to their parent's snapped interval;
+	 * one that falls outside it is left out of the trace. Stats keep the measured durations.
 	 *
 	 * @param {GpuQuery[]} passes
 	 */
 	_snapPasses( passes ) {
 
-		// Longer first at the same timestamp so the substantial pass keeps its start.
-		const traced = passes.filter( query => query.traceDur > 0 ).sort( ( a, b ) => a.traceTs - b.traceTs || b.traceDur - a.traceDur );
+		const roots = [];
+		const children = new Map();
 
-		let cursor = Number.NEGATIVE_INFINITY;
-		for ( const query of traced ) {
+		for ( const query of passes ) {
 
-			if ( query.traceTs < cursor ) {
+			if ( query.parent === null ) {
 
-				const end = Math.max( query.traceTs + query.traceDur, cursor + 1 );
-				query.traceTs = cursor;
-				query.traceDur = Math.max( 1, end - cursor );
+				if ( query.traceDur > 0 ) roots.push( query );
+				continue;
 
 			}
 
-			cursor = query.traceTs + query.traceDur;
+			let siblings = children.get( query.parent );
+			if ( siblings === undefined ) children.set( query.parent, siblings = [] );
+			siblings.push( query );
+
+		}
+
+		this._snapSiblings( roots, Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY );
+
+		// Parents are shallower than their children, so they are final before their children snap.
+		const groups = [ ...children ].sort( ( a, b ) => a[ 0 ].depth - b[ 0 ].depth );
+		for ( const [ parent, siblings ] of groups ) {
+
+			if ( parent.traceDur <= 0 ) {
+
+				for ( const query of siblings ) query.traceDur = 0;
+				continue;
+
+			}
+
+			const traced = siblings.filter( query => query.traceDur > 0 );
+			this._snapSiblings( traced, parent.traceTs, parent.traceTs + parent.traceDur );
+
+		}
+
+	}
+
+	/**
+	 * Snaps sibling slices to non-overlapping intervals within `[start, end)`.
+	 *
+	 * @param {GpuQuery[]} siblings Traced queries (`traceDur > 0`).
+	 * @param {number} start
+	 * @param {number} end
+	 */
+	_snapSiblings( siblings, start, end ) {
+
+		// Longer first at the same timestamp so the substantial pass keeps its start.
+		siblings.sort( ( a, b ) => a.traceTs - b.traceTs || b.traceDur - a.traceDur );
+
+		let cursor = start;
+		for ( const query of siblings ) {
+
+			let ts = query.traceTs;
+			let queryEnd = ts + query.traceDur;
+			if ( queryEnd <= start || ts >= end ) {
+
+				query.traceDur = 0;
+				continue;
+
+			}
+
+			if ( ts < cursor ) {
+
+				queryEnd = Math.max( queryEnd, cursor + 1 );
+				ts = cursor;
+
+			}
+
+			if ( ts >= end ) {
+
+				query.traceDur = 0;
+				continue;
+
+			}
+
+			query.traceTs = ts;
+			query.traceDur = Math.max( 1, Math.min( queryEnd, end ) - ts );
+			cursor = ts + query.traceDur;
 
 		}
 
@@ -61751,7 +61895,8 @@ class WebGPUTimer extends GpuTimer {
 		for ( let i = span._first; i < span._end; i ++ ) {
 
 			const query = queries[ i ];
-			if ( Number.isNaN( query.duration ) ) continue;
+			// Nested spans are already inside their pass's time.
+			if ( query.parent !== null || Number.isNaN( query.duration ) ) continue;
 
 			busy += query.duration;
 			resolved ++;
@@ -62206,6 +62351,12 @@ const MAX_TRACE_EVENTS = 500000;
 const MAX_ORPHANS = 16;
 const NOOP = () => {};
 
+const GPU_DETAIL_LEVELS = Object.freeze( {
+	pass: PassTimestampLevel.OFF,
+	stage: PassTimestampLevel.STAGE,
+	draw: PassTimestampLevel.DRAW
+} );
+
 const DUMMY_SPAN = Object.freeze( { label: '', t0: 0, _seq: 0, _generation: 0 } );
 const NOOP_BEGIN_SPAN = () => DUMMY_SPAN;
 const NOOP_BEGIN_GPU_SPAN = () => DUMMY_GPU_SPAN;
@@ -62215,6 +62366,7 @@ class ProfilerServiceClass {
 	constructor() {
 
 		this._profile = 'full';
+		this._gpuDetail = 'pass';
 		this._enabled = false;
 		/** Trace events kept per session in the `'full'` profile. */
 		this.maxTraceEvents = MAX_TRACE_EVENTS;
@@ -62734,6 +62886,75 @@ class ProfilerServiceClass {
 	// GPU
 
 	/**
+	 * Sets how finely GPU work is timed in render passes. `'stage'` adds opaque, transparent
+	 * and bundle spans; `'draw'` adds a span per draw as well. Both need timestamps inside
+	 * passes ({@link ProfilerServiceClass#hasPassTimestamps}); without them only whole passes
+	 * are timed. Per-draw timing adds GPU overhead, so use it to locate cost, not to measure
+	 * frame time.
+	 *
+	 * @param {'pass'|'stage'|'draw'} detail
+	 */
+	setGpuDetail( detail ) {
+
+		if ( typeof GPU_DETAIL_LEVELS[ detail ] !== 'number' ) {
+
+			warnOnce( `ProfilerService: Unknown GPU detail "${detail}"; expected 'pass', 'stage' or 'draw'.` );
+			return;
+
+		}
+
+		this._gpuDetail = detail;
+		for ( const timer of this._gpuTimers.values() ) {
+
+			if ( timer instanceof WebGPUTimer === false ) continue;
+			timer.setPassTimestampLevel( this._passTimestampLevel );
+			this._warnIfPassTimestampsUnsupported( timer );
+
+		}
+
+	}
+
+	/**
+	 * @param {WebGPUTimer} timer
+	 */
+	_warnIfPassTimestampsUnsupported( timer ) {
+
+		if ( this._gpuDetail === 'pass' || timer.available === false || timer.supportsPassTimestamps ) return;
+		warnOnce( `ProfilerService: GPU detail "${this._gpuDetail}" needs timestamps inside passes; only whole passes are timed. In Chrome, enable chrome://flags/#enable-unsafe-webgpu (or --enable-unsafe-webgpu).` );
+
+	}
+
+	/**
+	 * @return {'pass'|'stage'|'draw'}
+	 */
+	getGpuDetail() {
+
+		return this._gpuDetail;
+
+	}
+
+	/** @type {number} {@link PassTimestampLevel} for the current GPU detail. */
+	get _passTimestampLevel() {
+
+		return GPU_DETAIL_LEVELS[ this._gpuDetail ];
+
+	}
+
+	/**
+	 * Whether a renderer can time stages and draws inside passes. In Chrome this needs
+	 * chrome://flags/#enable-unsafe-webgpu (or `--enable-unsafe-webgpu`). False until
+	 * `renderer.init()` resolves.
+	 *
+	 * @param {Object} renderer
+	 * @return {boolean}
+	 */
+	hasPassTimestamps( renderer ) {
+
+		return renderer?.backend?.supportsPassTimestamps === true;
+
+	}
+
+	/**
 	 * Enables GPU timestamp collection for a renderer.
 	 *
 	 * @param {Object} renderer
@@ -62795,11 +63016,16 @@ class ProfilerServiceClass {
 		if ( this._enabled === false ) return false;
 
 		const available = renderer.backend.hasTimestamp === true && renderer.hasFeature( 'timestamp-query' ) === true;
-		this._gpuTimers.set( renderer, new WebGPUTimer( this, renderer, available ) );
+		const timer = new WebGPUTimer( this, renderer, available );
+		this._gpuTimers.set( renderer, timer );
 
 		if ( available === false ) {
 
 			warnOnce( 'ProfilerService: Timestamp queries are unavailable; GPU profiling is disabled for this renderer.' );
+
+		} else {
+
+			this._warnIfPassTimestampsUnsupported( timer );
 
 		}
 
@@ -62851,8 +63077,9 @@ class ProfilerServiceClass {
 	 * @param {number} ts Trace start (µs).
 	 * @param {number} dur Trace duration (µs).
 	 * @param {number} depth GPU span nesting depth.
+	 * @param {string} [traceName=label] Trace slice name.
 	 */
-	_commitGpuSample( label, durationMs, ts, dur, depth ) {
+	_commitGpuSample( label, durationMs, ts, dur, depth, traceName = label ) {
 
 		let record = this._gpuRecords.get( label );
 		if ( record === undefined ) {
@@ -62863,7 +63090,7 @@ class ProfilerServiceClass {
 		}
 
 		pushSample( record, durationMs, NaN );
-		if ( this._profile === 'full' ) this._pushTraceSlice( label, ts, dur, TRACE_TID_GPU, depth );
+		if ( this._profile === 'full' ) this._pushTraceSlice( traceName, ts, dur, TRACE_TID_GPU, depth );
 
 	}
 
@@ -63401,4 +63628,4 @@ if ( typeof window !== 'undefined' ) {
 
 }
 
-export { ACESFilmicToneMapping, AddEquation, AddOperation, AdditiveAnimationBlendMode, AdditiveBlending, AgXToneMapping, AlphaFormat, AlwaysCompare, AlwaysDepth, AlwaysStencilFunc, AmbientLight, AnimationAction, AnimationClip, AnimationLoader, AnimationMixer, AnimationObjectGroup, AnimationUtils, ArcCurve, ArrayCamera, ArrowHelper, AttachedBindMode, Audio, AudioAnalyser, AudioContext, AudioListener, AudioLoader, AxesHelper, BackSide, BasicDepthPacking, BasicShadowMap, BatchedMesh, BezierInterpolant, Bone, BooleanKeyframeTrack, Box2, Box3, Box3Helper, BoxGeometry, BoxHelper, BufferAttribute, BufferGeometry, BufferGeometryLoader, ByteType, Cache, Camera, CameraHelper, CanvasTexture, CapsuleGeometry, CatmullRomCurve3, CineonToneMapping, CircleGeometry, ClampToEdgeWrapping, Clock, Color, ColorKeyframeTrack, ColorManagement, Compatibility, CompressedArrayTexture, CompressedCubeTexture, CompressedTexture, CompressedTextureLoader, ConeGeometry, ConstantAlphaFactor, ConstantColorFactor, Controls, CubeCamera, CubeDepthTexture, CubeReflectionMapping, CubeRefractionMapping, CubeTexture, CubeTextureLoader, CubeUVReflectionMapping, CubicBezierCurve, CubicBezierCurve3, CubicInterpolant, CullFaceBack, CullFaceFront, CullFaceFrontBack, CullFaceNone, Curve, CurvePath, CustomBlending, CustomToneMapping, CylinderGeometry, Cylindrical, Data3DTexture, DataArrayTexture, DataTexture, DataTextureLoader, DataUtils, DecrementStencilOp, DecrementWrapStencilOp, DefaultLoadingManager, DepthFormat, DepthStencilFormat, DepthTexture, DetachedBindMode, DirectionalLight, DirectionalLightHelper, DiscreteInterpolant, DodecahedronGeometry, DoubleSide, DstAlphaFactor, DstColorFactor, DynamicCopyUsage, DynamicDrawUsage, DynamicReadUsage, EdgesGeometry, EllipseCurve, EqualCompare, EqualDepth, EqualStencilFunc, EquirectangularReflectionMapping, EquirectangularRefractionMapping, Euler, EventDispatcher, ExternalTexture, ExtrudeGeometry, FileLoader, Float16BufferAttribute, Float32BufferAttribute, FloatType, Fog, FogExp2, FramebufferTexture, FrontSide, Frustum, FrustumArray, GLBufferAttribute, GLSL1, GLSL3, GreaterCompare, GreaterDepth, GreaterEqualCompare, GreaterEqualDepth, GreaterEqualStencilFunc, GreaterStencilFunc, GridHelper, Group, HTMLTexture, HalfFloatType, HemisphereLight, HemisphereLightHelper, IcosahedronGeometry, ImageBitmapLoader, ImageLoader, ImageUtils, IncrementStencilOp, IncrementWrapStencilOp, InstancedBufferAttribute, InstancedBufferGeometry, InstancedInterleavedBuffer, InstancedMesh, Int16BufferAttribute, Int32BufferAttribute, Int8BufferAttribute, IntType, InterleavedBuffer, InterleavedBufferAttribute, Interpolant, InterpolateBezier, InterpolateDiscrete, InterpolateLinear, InterpolateSmooth, InterpolationSamplingMode, InterpolationSamplingType, InvertStencilOp, KeepStencilOp, KeyframeTrack, LOD, LatheGeometry, Layers, LessCompare, LessDepth, LessEqualCompare, LessEqualDepth, LessEqualStencilFunc, LessStencilFunc, Light, LightProbe, LightShadow, Line, Line3, LineBasicMaterial, LineCurve, LineCurve3, LineDashedMaterial, LineLoop, LineSegments, LinearFilter, LinearInterpolant, LinearMipMapLinearFilter, LinearMipMapNearestFilter, LinearMipmapLinearFilter, LinearMipmapNearestFilter, LinearSRGBColorSpace, LinearToneMapping, LinearTransfer, Loader, LoaderUtils, LoadingManager, LoopOnce, LoopPingPong, LoopRepeat, MOUSE, Material, MaterialBlending, MaterialLoader, MathUtils, Matrix2, Matrix3, Matrix4, MaxEquation, Mesh, MeshBasicMaterial, MeshDepthMaterial, MeshDistanceMaterial, MeshLambertMaterial, MeshMatcapMaterial, MeshNormalMaterial, MeshPhongMaterial, MeshPhysicalMaterial, MeshStandardMaterial, MeshToonMaterial, MinEquation, MirroredRepeatWrapping, MixOperation, MultiplyBlending, MultiplyOperation, NearestFilter, NearestMipMapLinearFilter, NearestMipMapNearestFilter, NearestMipmapLinearFilter, NearestMipmapNearestFilter, NeutralToneMapping, NeverCompare, NeverDepth, NeverStencilFunc, NoBlending, NoColorSpace, NoNormalPacking, NoToneMapping, NodePath, NormalAnimationBlendMode, NormalBlending, NormalGAPacking, NormalRGPacking, NotEqualCompare, NotEqualDepth, NotEqualStencilFunc, NumberKeyframeTrack, Object3D, ObjectLoader, ObjectSpaceNormalMap, OctahedronGeometry, OneFactor, OneMinusConstantAlphaFactor, OneMinusConstantColorFactor, OneMinusDstAlphaFactor, OneMinusDstColorFactor, OneMinusSrcAlphaFactor, OneMinusSrcColorFactor, OrthographicCamera, PCFShadowMap, PCFSoftShadowMap, Path, PerspectiveCamera, Plane, PlaneGeometry, PlaneHelper, PointLight, PointLightHelper, Points, PointsMaterial, PolarGridHelper, PolyhedronGeometry, PositionalAudio, ProfilerService, PropertyBinding, PropertyMixer, QuadraticBezierCurve, QuadraticBezierCurve3, Quaternion, QuaternionKeyframeTrack, QuaternionLinearInterpolant, R11_EAC_Format, RAD2DEG, RED_GREEN_RGTC2_Format, RED_RGTC1_Format, REVISION, RG11_EAC_Format, RGBADepthPacking, RGBAFormat, RGBAIntegerFormat, RGBA_ASTC_10x10_Format, RGBA_ASTC_10x5_Format, RGBA_ASTC_10x6_Format, RGBA_ASTC_10x8_Format, RGBA_ASTC_12x10_Format, RGBA_ASTC_12x12_Format, RGBA_ASTC_4x4_Format, RGBA_ASTC_5x4_Format, RGBA_ASTC_5x5_Format, RGBA_ASTC_6x5_Format, RGBA_ASTC_6x6_Format, RGBA_ASTC_8x5_Format, RGBA_ASTC_8x6_Format, RGBA_ASTC_8x8_Format, RGBA_BPTC_Format, RGBA_ETC2_EAC_Format, RGBA_PVRTC_2BPPV1_Format, RGBA_PVRTC_4BPPV1_Format, RGBA_S3TC_DXT1_Format, RGBA_S3TC_DXT3_Format, RGBA_S3TC_DXT5_Format, RGBDepthPacking, RGBFormat, RGBIntegerFormat, RGB_BPTC_SIGNED_Format, RGB_BPTC_UNSIGNED_Format, RGB_ETC1_Format, RGB_ETC2_Format, RGB_PVRTC_2BPPV1_Format, RGB_PVRTC_4BPPV1_Format, RGB_S3TC_DXT1_Format, RGDepthPacking, RGFormat, RGIntegerFormat, RawShaderMaterial, Ray, Raycaster, RectAreaLight, RedFormat, RedIntegerFormat, ReinhardToneMapping, RenderObjectRefreshType, RenderTarget, RenderTarget3D, RepeatWrapping, ReplaceStencilOp, ReverseSubtractEquation, ReversedDepthFuncs, RingGeometry, SIGNED_R11_EAC_Format, SIGNED_RED_GREEN_RGTC2_Format, SIGNED_RED_RGTC1_Format, SIGNED_RG11_EAC_Format, SRGBColorSpace, SRGBTransfer, Scene, ShaderMaterial, ShadowMaterial, Shape, ShapeGeometry, ShapePath, ShapeUtils, ShortType, Skeleton, SkeletonHelper, SkinnedMesh, Source, Sphere, SphereGeometry, Spherical, SphericalHarmonics3, SplineCurve, SpotLight, SpotLightHelper, Sprite, SpriteMaterial, SrcAlphaFactor, SrcAlphaSaturateFactor, SrcColorFactor, StaticCopyUsage, StaticDrawUsage, StaticReadUsage, StereoCamera, StreamCopyUsage, StreamDrawUsage, StreamReadUsage, StringKeyframeTrack, SubtractEquation, SubtractiveBlending, TOUCH, TangentSpaceNormalMap, TetrahedronGeometry, Texture, TextureLoader, TextureSource, TextureUtils, Timer, TimestampQuery, TorusGeometry, TorusKnotGeometry, Triangle, TriangleFanDrawMode, TriangleStripDrawMode, TrianglesDrawMode, TubeGeometry, UVMapping, Uint16BufferAttribute, Uint32BufferAttribute, Uint8BufferAttribute, Uint8ClampedBufferAttribute, Uniform, UniformsGroup, UniformsUtils, UnsignedByteType, UnsignedInt101111Type, UnsignedInt248Type, UnsignedInt5999Type, UnsignedIntType, UnsignedShort4444Type, UnsignedShort5551Type, UnsignedShortType, VSMShadowMap, Vector2, Vector3, Vector4, VectorKeyframeTrack, VideoFrameTexture, VideoTexture, WebGL3DRenderTarget, WebGLArrayRenderTarget, WebGLCoordinateSystem, WebGLRenderTarget, WebGPUCoordinateSystem, WebXRController, WireframeGeometry, WrapAroundEnding, XorShift32, ZeroCurvatureEnding, ZeroFactor, ZeroSlopeEnding, ZeroStencilOp, allocateNodeId, cloneUniforms, collectSiblingNodeIds, configureNodeIdSeed, createCanvasElement, createElementNS, ensureUniqueNodeIdAmongParentChildren, error, generateNodeId, getByteLength, getConsoleFunction, getUnlitUniformColorSpace, hashStringToUint32, isTypedArray, isValidNodeId, log, mergeUniforms, nodeIdFromKey, nodeIdFromString, nodeIdToString, probeAsync, profile, profileClass, randomSeedUint32, setConsoleFunction, warn, warnOnce, xorshift32, yieldToMain };
+export { ACESFilmicToneMapping, AddEquation, AddOperation, AdditiveAnimationBlendMode, AdditiveBlending, AgXToneMapping, AlphaFormat, AlwaysCompare, AlwaysDepth, AlwaysStencilFunc, AmbientLight, AnimationAction, AnimationClip, AnimationLoader, AnimationMixer, AnimationObjectGroup, AnimationUtils, ArcCurve, ArrayCamera, ArrowHelper, AttachedBindMode, Audio, AudioAnalyser, AudioContext, AudioListener, AudioLoader, AxesHelper, BackSide, BasicDepthPacking, BasicShadowMap, BatchedMesh, BezierInterpolant, Bone, BooleanKeyframeTrack, Box2, Box3, Box3Helper, BoxGeometry, BoxHelper, BufferAttribute, BufferGeometry, BufferGeometryLoader, ByteType, Cache, Camera, CameraHelper, CanvasTexture, CapsuleGeometry, CatmullRomCurve3, CineonToneMapping, CircleGeometry, ClampToEdgeWrapping, Clock, Color, ColorKeyframeTrack, ColorManagement, Compatibility, CompressedArrayTexture, CompressedCubeTexture, CompressedTexture, CompressedTextureLoader, ConeGeometry, ConstantAlphaFactor, ConstantColorFactor, Controls, CubeCamera, CubeDepthTexture, CubeReflectionMapping, CubeRefractionMapping, CubeTexture, CubeTextureLoader, CubeUVReflectionMapping, CubicBezierCurve, CubicBezierCurve3, CubicInterpolant, CullFaceBack, CullFaceFront, CullFaceFrontBack, CullFaceNone, Curve, CurvePath, CustomBlending, CustomToneMapping, CylinderGeometry, Cylindrical, Data3DTexture, DataArrayTexture, DataTexture, DataTextureLoader, DataUtils, DecrementStencilOp, DecrementWrapStencilOp, DefaultLoadingManager, DepthFormat, DepthStencilFormat, DepthTexture, DetachedBindMode, DirectionalLight, DirectionalLightHelper, DiscreteInterpolant, DodecahedronGeometry, DoubleSide, DstAlphaFactor, DstColorFactor, DynamicCopyUsage, DynamicDrawUsage, DynamicReadUsage, EdgesGeometry, EllipseCurve, EqualCompare, EqualDepth, EqualStencilFunc, EquirectangularReflectionMapping, EquirectangularRefractionMapping, Euler, EventDispatcher, ExternalTexture, ExtrudeGeometry, FileLoader, Float16BufferAttribute, Float32BufferAttribute, FloatType, Fog, FogExp2, FramebufferTexture, FrontSide, Frustum, FrustumArray, GLBufferAttribute, GLSL1, GLSL3, GreaterCompare, GreaterDepth, GreaterEqualCompare, GreaterEqualDepth, GreaterEqualStencilFunc, GreaterStencilFunc, GridHelper, Group, HTMLTexture, HalfFloatType, HemisphereLight, HemisphereLightHelper, IcosahedronGeometry, ImageBitmapLoader, ImageLoader, ImageUtils, IncrementStencilOp, IncrementWrapStencilOp, InstancedBufferAttribute, InstancedBufferGeometry, InstancedInterleavedBuffer, InstancedMesh, Int16BufferAttribute, Int32BufferAttribute, Int8BufferAttribute, IntType, InterleavedBuffer, InterleavedBufferAttribute, Interpolant, InterpolateBezier, InterpolateDiscrete, InterpolateLinear, InterpolateSmooth, InterpolationSamplingMode, InterpolationSamplingType, InvertStencilOp, KeepStencilOp, KeyframeTrack, LOD, LatheGeometry, Layers, LessCompare, LessDepth, LessEqualCompare, LessEqualDepth, LessEqualStencilFunc, LessStencilFunc, Light, LightProbe, LightShadow, Line, Line3, LineBasicMaterial, LineCurve, LineCurve3, LineDashedMaterial, LineLoop, LineSegments, LinearFilter, LinearInterpolant, LinearMipMapLinearFilter, LinearMipMapNearestFilter, LinearMipmapLinearFilter, LinearMipmapNearestFilter, LinearSRGBColorSpace, LinearToneMapping, LinearTransfer, Loader, LoaderUtils, LoadingManager, LoopOnce, LoopPingPong, LoopRepeat, MOUSE, Material, MaterialBlending, MaterialLoader, MathUtils, Matrix2, Matrix3, Matrix4, MaxEquation, Mesh, MeshBasicMaterial, MeshDepthMaterial, MeshDistanceMaterial, MeshLambertMaterial, MeshMatcapMaterial, MeshNormalMaterial, MeshPhongMaterial, MeshPhysicalMaterial, MeshStandardMaterial, MeshToonMaterial, MinEquation, MirroredRepeatWrapping, MixOperation, MultiplyBlending, MultiplyOperation, NearestFilter, NearestMipMapLinearFilter, NearestMipMapNearestFilter, NearestMipmapLinearFilter, NearestMipmapNearestFilter, NeutralToneMapping, NeverCompare, NeverDepth, NeverStencilFunc, NoBlending, NoColorSpace, NoNormalPacking, NoToneMapping, NodePath, NormalAnimationBlendMode, NormalBlending, NormalGAPacking, NormalRGPacking, NotEqualCompare, NotEqualDepth, NotEqualStencilFunc, NumberKeyframeTrack, Object3D, ObjectLoader, ObjectSpaceNormalMap, OctahedronGeometry, OneFactor, OneMinusConstantAlphaFactor, OneMinusConstantColorFactor, OneMinusDstAlphaFactor, OneMinusDstColorFactor, OneMinusSrcAlphaFactor, OneMinusSrcColorFactor, OrthographicCamera, PCFShadowMap, PCFSoftShadowMap, PassTimestampLevel, Path, PerspectiveCamera, Plane, PlaneGeometry, PlaneHelper, PointLight, PointLightHelper, Points, PointsMaterial, PolarGridHelper, PolyhedronGeometry, PositionalAudio, ProfilerService, PropertyBinding, PropertyMixer, QuadraticBezierCurve, QuadraticBezierCurve3, Quaternion, QuaternionKeyframeTrack, QuaternionLinearInterpolant, R11_EAC_Format, RAD2DEG, RED_GREEN_RGTC2_Format, RED_RGTC1_Format, REVISION, RG11_EAC_Format, RGBADepthPacking, RGBAFormat, RGBAIntegerFormat, RGBA_ASTC_10x10_Format, RGBA_ASTC_10x5_Format, RGBA_ASTC_10x6_Format, RGBA_ASTC_10x8_Format, RGBA_ASTC_12x10_Format, RGBA_ASTC_12x12_Format, RGBA_ASTC_4x4_Format, RGBA_ASTC_5x4_Format, RGBA_ASTC_5x5_Format, RGBA_ASTC_6x5_Format, RGBA_ASTC_6x6_Format, RGBA_ASTC_8x5_Format, RGBA_ASTC_8x6_Format, RGBA_ASTC_8x8_Format, RGBA_BPTC_Format, RGBA_ETC2_EAC_Format, RGBA_PVRTC_2BPPV1_Format, RGBA_PVRTC_4BPPV1_Format, RGBA_S3TC_DXT1_Format, RGBA_S3TC_DXT3_Format, RGBA_S3TC_DXT5_Format, RGBDepthPacking, RGBFormat, RGBIntegerFormat, RGB_BPTC_SIGNED_Format, RGB_BPTC_UNSIGNED_Format, RGB_ETC1_Format, RGB_ETC2_Format, RGB_PVRTC_2BPPV1_Format, RGB_PVRTC_4BPPV1_Format, RGB_S3TC_DXT1_Format, RGDepthPacking, RGFormat, RGIntegerFormat, RawShaderMaterial, Ray, Raycaster, RectAreaLight, RedFormat, RedIntegerFormat, ReinhardToneMapping, RenderObjectRefreshType, RenderTarget, RenderTarget3D, RepeatWrapping, ReplaceStencilOp, ReverseSubtractEquation, ReversedDepthFuncs, RingGeometry, SIGNED_R11_EAC_Format, SIGNED_RED_GREEN_RGTC2_Format, SIGNED_RED_RGTC1_Format, SIGNED_RG11_EAC_Format, SRGBColorSpace, SRGBTransfer, Scene, ShaderMaterial, ShadowMaterial, Shape, ShapeGeometry, ShapePath, ShapeUtils, ShortType, Skeleton, SkeletonHelper, SkinnedMesh, Source, Sphere, SphereGeometry, Spherical, SphericalHarmonics3, SplineCurve, SpotLight, SpotLightHelper, Sprite, SpriteMaterial, SrcAlphaFactor, SrcAlphaSaturateFactor, SrcColorFactor, StaticCopyUsage, StaticDrawUsage, StaticReadUsage, StereoCamera, StreamCopyUsage, StreamDrawUsage, StreamReadUsage, StringKeyframeTrack, SubtractEquation, SubtractiveBlending, TOUCH, TangentSpaceNormalMap, TetrahedronGeometry, Texture, TextureLoader, TextureSource, TextureUtils, Timer, TimestampQuery, TorusGeometry, TorusKnotGeometry, Triangle, TriangleFanDrawMode, TriangleStripDrawMode, TrianglesDrawMode, TubeGeometry, UVMapping, Uint16BufferAttribute, Uint32BufferAttribute, Uint8BufferAttribute, Uint8ClampedBufferAttribute, Uniform, UniformsGroup, UniformsUtils, UnsignedByteType, UnsignedInt101111Type, UnsignedInt248Type, UnsignedInt5999Type, UnsignedIntType, UnsignedShort4444Type, UnsignedShort5551Type, UnsignedShortType, VSMShadowMap, Vector2, Vector3, Vector4, VectorKeyframeTrack, VideoFrameTexture, VideoTexture, WebGL3DRenderTarget, WebGLArrayRenderTarget, WebGLCoordinateSystem, WebGLRenderTarget, WebGPUCoordinateSystem, WebXRController, WireframeGeometry, WrapAroundEnding, XorShift32, ZeroCurvatureEnding, ZeroFactor, ZeroSlopeEnding, ZeroStencilOp, allocateNodeId, cloneUniforms, collectSiblingNodeIds, configureNodeIdSeed, createCanvasElement, createElementNS, ensureUniqueNodeIdAmongParentChildren, error, generateNodeId, getByteLength, getConsoleFunction, getUnlitUniformColorSpace, hashStringToUint32, isTypedArray, isValidNodeId, log, mergeUniforms, nodeIdFromKey, nodeIdFromString, nodeIdToString, probeAsync, profile, profileClass, randomSeedUint32, setConsoleFunction, warn, warnOnce, xorshift32, yieldToMain };

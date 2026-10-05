@@ -345,7 +345,11 @@ export const GPUFeatureName = {
 	DualSourceBlending: 'dual-source-blending',
 	Subgroups: 'subgroups',
 	TextureFormatsTier1: 'texture-formats-tier1',
-	TextureFormatsTier2: 'texture-formats-tier2'
+	TextureFormatsTier2: 'texture-formats-tier2',
+	// WITH_GENESYS
+	// Chrome exposes it only with chrome://flags/#enable-unsafe-webgpu (or --enable-unsafe-webgpu).
+	ChromiumExperimentalTimestampQueryInsidePasses: 'chromium-experimental-timestamp-query-inside-passes'
+	// !WITH_GENESYS
 };
 
 export const GPUFeatureMap = {

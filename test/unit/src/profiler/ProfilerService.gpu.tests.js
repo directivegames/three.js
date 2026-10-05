@@ -30,6 +30,7 @@ export default QUnit.module( 'Profiler', () => {
 
 			ProfilerService.disable();
 			ProfilerService.setProfile( 'full' );
+			ProfilerService.setGpuDetail( 'pass' );
 			restorePerformance();
 			console.level = CONSOLE_LEVEL.DEFAULT;
 
@@ -692,6 +693,174 @@ export default QUnit.module( 'Profiler', () => {
 				await ProfilerService.flushGpu( renderer );
 
 				assert.strictEqual( ProfilerService.getGpuStats( 'GPU pass: Shadow' ).samples, 1, 'one sample per pass' );
+
+			} );
+
+		} );
+
+		QUnit.module( 'in-pass spans', () => {
+
+			const gpuSlices = trace => trace.traceEvents.filter( event => event.ph === 'X' );
+
+			QUnit.test( 'nests stage and draw spans inside their pass', async assert => {
+
+				const renderer = createCommonRenderer( { passTimestamps: true } );
+				await ProfilerService.attachGpuRenderer( renderer );
+
+				renderer.backend.emit( 'render', 'r:0:1:f1', 6, 'Scene', 10 );
+				renderer.backend.emit( 'render', 'p:1:1:f1', 3, 'Opaque', 11, { parentUid: 'r:0:1:f1' } );
+				renderer.backend.emit( 'render', 'p:2:1:f1', 2, 'Floor (Standard)', 11.5, { parentUid: 'p:1:1:f1' } );
+				renderer.backend.emit( 'render', 'p:3:1:f1', 1, 'Transparent', 14, { parentUid: 'r:0:1:f1' } );
+				await ProfilerService.flushGpu( renderer );
+
+				assert.strictEqual( ProfilerService.getGpuStats( 'GPU pass: Scene' ).avg, 6, 'pass keeps its own time' );
+				assert.strictEqual( ProfilerService.getGpuStats( 'GPU pass: Scene / Opaque' ).avg, 3, 'stage keyed under its pass' );
+				assert.strictEqual( ProfilerService.getGpuStats( 'GPU pass: Scene / Opaque / Floor (Standard)' ).avg, 2, 'draw keyed under its stage' );
+				assert.strictEqual( ProfilerService.getGpuStats( 'GPU pass: Scene / Transparent' ).avg, 1, 'sibling stage keyed under the pass' );
+
+				const slices = gpuSlices( ProfilerService.exportChromeTrace() );
+				assert.deepEqual( slices.map( slice => slice.name ), [ 'GPU pass: Scene', 'Opaque', 'Floor (Standard)', 'Transparent' ], 'short names, parents first' );
+				assert.deepEqual( findPartialOverlaps( slices ), [], 'every span nests' );
+
+				const [ scene, opaque, floor ] = slices;
+				assert.ok( opaque.ts >= scene.ts && opaque.ts + opaque.dur <= scene.ts + scene.dur, 'stage inside its pass' );
+				assert.ok( floor.ts >= opaque.ts && floor.ts + floor.dur <= opaque.ts + opaque.dur, 'draw inside its stage' );
+
+			} );
+
+			QUnit.test( 'nested spans do not add to the busy time of a GPU span', async assert => {
+
+				const renderer = createCommonRenderer( { passTimestamps: true } );
+				await ProfilerService.attachGpuRenderer( renderer );
+
+				const span = ProfilerService.beginGpu( 'Renderer.render (Scene)', renderer );
+				renderer.backend.emit( 'render', 'r:0:1:f1', 6, 'Scene', 10 );
+				renderer.backend.emit( 'render', 'p:1:1:f1', 4, 'Opaque', 11, { parentUid: 'r:0:1:f1' } );
+				ProfilerService.endGpu( span );
+				await ProfilerService.flushGpu( renderer );
+
+				assert.strictEqual( ProfilerService.getGpuStats( 'Renderer.render (Scene)' ).avg, 6, 'only the pass counts' );
+
+			} );
+
+			QUnit.test( 'drops a span whose pass is unknown', async assert => {
+
+				const renderer = createCommonRenderer( { passTimestamps: true } );
+				await ProfilerService.attachGpuRenderer( renderer );
+
+				renderer.backend.emit( 'render', 'r:0:1:f1', 6, 'Scene', 10 );
+				renderer.backend.emit( 'render', 'p:1:2:f1', 2, 'Opaque', 11, { parentUid: 'r:9:2:f1' } );
+				await ProfilerService.flushGpu( renderer );
+
+				assert.ok( ProfilerService.getGpuStats( 'GPU pass: Scene' ), 'pass recorded' );
+				assert.deepEqual( gpuSlices( ProfilerService.exportChromeTrace() ).map( slice => slice.name ), [ 'GPU pass: Scene' ], 'orphan span not traced' );
+
+			} );
+
+			QUnit.test( 'clips nested spans to their snapped pass', async assert => {
+
+				const renderer = createCommonRenderer( { passTimestamps: true } );
+				await ProfilerService.attachGpuRenderer( renderer );
+
+				renderer.backend.emit( 'render', 'r:0:1:f1', 4, 'AO', 10 );
+				// Overlaps AO, so its trace slice starts where AO ends (14 ms).
+				renderer.backend.emit( 'render', 'r:1:2:f1', 4, 'Scene', 12 );
+				renderer.backend.emit( 'render', 'p:1:2:f1', 1, 'Early', 12, { parentUid: 'r:1:2:f1' } );
+				renderer.backend.emit( 'render', 'p:2:2:f1', 3.5, 'Late', 13, { parentUid: 'r:1:2:f1' } );
+				renderer.backend.emit( 'render', 'p:3:2:f1', 0.4, 'Draw', 15, { parentUid: 'p:2:2:f1' } );
+				await ProfilerService.flushGpu( renderer );
+
+				const slices = gpuSlices( ProfilerService.exportChromeTrace() );
+				assert.deepEqual( findPartialOverlaps( slices ), [], 'every span nests' );
+
+				const byName = name => slices.find( slice => slice.name === name );
+				const scene = byName( 'GPU pass: Scene' );
+				const late = byName( 'Late' );
+				const draw = byName( 'Draw' );
+				assert.strictEqual( byName( 'Early' ), undefined, 'span before the snapped pass is not traced' );
+				assert.strictEqual( ProfilerService.getGpuStats( 'GPU pass: Scene / Early' ).avg, 1, 'untraced span keeps its stats' );
+				assert.strictEqual( late.ts, scene.ts, 'clipped to the pass start' );
+				assert.strictEqual( late.ts + late.dur, scene.ts + scene.dur, 'clipped to the pass end' );
+				assert.ok( draw.ts >= late.ts && draw.ts + draw.dur <= late.ts + late.dur, 'draw inside its clipped stage' );
+
+			} );
+
+			QUnit.test( 'setGpuDetail() drives the backend level and disable() restores it', async assert => {
+
+				const renderer = createCommonRenderer( { passTimestamps: true } );
+				ProfilerService.setGpuDetail( 'stage' );
+				await ProfilerService.attachGpuRenderer( renderer );
+
+				assert.true( ProfilerService.hasPassTimestamps( renderer ), 'support detected' );
+				assert.strictEqual( renderer.backend.passTimestampLevel, 1, 'stage level applied on attach' );
+
+				ProfilerService.setGpuDetail( 'draw' );
+				assert.strictEqual( ProfilerService.getGpuDetail(), 'draw' );
+				assert.strictEqual( renderer.backend.passTimestampLevel, 2, 'draw level applied to an attached renderer' );
+
+				ProfilerService.disable();
+				assert.strictEqual( renderer.backend.passTimestampLevel, 0, 'previous level restored' );
+
+			} );
+
+			QUnit.test( 'leaves backends without in-pass timestamps at pass detail', async assert => {
+
+				const renderer = createCommonRenderer();
+				ProfilerService.setGpuDetail( 'draw' );
+				const warnings = captureConsole( 'warn' );
+
+				try {
+
+					await ProfilerService.attachGpuRenderer( renderer );
+
+				} finally {
+
+					warnings.restore();
+
+				}
+
+				assert.false( ProfilerService.hasPassTimestamps( renderer ), 'no support' );
+				assert.strictEqual( renderer.backend.passTimestampLevel, 0, 'level untouched' );
+				assert.true( warnings.calls.some( args => String( args[ 0 ] ).includes( 'enable-unsafe-webgpu' ) ), 'warns how to enable it' );
+
+			} );
+
+			QUnit.test( 'setGpuDetail() warns when an attached backend cannot time inside passes', async assert => {
+
+				const renderer = createCommonRenderer();
+				await ProfilerService.attachGpuRenderer( renderer );
+				const warnings = captureConsole( 'warn' );
+
+				try {
+
+					ProfilerService.setGpuDetail( 'stage' );
+
+				} finally {
+
+					warnings.restore();
+
+				}
+
+				assert.strictEqual( renderer.backend.passTimestampLevel, 0, 'level untouched' );
+				assert.true( warnings.calls.some( args => String( args[ 0 ] ).includes( '"stage"' ) ), 'warns for the requested detail' );
+
+			} );
+
+			QUnit.test( 'setGpuDetail() ignores unknown values', assert => {
+
+				const warnings = captureConsole( 'warn' );
+
+				try {
+
+					ProfilerService.setGpuDetail( 'toString' );
+
+				} finally {
+
+					warnings.restore();
+
+				}
+
+				assert.strictEqual( ProfilerService.getGpuDetail(), 'pass' );
 
 			} );
 

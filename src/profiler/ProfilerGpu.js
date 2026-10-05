@@ -4,6 +4,7 @@ import { warnOnce } from '../utils.js';
 
 const FLUSH_MAX_ATTEMPTS = 3;
 const UNLABELED_PASS = 'GPU pass: (unlabeled)';
+const UNLABELED_SPAN = '(unlabeled)';
 const DROPPED_SPANS_WARNING = 'ProfilerService: Dropped GPU spans whose timestamps never resolved; another consumer of resolveTimestampsAsync() (e.g. the Inspector) may be taking them.';
 
 export const DUMMY_GPU_SPAN = Object.freeze( { label: '', renderer: null, t0: 0, _seq: 0, _generation: 0 } );
@@ -123,8 +124,9 @@ class WebGPUTimer extends GpuTimer {
 
 		super( profiler, renderer, available );
 
-		this._listener = ( type, uid, label ) => this._onQuery( type, uid, label );
+		this._listener = ( type, uid, label, parentUid ) => this._onQuery( type, uid, label, parentUid );
 		this._previousTrackTimestamp = renderer.backend.trackTimestamp;
+		this._previousPassTimestampLevel = renderer.backend.passTimestampLevel;
 		/** @type {GpuQuery[]} Queries reported since the last cut. */
 		this._queries = [];
 		/** @type {Map<string, number>} Log index per uid since the last cut. */
@@ -143,6 +145,28 @@ class WebGPUTimer extends GpuTimer {
 			renderer.backend.addTimestampQueryListener( this._listener );
 
 		}
+
+		this.setPassTimestampLevel( profiler._passTimestampLevel );
+
+	}
+
+	/**
+	 * Whether the renderer can time stages and draws inside passes.
+	 *
+	 * @type {boolean}
+	 */
+	get supportsPassTimestamps() {
+
+		return this.available && this.renderer.backend.supportsPassTimestamps === true;
+
+	}
+
+	/**
+	 * @param {number} level A {@link PassTimestampLevel}; ignored without in-pass timestamp support.
+	 */
+	setPassTimestampLevel( level ) {
+
+		if ( this.supportsPassTimestamps ) this.renderer.backend.passTimestampLevel = level;
 
 	}
 
@@ -187,6 +211,7 @@ class WebGPUTimer extends GpuTimer {
 
 		this.renderer.backend.removeTimestampQueryListener( this._listener );
 		this.renderer.backend.trackTimestamp = this._previousTrackTimestamp;
+		if ( this.renderer.backend.supportsPassTimestamps === true ) this.renderer.backend.passTimestampLevel = this._previousPassTimestampLevel;
 
 	}
 
@@ -194,30 +219,63 @@ class WebGPUTimer extends GpuTimer {
 	 * @param {'render'|'compute'} type
 	 * @param {string} uid
 	 * @param {?string} label
+	 * @param {?string} [parentUid=null] Pass or pass timestamp span the query is nested in.
 	 */
-	_onQuery( type, uid, label ) {
+	_onQuery( type, uid, label, parentUid = null ) {
 
 		const hasLabel = label !== null && label !== undefined && label !== '';
-		const depth = this._openSpans.length;
-		if ( depth === 0 && hasLabel === false ) return;
 
 		// The backend notifies once per query allocation, so a restarted pass reports its uid
 		// again; the pool already accumulates that uid's full duration.
 		if ( this._queryIndex.has( uid ) ) return;
 
+		if ( parentUid !== null && parentUid !== undefined ) {
+
+			// A nested span only means something inside its pass, so it goes when the pass does.
+			const parentIndex = this._queryIndex.get( parentUid );
+			if ( parentIndex === undefined ) return;
+
+			const parent = this._queries[ parentIndex ];
+			const name = hasLabel ? label : UNLABELED_SPAN;
+			this._pushQuery( uid, type, name, `${ parent.statsLabel } / ${ name }`, hasLabel, parent.depth + 1, parent );
+			return;
+
+		}
+
+		const depth = this._openSpans.length;
+		if ( depth === 0 && hasLabel === false ) return;
+
+		const name = hasLabel ? `GPU pass: ${label}` : UNLABELED_PASS;
+		this._pushQuery( uid, type, name, name, hasLabel, depth, null );
+
+		if ( depth === 0 ) this.scheduleFlush();
+
+	}
+
+	/**
+	 * @param {string} uid
+	 * @param {'render'|'compute'} type
+	 * @param {string} label
+	 * @param {string} statsLabel
+	 * @param {boolean} labelled
+	 * @param {number} depth
+	 * @param {?GpuQuery} parent
+	 */
+	_pushQuery( uid, type, label, statsLabel, labelled, depth, parent ) {
+
 		this._queryIndex.set( uid, this._queries.length );
 		this._queries.push( {
 			uid,
 			type,
-			label: hasLabel ? `GPU pass: ${label}` : UNLABELED_PASS,
-			labelled: hasLabel,
+			label,
+			statsLabel,
+			labelled,
 			cpuTime: performance.now(),
 			depth,
+			parent,
 			duration: NaN,
 			range: null,
 		} );
-
-		if ( depth === 0 ) this.scheduleFlush();
 
 	}
 
@@ -312,7 +370,7 @@ class WebGPUTimer extends GpuTimer {
 
 		for ( const query of passes ) {
 
-			this.profiler._commitGpuSample( query.label, query.duration, query.traceTs, query.traceDur, query.depth );
+			this.profiler._commitGpuSample( query.statsLabel, query.duration, query.traceTs, query.traceDur, query.depth, query.label );
 
 		}
 
@@ -349,7 +407,8 @@ class WebGPUTimer extends GpuTimer {
 	/**
 	 * Places each pass on the CPU timeline (µs): by its GPU timestamps when the backend has
 	 * them, else at the CPU time it was reported. Unlabeled queries without a range would only
-	 * guess a position, so they are not passes.
+	 * guess a position, so they are not passes. Nested spans without a range keep their stats
+	 * but stay out of the trace.
 	 *
 	 * @param {GpuQuery[]} queries
 	 * @return {GpuQuery[]} Resolved passes.
@@ -365,6 +424,13 @@ class WebGPUTimer extends GpuTimer {
 			if ( Number.isNaN( query.duration ) ) continue;
 
 			const ranged = query.range !== null && this._gpuOrigin !== null;
+			if ( ranged === false && query.parent !== null ) {
+
+				passes.push( query );
+				continue;
+
+			}
+
 			if ( ranged === false && query.labelled === false ) continue;
 
 			const start = ranged ? this._gpuTimeToCpu( query.range.start ) : query.cpuTime;
@@ -381,27 +447,92 @@ class WebGPUTimer extends GpuTimer {
 
 	/**
 	 * Converts traced passes to non-overlapping half-open µs intervals, so they stack on one
-	 * row. Stats keep the measured durations.
+	 * row. Nested spans keep their measured times clipped to their parent's snapped interval;
+	 * one that falls outside it is left out of the trace. Stats keep the measured durations.
 	 *
 	 * @param {GpuQuery[]} passes
 	 */
 	_snapPasses( passes ) {
 
-		// Longer first at the same timestamp so the substantial pass keeps its start.
-		const traced = passes.filter( query => query.traceDur > 0 ).sort( ( a, b ) => a.traceTs - b.traceTs || b.traceDur - a.traceDur );
+		const roots = [];
+		const children = new Map();
 
-		let cursor = Number.NEGATIVE_INFINITY;
-		for ( const query of traced ) {
+		for ( const query of passes ) {
 
-			if ( query.traceTs < cursor ) {
+			if ( query.parent === null ) {
 
-				const end = Math.max( query.traceTs + query.traceDur, cursor + 1 );
-				query.traceTs = cursor;
-				query.traceDur = Math.max( 1, end - cursor );
+				if ( query.traceDur > 0 ) roots.push( query );
+				continue;
 
 			}
 
-			cursor = query.traceTs + query.traceDur;
+			let siblings = children.get( query.parent );
+			if ( siblings === undefined ) children.set( query.parent, siblings = [] );
+			siblings.push( query );
+
+		}
+
+		this._snapSiblings( roots, Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY );
+
+		// Parents are shallower than their children, so they are final before their children snap.
+		const groups = [ ...children ].sort( ( a, b ) => a[ 0 ].depth - b[ 0 ].depth );
+		for ( const [ parent, siblings ] of groups ) {
+
+			if ( parent.traceDur <= 0 ) {
+
+				for ( const query of siblings ) query.traceDur = 0;
+				continue;
+
+			}
+
+			const traced = siblings.filter( query => query.traceDur > 0 );
+			this._snapSiblings( traced, parent.traceTs, parent.traceTs + parent.traceDur );
+
+		}
+
+	}
+
+	/**
+	 * Snaps sibling slices to non-overlapping intervals within `[start, end)`.
+	 *
+	 * @param {GpuQuery[]} siblings Traced queries (`traceDur > 0`).
+	 * @param {number} start
+	 * @param {number} end
+	 */
+	_snapSiblings( siblings, start, end ) {
+
+		// Longer first at the same timestamp so the substantial pass keeps its start.
+		siblings.sort( ( a, b ) => a.traceTs - b.traceTs || b.traceDur - a.traceDur );
+
+		let cursor = start;
+		for ( const query of siblings ) {
+
+			let ts = query.traceTs;
+			let queryEnd = ts + query.traceDur;
+			if ( queryEnd <= start || ts >= end ) {
+
+				query.traceDur = 0;
+				continue;
+
+			}
+
+			if ( ts < cursor ) {
+
+				queryEnd = Math.max( queryEnd, cursor + 1 );
+				ts = cursor;
+
+			}
+
+			if ( ts >= end ) {
+
+				query.traceDur = 0;
+				continue;
+
+			}
+
+			query.traceTs = ts;
+			query.traceDur = Math.max( 1, Math.min( queryEnd, end ) - ts );
+			cursor = ts + query.traceDur;
 
 		}
 
@@ -425,7 +556,8 @@ class WebGPUTimer extends GpuTimer {
 		for ( let i = span._first; i < span._end; i ++ ) {
 
 			const query = queries[ i ];
-			if ( Number.isNaN( query.duration ) ) continue;
+			// Nested spans are already inside their pass's time.
+			if ( query.parent !== null || Number.isNaN( query.duration ) ) continue;
 
 			busy += query.duration;
 			resolved ++;
@@ -673,15 +805,16 @@ class WebGLTimer extends GpuTimer {
  * @typedef {Object} GpuQuery
  * @property {string} uid
  * @property {'render'|'compute'} type
- * @property {string} label Pass label (`GPU pass: …`).
+ * @property {string} label Trace name: `GPU pass: …` for passes, the span label for nested spans.
+ * @property {string} statsLabel Stats key; nested spans are `{parent statsLabel} / {label}`.
  * @property {boolean} labelled Whether the backend reported a label.
  * @property {number} cpuTime When the query was reported (ms).
- * @property {number} depth GPU spans open when it was reported.
+ * @property {number} depth GPU spans open when it was reported, or parent depth + 1 when nested.
+ * @property {?GpuQuery} parent Pass or span this one was timed inside.
  * @property {number} duration Resolved GPU time (ms), or `NaN` until resolved.
  * @property {?{ start: bigint, end: bigint }} range
  * @property {number} [traceTs]
- * @property {number} [traceDur]
- */
+ * @property {number} [traceDur] */
 
 export { WebGPUTimer, WebGLTimer };
 // !WITH_GENESYS

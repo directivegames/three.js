@@ -1,5 +1,6 @@
 // WITH_GENESYS
 import { warnOnce } from '../utils.js';
+import { PassTimestampLevel } from './PassTimestampLevel.js';
 import { DUMMY_GPU_SPAN, WebGLTimer, WebGPUTimer } from './ProfilerGpu.js';
 import { TRACE_TID_ASYNC, TRACE_TID_GPU, TRACE_TID_MAIN, TraceBuffer, buildChromeTrace } from './ProfilerTrace.js';
 
@@ -33,6 +34,12 @@ const MAX_TRACE_EVENTS = 500000;
 const MAX_ORPHANS = 16;
 const NOOP = () => {};
 
+const GPU_DETAIL_LEVELS = Object.freeze( {
+	pass: PassTimestampLevel.OFF,
+	stage: PassTimestampLevel.STAGE,
+	draw: PassTimestampLevel.DRAW
+} );
+
 const DUMMY_SPAN = Object.freeze( { label: '', t0: 0, _seq: 0, _generation: 0 } );
 const NOOP_BEGIN_SPAN = () => DUMMY_SPAN;
 const NOOP_BEGIN_GPU_SPAN = () => DUMMY_GPU_SPAN;
@@ -42,6 +49,7 @@ class ProfilerServiceClass {
 	constructor() {
 
 		this._profile = 'full';
+		this._gpuDetail = 'pass';
 		this._enabled = false;
 		/** Trace events kept per session in the `'full'` profile. */
 		this.maxTraceEvents = MAX_TRACE_EVENTS;
@@ -561,6 +569,75 @@ class ProfilerServiceClass {
 	// GPU
 
 	/**
+	 * Sets how finely GPU work is timed in render passes. `'stage'` adds opaque, transparent
+	 * and bundle spans; `'draw'` adds a span per draw as well. Both need timestamps inside
+	 * passes ({@link ProfilerServiceClass#hasPassTimestamps}); without them only whole passes
+	 * are timed. Per-draw timing adds GPU overhead, so use it to locate cost, not to measure
+	 * frame time.
+	 *
+	 * @param {'pass'|'stage'|'draw'} detail
+	 */
+	setGpuDetail( detail ) {
+
+		if ( typeof GPU_DETAIL_LEVELS[ detail ] !== 'number' ) {
+
+			warnOnce( `ProfilerService: Unknown GPU detail "${detail}"; expected 'pass', 'stage' or 'draw'.` );
+			return;
+
+		}
+
+		this._gpuDetail = detail;
+		for ( const timer of this._gpuTimers.values() ) {
+
+			if ( timer instanceof WebGPUTimer === false ) continue;
+			timer.setPassTimestampLevel( this._passTimestampLevel );
+			this._warnIfPassTimestampsUnsupported( timer );
+
+		}
+
+	}
+
+	/**
+	 * @param {WebGPUTimer} timer
+	 */
+	_warnIfPassTimestampsUnsupported( timer ) {
+
+		if ( this._gpuDetail === 'pass' || timer.available === false || timer.supportsPassTimestamps ) return;
+		warnOnce( `ProfilerService: GPU detail "${this._gpuDetail}" needs timestamps inside passes; only whole passes are timed. In Chrome, enable chrome://flags/#enable-unsafe-webgpu (or --enable-unsafe-webgpu).` );
+
+	}
+
+	/**
+	 * @return {'pass'|'stage'|'draw'}
+	 */
+	getGpuDetail() {
+
+		return this._gpuDetail;
+
+	}
+
+	/** @type {number} {@link PassTimestampLevel} for the current GPU detail. */
+	get _passTimestampLevel() {
+
+		return GPU_DETAIL_LEVELS[ this._gpuDetail ];
+
+	}
+
+	/**
+	 * Whether a renderer can time stages and draws inside passes. In Chrome this needs
+	 * chrome://flags/#enable-unsafe-webgpu (or `--enable-unsafe-webgpu`). False until
+	 * `renderer.init()` resolves.
+	 *
+	 * @param {Object} renderer
+	 * @return {boolean}
+	 */
+	hasPassTimestamps( renderer ) {
+
+		return renderer?.backend?.supportsPassTimestamps === true;
+
+	}
+
+	/**
 	 * Enables GPU timestamp collection for a renderer.
 	 *
 	 * @param {Object} renderer
@@ -622,11 +699,16 @@ class ProfilerServiceClass {
 		if ( this._enabled === false ) return false;
 
 		const available = renderer.backend.hasTimestamp === true && renderer.hasFeature( 'timestamp-query' ) === true;
-		this._gpuTimers.set( renderer, new WebGPUTimer( this, renderer, available ) );
+		const timer = new WebGPUTimer( this, renderer, available );
+		this._gpuTimers.set( renderer, timer );
 
 		if ( available === false ) {
 
 			warnOnce( 'ProfilerService: Timestamp queries are unavailable; GPU profiling is disabled for this renderer.' );
+
+		} else {
+
+			this._warnIfPassTimestampsUnsupported( timer );
 
 		}
 
@@ -678,8 +760,9 @@ class ProfilerServiceClass {
 	 * @param {number} ts Trace start (µs).
 	 * @param {number} dur Trace duration (µs).
 	 * @param {number} depth GPU span nesting depth.
+	 * @param {string} [traceName=label] Trace slice name.
 	 */
-	_commitGpuSample( label, durationMs, ts, dur, depth ) {
+	_commitGpuSample( label, durationMs, ts, dur, depth, traceName = label ) {
 
 		let record = this._gpuRecords.get( label );
 		if ( record === undefined ) {
@@ -690,7 +773,7 @@ class ProfilerServiceClass {
 		}
 
 		pushSample( record, durationMs, NaN );
-		if ( this._profile === 'full' ) this._pushTraceSlice( label, ts, dur, TRACE_TID_GPU, depth );
+		if ( this._profile === 'full' ) this._pushTraceSlice( traceName, ts, dur, TRACE_TID_GPU, depth );
 
 	}
 

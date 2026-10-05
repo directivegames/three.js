@@ -2,13 +2,15 @@
 import Backend from '../../../../src/renderers/common/Backend.js';
 import WebGPUBackend from '../../../../src/renderers/webgpu/WebGPUBackend.js';
 import WebGPUTexturePassUtils from '../../../../src/renderers/webgpu/utils/WebGPUTexturePassUtils.js';
+import { PassTimestampLevel } from '../../../../src/profiler/PassTimestampLevel.js';
+import { CONSOLE_LEVEL } from '../../utils/console-wrapper.js';
 
 /**
  * `this` for `WebGPUBackend.prototype.allocateTimestampQuery` with a fake render pool.
  *
  * @param {Object} [options]
  * @param {boolean} [options.trackTimestamp=true]
- * @param {?number} [options.baseOffset=4] Offset the pool allocates, or `null` when it is full.
+ * @param {?number} [options.baseOffset=4] Offset of the first allocation (later ones follow it), or `null` when the pool is full.
  */
 function createTimestampBackend( { trackTimestamp = true, baseOffset = 4 } = {} ) {
 
@@ -23,17 +25,70 @@ function createTimestampBackend( { trackTimestamp = true, baseOffset = 4 } = {} 
 			render: {
 				querySet,
 				allocated: [],
+				currentQueryIndex: 0,
+				maxQueries: 4096,
 				allocateQueriesForContext( uid ) {
 
 					this.allocated.push( uid );
-					return baseOffset;
+					return baseOffset === null ? null : baseOffset + 2 * ( this.allocated.length - 1 );
 
 				},
 			},
 		},
-		notifyTimestampQuery( type, uid, label ) {
+		notifyTimestampQuery( type, uid, label, parentUid ) {
 
-			notified.push( { type, uid, label } );
+			notified.push( { type, uid, label, parentUid } );
+
+		},
+	};
+
+}
+
+/**
+ * `this` for `WebGPUBackend.prototype.beginPassTimestampSpan` with one render context in its pass.
+ *
+ * @param {Object} [options]
+ * @param {number} [options.level=PassTimestampLevel.DRAW]
+ * @param {boolean} [options.supportsPassTimestamps=true]
+ * @param {?Object} [options.pass] Current pass; defaults to one that records `writeTimestamp()` indices.
+ */
+function createPassSpanBackend( { level = PassTimestampLevel.DRAW, supportsPassTimestamps = true, pass = createTimestampPass() } = {} ) {
+
+	const renderContext = { id: 3 };
+	const renderContextData = { currentPass: pass };
+
+	const backend = Object.assign( createTimestampBackend(), {
+		passTimestampLevel: level,
+		supportsPassTimestamps,
+		_passTimestampSpanCount: 0,
+		renderer: { info: { frame: 7 } },
+		get: () => renderContextData,
+		getTimestampUID: context => `r:0:${ context.id }:f7`,
+		allocateTimestampQuery: WebGPUBackend.prototype.allocateTimestampQuery,
+		_closePassTimestampSpans: WebGPUBackend.prototype._closePassTimestampSpans,
+	} );
+
+	return {
+		backend,
+		renderContext,
+		renderContextData,
+		pass,
+		begin: ( label, spanLevel ) => WebGPUBackend.prototype.beginPassTimestampSpan.call( backend, renderContext, label, spanLevel ),
+		end: span => WebGPUBackend.prototype.endPassTimestampSpan.call( backend, span ),
+	};
+
+}
+
+/**
+ * @return {{ writes: number[], writeTimestamp: function(Object, number): void }}
+ */
+function createTimestampPass() {
+
+	return {
+		writes: [],
+		writeTimestamp( querySet, index ) {
+
+			this.writes.push( index );
 
 		},
 	};
@@ -109,7 +164,7 @@ export default QUnit.module( 'Profiler', () => {
 				const allocation = allocate( backend, 'render', 'm:1:7:f3', 'Mipmaps (output)' );
 
 				assert.deepEqual( allocation, { querySet: backend.querySet, baseOffset: 4 } );
-				assert.deepEqual( backend.notified, [ { type: 'render', uid: 'm:1:7:f3', label: 'Mipmaps (output)' } ] );
+				assert.deepEqual( backend.notified, [ { type: 'render', uid: 'm:1:7:f3', label: 'Mipmaps (output)', parentUid: null } ] );
 
 			} );
 
@@ -185,6 +240,117 @@ export default QUnit.module( 'Profiler', () => {
 				run( encoder, passes, null );
 
 				assert.deepEqual( descriptors.map( descriptor => descriptor.timestampWrites ), [ undefined, undefined ] );
+
+			} );
+
+		} );
+
+		QUnit.module( 'in-pass timestamp spans', () => {
+
+			QUnit.test( 'times nothing above the requested level', assert => {
+
+				const { begin, pass, backend } = createPassSpanBackend( { level: PassTimestampLevel.STAGE } );
+
+				assert.strictEqual( begin( 'Mesh (Basic)', PassTimestampLevel.DRAW ), null );
+				assert.deepEqual( pass.writes, [] );
+				assert.deepEqual( backend.notified, [] );
+
+			} );
+
+			QUnit.test( 'times nothing without in-pass timestamp support', assert => {
+
+				const { begin, pass } = createPassSpanBackend( { supportsPassTimestamps: false } );
+
+				assert.strictEqual( begin( 'Opaque', PassTimestampLevel.STAGE ), null );
+				assert.deepEqual( pass.writes, [] );
+
+			} );
+
+			QUnit.test( 'skips encoders without writeTimestamp (render bundles)', assert => {
+
+				const { begin, backend } = createPassSpanBackend( { pass: {} } );
+
+				assert.strictEqual( begin( 'Opaque', PassTimestampLevel.STAGE ), null );
+				assert.deepEqual( backend.notified, [] );
+
+			} );
+
+			QUnit.test( 'nests spans under the pass and the innermost open span', assert => {
+
+				const { begin, end, pass, backend } = createPassSpanBackend();
+
+				const opaque = begin( 'Opaque', PassTimestampLevel.STAGE );
+				const draw = begin( 'Mesh (Basic)', PassTimestampLevel.DRAW );
+				end( draw );
+				end( opaque );
+
+				assert.deepEqual( backend.notified.map( query => [ query.uid, query.label, query.parentUid ] ), [
+					[ 'p:1:3:f7', 'Opaque', 'r:0:3:f7' ],
+					[ 'p:2:3:f7', 'Mesh (Basic)', 'p:1:3:f7' ],
+				] );
+				assert.deepEqual( pass.writes, [ 4, 6, 7, 5 ], 'begin and end indices of each span, properly nested' );
+
+			} );
+
+			QUnit.test( 'ending a span closes the spans left open inside it', assert => {
+
+				const { begin, end, pass, renderContextData } = createPassSpanBackend();
+
+				const opaque = begin( 'Opaque', PassTimestampLevel.STAGE );
+				const draw = begin( 'Mesh (Basic)', PassTimestampLevel.DRAW );
+				end( opaque );
+				end( draw );
+
+				assert.deepEqual( pass.writes, [ 4, 6, 7, 5 ], 'inner end written first, late end ignored' );
+				assert.deepEqual( renderContextData.passTimestampSpans, [] );
+
+			} );
+
+			QUnit.test( 'closing the pass ends every open span', assert => {
+
+				const { begin, backend, pass, renderContextData } = createPassSpanBackend();
+
+				begin( 'Opaque', PassTimestampLevel.STAGE );
+				begin( 'Mesh (Basic)', PassTimestampLevel.DRAW );
+				backend._closePassTimestampSpans( renderContextData );
+
+				assert.deepEqual( pass.writes, [ 4, 6, 7, 5 ] );
+				assert.deepEqual( renderContextData.passTimestampSpans, [] );
+
+			} );
+
+			QUnit.test( 'ends a span on the pass that replaced its own', assert => {
+
+				const { begin, end, pass, renderContextData } = createPassSpanBackend();
+
+				const opaque = begin( 'Opaque', PassTimestampLevel.STAGE );
+				// A framebuffer copy ends the pass and begins a new one mid-stage.
+				renderContextData.currentPass = createTimestampPass();
+				end( opaque );
+
+				assert.deepEqual( pass.writes, [ 4 ], 'begin on the first pass' );
+				assert.deepEqual( renderContextData.currentPass.writes, [ 5 ], 'end on the restarted pass' );
+
+			} );
+
+			QUnit.test( 'stops timing draws before they fill the pool', assert => {
+
+				const { begin, backend } = createPassSpanBackend();
+				const pool = backend.timestampQueryPool.render;
+				pool.currentQueryIndex = pool.maxQueries * 0.75 - 1;
+
+				console.level = CONSOLE_LEVEL.ERROR;
+				try {
+
+					assert.strictEqual( begin( 'Mesh (Basic)', PassTimestampLevel.DRAW ), null, 'draw skipped' );
+
+				} finally {
+
+					console.level = CONSOLE_LEVEL.DEFAULT;
+
+				}
+
+				assert.notStrictEqual( begin( 'Opaque', PassTimestampLevel.STAGE ), null, 'stages still timed' );
 
 			} );
 

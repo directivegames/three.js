@@ -42,6 +42,7 @@ import { DEFAULT_LOD_COLORATION_COLORS } from '../../nodes/display/LODColoration
 import { DEBUG_VIEW_DOUBLE_SIDE, meshCanHideOwnBack } from '../../nodes/display/DoubleSideDebug.js';
 import { DEFAULT_BUFFER } from '../../nodes/display/BufferDebug.js';
 import { DebugViewLegend, wrapDebugConfigForLegend } from './DebugViewLegend.js';
+import { PassTimestampLevel } from '../../profiler/PassTimestampLevel.js';
 // !WITH_GENESYS
 import { reference } from '../../nodes/accessors/ReferenceNode.js';
 import { highpModelNormalViewMatrix, highpModelViewMatrix } from '../../nodes/accessors/ModelNode.js';
@@ -2039,8 +2040,25 @@ class Renderer {
 		} = renderList;
 
 		if ( bundles.length > 0 ) this._renderBundles( bundles, sceneRef, lightsNode );
-		if ( this.opaque === true && opaqueObjects.length > 0 ) this._renderObjects( opaqueObjects, camera, sceneRef, lightsNode );
-		if ( this.transparent === true && transparentObjects.length > 0 ) this._renderTransparents( transparentObjects, transparentDoublePassObjects, camera, sceneRef, lightsNode );
+		// WITH_GENESYS
+		if ( this.opaque === true && opaqueObjects.length > 0 ) {
+
+			const opaqueSpan = this.backend.beginPassTimestampSpan( renderContext, 'Opaque', PassTimestampLevel.STAGE );
+			this._renderObjects( opaqueObjects, camera, sceneRef, lightsNode );
+			this.backend.endPassTimestampSpan( opaqueSpan );
+
+		}
+
+		if ( this.transparent === true && transparentObjects.length > 0 ) {
+
+			const transparentSpan = this.backend.beginPassTimestampSpan( renderContext, 'Transparent', PassTimestampLevel.STAGE );
+			this._renderTransparents( transparentObjects, transparentDoublePassObjects, camera, sceneRef, lightsNode );
+			this.backend.endPassTimestampSpan( transparentSpan );
+
+		}
+		// !WITH_GENESYS
+		// if ( this.opaque === true && opaqueObjects.length > 0 ) this._renderObjects( opaqueObjects, camera, sceneRef, lightsNode );
+		// if ( this.transparent === true && transparentObjects.length > 0 ) this._renderTransparents( transparentObjects, transparentDoublePassObjects, camera, sceneRef, lightsNode );
 
 		// WITH_GENESYS
 		this._renderDoubleSideHidden( opaqueObjects, transparentObjects, camera, sceneRef, lightsNode );
@@ -4207,7 +4225,14 @@ class Renderer {
 
 		if ( this._pipelines.isReady( renderObject ) ) {
 
+			// WITH_GENESYS
+			const drawSpan = this.backend.passTimestampLevel >= PassTimestampLevel.DRAW
+				? this.backend.beginPassTimestampSpan( renderObject.context, `${ object.name || object.type } (${ material.name || material.type })`, PassTimestampLevel.DRAW )
+				: null;
 			this.backend.draw( renderObject, this.info );
+			this.backend.endPassTimestampSpan( drawSpan );
+			// !WITH_GENESYS
+			// this.backend.draw( renderObject, this.info );
 
 			if ( refreshType !== RenderObjectRefreshType.NONE ) this._nodes.updateAfter( renderObject );
 
