@@ -1564,7 +1564,7 @@ class Renderer {
 		}
 
 		// WITH_GENESYS
-		const label = `Renderer.render (${scene.name || scene.type})`;
+		const label = ProfilerService.isEnabled() ? `Renderer.render (${scene.name || scene.type})` : '';
 		const handle = ProfilerService.beginGpu( label, this );
 		try {
 
@@ -1978,8 +1978,10 @@ class Renderer {
 
 		// WITH_GENESYS
 		// Size is finalized above from the active RT or drawing buffer.
-		const profilerLabel = `Renderer._renderScene (${renderContext.width}x${renderContext.height})`;
-		ProfilerService.begin( profilerLabel );
+		ProfilerService.begin(
+			'Renderer._renderScene',
+			ProfilerService.isTracing() ? `Renderer._renderScene (${renderContext.width}x${renderContext.height})` : undefined
+		);
 		// !WITH_GENESYS
 
 		//
@@ -2061,7 +2063,7 @@ class Renderer {
 		//
 
 		// WITH_GENESYS
-		ProfilerService.end( profilerLabel );
+		ProfilerService.end( 'Renderer._renderScene' );
 		// !WITH_GENESYS
 
 		return renderContext;
@@ -3751,8 +3753,7 @@ class Renderer {
 	_renderObjects( renderList, camera, scene, lightsNode, passId = null ) {
 
 		// WITH_GENESYS
-		const label = `_renderObjects (${renderList.length})`;
-		ProfilerService.begin( label );
+		ProfilerService.begin( '_renderObjects', ProfilerService.isTracing() ? `_renderObjects (${renderList.length})` : undefined );
 		// !WITH_GENESYS
 
 		for ( let i = 0, il = renderList.length; i < il; i ++ ) {
@@ -3764,7 +3765,7 @@ class Renderer {
 		}
 
 		// WITH_GENESYS
-		ProfilerService.end( label );
+		ProfilerService.end( '_renderObjects' );
 		// !WITH_GENESYS
 
 	}
@@ -3988,8 +3989,10 @@ class Renderer {
 	renderObject( object, scene, camera, geometry, material, group, lightsNode, clippingContext = null, passId = null ) {
 
 		// WITH_GENESYS
-		const label = `renderObject (${object.name || object.type} - ${material.name || material.type})`;
-		ProfilerService.begin( label );
+		ProfilerService.begin(
+			'renderObject',
+			ProfilerService.isTracing() ? `renderObject (${object.name || object.type} - ${material.name || material.type})` : undefined
+		);
 		// !WITH_GENESYS
 
 		let materialOverride = false;
@@ -4104,7 +4107,7 @@ class Renderer {
 		object.onAfterRender( this, scene, camera, geometry, material, group );
 
 		// WITH_GENESYS
-		ProfilerService.end( label );
+		ProfilerService.end( 'renderObject' );
 		// !WITH_GENESYS
 
 	}
