@@ -64894,6 +64894,24 @@ const _vector4 = /*@__PURE__*/ new Vector4();
 
 const _shadowSide = { [ FrontSide ]: BackSide, [ BackSide ]: FrontSide, [ DoubleSide ]: DoubleSide };
 
+// WITH_GENESYS
+/**
+ * Profiler name for a render call: the scene name, else the material name of a full-screen
+ * quad (post-processing quads are unnamed, but their materials are named after the effect).
+ *
+ * @param {Object3D} scene - The scene or 3D object to render.
+ * @return {string} The name, or an empty string.
+ */
+function getProfilerSceneName( scene ) {
+
+	if ( scene.name !== '' ) return scene.name;
+	if ( scene.isQuadMesh === true && typeof scene.material?.name === 'string' ) return scene.material.name;
+
+	return '';
+
+}
+// !WITH_GENESYS
+
 /**
  * Base class for renderers.
  */
@@ -66399,7 +66417,7 @@ class Renderer {
 		}
 
 		// WITH_GENESYS
-		const label = ProfilerService.isEnabled() ? `Renderer.render (${scene.name || scene.type})` : '';
+		const label = ProfilerService.isEnabled() ? `Renderer.render (${getProfilerSceneName( scene ) || scene.type})` : '';
 		const handle = ProfilerService.beginGpu( label, this );
 		try {
 
@@ -66644,7 +66662,8 @@ class Renderer {
 		// WITH_GENESYS
 		// Prefer an explicit scene/pass name; otherwise fall back to the render
 		// target texture name so depth/shadow/RTT work is not an invisible hole.
-		let gpuProfilerLabel = scene.name !== '' ? scene.name : null;
+		const sceneName = getProfilerSceneName( scene );
+		let gpuProfilerLabel = sceneName !== '' ? sceneName : null;
 		if ( gpuProfilerLabel === null && renderTarget !== null ) {
 
 			const textureName = renderTarget.texture?.name;
@@ -72826,6 +72845,22 @@ class Backend {
 		}
 
 	}
+
+	/**
+	 * Profiler label for a compute pass. Unnamed groups still get a label: the profiler
+	 * drops unlabeled queries reported outside its GPU spans.
+	 *
+	 * @param {ComputeNode|Array<ComputeNode>} computeGroup - The compute node(s).
+	 * @return {string} The label.
+	 */
+	getComputeProfilerLabel( computeGroup ) {
+
+		const nodes = Array.isArray( computeGroup ) ? computeGroup : [ computeGroup ];
+		const names = nodes.map( node => node.name ).filter( name => typeof name === 'string' && name !== '' );
+
+		return names.length > 0 ? `Compute (${names.join( ', ' )})` : 'Compute';
+
+	}
 	// !WITH_GENESYS
 
 	/**
@@ -78518,7 +78553,10 @@ class WebGLBackend extends Backend {
 		//
 
 		state.bindFramebuffer( gl.FRAMEBUFFER, null );
-		this.initTimestampQuery( TimestampQuery.COMPUTE, this.getTimestampUID( computeGroup ) );
+		// WITH_GENESYS
+		this.initTimestampQuery( TimestampQuery.COMPUTE, this.getTimestampUID( computeGroup ), this.getComputeProfilerLabel( computeGroup ) );
+		// !WITH_GENESYS
+		// this.initTimestampQuery( TimestampQuery.COMPUTE, this.getTimestampUID( computeGroup ) );
 
 	}
 
@@ -82113,6 +82151,29 @@ const _shaderModuleDescriptor$1 = new GPUShaderModuleDescriptor();
 const _textureDescriptor$2 = new GPUTextureDescriptor();
 const _viewDescriptor$2 = new GPUTextureViewDescriptor();
 
+// WITH_GENESYS
+/**
+ * Timestamp writes for one pass of a sequence timed by a single begin/end pair: the
+ * first pass writes the begin index and the last pass writes the end index.
+ *
+ * @param {{querySet: GPUQuerySet, baseOffset: number}} timestampQuery
+ * @param {boolean} first
+ * @param {boolean} last
+ * @return {Object|undefined}
+ */
+function getSpanTimestampWrites( timestampQuery, first, last ) {
+
+	if ( first === false && last === false ) return undefined;
+
+	const timestampWrites = { querySet: timestampQuery.querySet };
+	if ( first ) timestampWrites.beginningOfPassWriteIndex = timestampQuery.baseOffset;
+	if ( last ) timestampWrites.endOfPassWriteIndex = timestampQuery.baseOffset + 1;
+
+	return timestampWrites;
+
+}
+// !WITH_GENESYS
+
 /**
  * A WebGPU backend utility module used by {@link WebGPUTextureUtils}.
  *
@@ -82403,8 +82464,13 @@ fn main_cube( Varys: VarysStruct ) -> @location( 0 ) vec4<f32> {
 	 *
 	 * @param {GPUTexture} textureGPU - The GPU texture object.
 	 * @param {?GPUCommandEncoder} [encoder=null] - An optional command encoder used to generate mipmaps.
+	 * @param {?{querySet: GPUQuerySet, baseOffset: number}} [timestampQuery=null] - Timestamp pair covering every mipmap pass.
 	 */
-	generateMipmaps( textureGPU, encoder = null ) {
+	// WITH_GENESYS
+	generateMipmaps( textureGPU, encoder = null, timestampQuery = null ) {
+
+		// !WITH_GENESYS
+		// generateMipmaps( textureGPU, encoder = null ) {
 
 		const textureData = this.get( textureGPU );
 
@@ -82420,7 +82486,10 @@ fn main_cube( Varys: VarysStruct ) -> @location( 0 ) vec4<f32> {
 
 		}
 
-		this._mipmapRunBundles( commandEncoder, passes );
+		// WITH_GENESYS
+		this._mipmapRunBundles( commandEncoder, passes, timestampQuery );
+		// !WITH_GENESYS
+		// this._mipmapRunBundles( commandEncoder, passes );
 
 		if ( encoder === null ) submit( this.device, commandEncoder.finish() );
 
@@ -82518,14 +82587,24 @@ fn main_cube( Varys: VarysStruct ) -> @location( 0 ) vec4<f32> {
 	 *
 	 * @param {GPUCommandEncoder} commandEncoder - The GPU command encoder.
 	 * @param {Array<Object>} passes - An array of render bundles.
+	 * @param {?{querySet: GPUQuerySet, baseOffset: number}} [timestampQuery=null] - Timestamp pair covering every pass.
 	 */
-	_mipmapRunBundles( commandEncoder, passes ) {
+	// WITH_GENESYS
+	_mipmapRunBundles( commandEncoder, passes, timestampQuery = null ) {
+
+		// !WITH_GENESYS
+		// _mipmapRunBundles( commandEncoder, passes ) {
 
 		const levels = passes.length;
 
 		for ( let i = 0; i < levels; i ++ ) {
 
 			const pass = passes[ i ];
+
+			// WITH_GENESYS
+			// Pass descriptors are cached per texture, so writes from an earlier call must be cleared.
+			pass.passDescriptor.timestampWrites = timestampQuery === null ? undefined : getSpanTimestampWrites( timestampQuery, i === 0, i === levels - 1 );
+			// !WITH_GENESYS
 
 			const passEncoder = commandEncoder.beginRenderPass( pass.passDescriptor );
 
@@ -83042,6 +83121,16 @@ class WebGPUTextureUtils {
 		 */
 		this._passUtils = null;
 
+		// WITH_GENESYS
+		/**
+		 * Number of `generateMipmaps()` calls timed so far; keeps their timestamp uids unique.
+		 *
+		 * @private
+		 * @type {number}
+		 */
+		this._mipmapTimestampCount = 0;
+		// !WITH_GENESYS
+
 		/**
 		 * A dictionary for managing default textures. The key
 		 * is the texture format, the value the texture object.
@@ -83448,9 +83537,35 @@ class WebGPUTextureUtils {
 
 		const textureData = this.backend.get( texture );
 
-		this._generateMipmaps( textureData.texture, encoder );
+		// WITH_GENESYS
+		this._generateMipmaps( textureData.texture, encoder, this._allocateMipmapTimestampQuery( texture, textureData.texture ) );
+		// !WITH_GENESYS
+		// this._generateMipmaps( textureData.texture, encoder );
 
 	}
+
+	// WITH_GENESYS
+	/**
+	 * Allocates one timestamp pair covering every mipmap pass of a `generateMipmaps()` call.
+	 *
+	 * @private
+	 * @param {Texture} texture - The texture.
+	 * @param {GPUTexture} textureGPU - The GPU texture object.
+	 * @return {?{querySet: GPUQuerySet, baseOffset: number}} The allocation, or `null` when nothing is timed.
+	 */
+	_allocateMipmapTimestampQuery( texture, textureGPU ) {
+
+		// Without mip passes the pair would never be written and would resolve stale values.
+		if ( textureGPU.mipLevelCount < 2 ) return null;
+
+		const backend = this.backend;
+		const uid = `m:${ ++ this._mipmapTimestampCount }:${ texture.id }:f${ backend.renderer.info.frame }`;
+		const label = texture.name !== '' ? `Mipmaps (${ texture.name })` : 'Mipmaps';
+
+		return backend.allocateTimestampQuery( TimestampQuery.RENDER, uid, label );
+
+	}
+	// !WITH_GENESYS
 
 	/**
 	 * Returns the color buffer representing the color
@@ -83989,12 +84104,20 @@ class WebGPUTextureUtils {
 	 * @private
 	 * @param {GPUTexture} textureGPU - The GPU texture object.
 	 * @param {?GPUCommandEncoder} [encoder=null] - An optional command encoder used to generate mipmaps.
+	 * @param {?{querySet: GPUQuerySet, baseOffset: number}} [timestampQuery=null] - Timestamp pair covering every mipmap pass.
 	 */
-	_generateMipmaps( textureGPU, encoder = null ) {
+	// WITH_GENESYS
+	_generateMipmaps( textureGPU, encoder = null, timestampQuery = null ) {
 
-		this._getPassUtils().generateMipmaps( textureGPU, encoder );
+		this._getPassUtils().generateMipmaps( textureGPU, encoder, timestampQuery );
 
 	}
+	// !WITH_GENESYS
+	// _generateMipmaps( textureGPU, encoder = null ) {
+	//
+	// 	this._getPassUtils().generateMipmaps( textureGPU, encoder );
+	//
+	// }
 
 	/**
 	 * Flip the contents of the given GPU texture along its vertical axis.
@@ -92508,7 +92631,10 @@ class WebGPUBackend extends Backend {
 		_computePassDescriptor.label = label;
 		_commandEncoderDescriptor.label = label;
 
-		this.initTimestampQuery( TimestampQuery.COMPUTE, this.getTimestampUID( computeGroup ), _computePassDescriptor );
+		// WITH_GENESYS
+		this.initTimestampQuery( TimestampQuery.COMPUTE, this.getTimestampUID( computeGroup ), _computePassDescriptor, this.getComputeProfilerLabel( computeGroup ) );
+		// !WITH_GENESYS
+		// this.initTimestampQuery( TimestampQuery.COMPUTE, this.getTimestampUID( computeGroup ), _computePassDescriptor );
 
 		groupGPU.cmdEncoderGPU = this.device.createCommandEncoder( _commandEncoderDescriptor );
 		groupGPU.passEncoderGPU = groupGPU.cmdEncoderGPU.beginComputePass( _computePassDescriptor );
@@ -93242,10 +93368,35 @@ class WebGPUBackend extends Backend {
 	// WITH_GENESYS
 	initTimestampQuery( type, uid, descriptor, label = null ) {
 
-		// !WITH_GENESYS
-		// initTimestampQuery( type, uid, descriptor ) {
+		const allocation = this.allocateTimestampQuery( type, uid, label );
 
-		if ( ! this.trackTimestamp ) return;
+		// If query allocation fails, leave timestampWrites unset so WebGPU doesn't receive a null querySet.
+		if ( allocation === null ) return;
+
+		// Per-pass object: a shared descriptor is mutated by nested beginRender /
+		// copyFramebuffer restarts and can make unrelated passes write the same
+		// query indices (shadow maps collapsing to ~1µs is the common symptom).
+		descriptor.timestampWrites = {
+			querySet: allocation.querySet,
+			beginningOfPassWriteIndex: allocation.baseOffset,
+			endOfPassWriteIndex: allocation.baseOffset + 1,
+		};
+
+	}
+
+	/**
+	 * Allocates a begin/end timestamp pair for `uid` and reports it to the timestamp query
+	 * listeners. The caller writes `baseOffset` at the start of its GPU work and
+	 * `baseOffset + 1` at the end, which may be on different passes.
+	 *
+	 * @param {string} type - The type of the timestamp query (e.g. 'render', 'compute').
+	 * @param {string} uid - Unique id for the timed work.
+	 * @param {?string} [label=null] - Profiler label for the timed work.
+	 * @return {?{querySet: GPUQuerySet, baseOffset: number}} The allocation, or `null` when timestamps are not tracked or the pool has no query set.
+	 */
+	allocateTimestampQuery( type, uid, label = null ) {
+
+		if ( ! this.trackTimestamp ) return null;
 
 		if ( ! this.timestampQueryPool[ type ] ) {
 
@@ -93258,29 +93409,35 @@ class WebGPUBackend extends Backend {
 
 		const baseOffset = timestampQueryPool.allocateQueriesForContext( uid );
 
-		// WITH_GENESYS
-		// If query allocation fails, leave timestampWrites unset so WebGPU doesn't receive a null querySet.
-		if ( baseOffset === null || timestampQueryPool.querySet === null ) return;
-		// !WITH_GENESYS
-
-		// WITH_GENESYS
-		// Per-pass object: a shared descriptor is mutated by nested beginRender /
-		// copyFramebuffer restarts and can make unrelated passes write the same
-		// query indices (shadow maps collapsing to ~1µs is the common symptom).
-		descriptor.timestampWrites = {
-			querySet: timestampQueryPool.querySet,
-			beginningOfPassWriteIndex: baseOffset,
-			endOfPassWriteIndex: baseOffset + 1,
-		};
+		if ( baseOffset === null || timestampQueryPool.querySet === null ) return null;
 
 		this.notifyTimestampQuery( type, uid, label );
-		// !WITH_GENESYS
-		// _renderPassTimestampWrites.querySet = timestampQueryPool.querySet;
-		// _renderPassTimestampWrites.beginningOfPassWriteIndex = baseOffset;
-		// _renderPassTimestampWrites.endOfPassWriteIndex = baseOffset + 1;
-		// descriptor.timestampWrites = _renderPassTimestampWrites;
+
+		return { querySet: timestampQueryPool.querySet, baseOffset };
 
 	}
+	// !WITH_GENESYS
+	// initTimestampQuery( type, uid, descriptor ) {
+	//
+	// 	if ( ! this.trackTimestamp ) return;
+	//
+	// 	if ( ! this.timestampQueryPool[ type ] ) {
+	//
+	// 		// TODO: Variable maxQueries?
+	// 		this.timestampQueryPool[ type ] = new WebGPUTimestampQueryPool( this.device, type, 2048 );
+	//
+	// 	}
+	//
+	// 	const timestampQueryPool = this.timestampQueryPool[ type ];
+	//
+	// 	const baseOffset = timestampQueryPool.allocateQueriesForContext( uid );
+	//
+	// 	_renderPassTimestampWrites.querySet = timestampQueryPool.querySet;
+	// 	_renderPassTimestampWrites.beginningOfPassWriteIndex = baseOffset;
+	// 	_renderPassTimestampWrites.endOfPassWriteIndex = baseOffset + 1;
+	// 	descriptor.timestampWrites = _renderPassTimestampWrites;
+	//
+	// }
 
 
 	// node builder

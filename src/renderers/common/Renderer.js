@@ -59,6 +59,24 @@ const _vector4 = /*@__PURE__*/ new Vector4();
 
 const _shadowSide = { [ FrontSide ]: BackSide, [ BackSide ]: FrontSide, [ DoubleSide ]: DoubleSide };
 
+// WITH_GENESYS
+/**
+ * Profiler name for a render call: the scene name, else the material name of a full-screen
+ * quad (post-processing quads are unnamed, but their materials are named after the effect).
+ *
+ * @param {Object3D} scene - The scene or 3D object to render.
+ * @return {string} The name, or an empty string.
+ */
+function getProfilerSceneName( scene ) {
+
+	if ( scene.name !== '' ) return scene.name;
+	if ( scene.isQuadMesh === true && typeof scene.material?.name === 'string' ) return scene.material.name;
+
+	return '';
+
+}
+// !WITH_GENESYS
+
 /**
  * Base class for renderers.
  */
@@ -1564,7 +1582,7 @@ class Renderer {
 		}
 
 		// WITH_GENESYS
-		const label = ProfilerService.isEnabled() ? `Renderer.render (${scene.name || scene.type})` : '';
+		const label = ProfilerService.isEnabled() ? `Renderer.render (${getProfilerSceneName( scene ) || scene.type})` : '';
 		const handle = ProfilerService.beginGpu( label, this );
 		try {
 
@@ -1809,7 +1827,8 @@ class Renderer {
 		// WITH_GENESYS
 		// Prefer an explicit scene/pass name; otherwise fall back to the render
 		// target texture name so depth/shadow/RTT work is not an invisible hole.
-		let gpuProfilerLabel = scene.name !== '' ? scene.name : null;
+		const sceneName = getProfilerSceneName( scene );
+		let gpuProfilerLabel = sceneName !== '' ? sceneName : null;
 		if ( gpuProfilerLabel === null && renderTarget !== null ) {
 
 			const textureName = renderTarget.texture?.name;

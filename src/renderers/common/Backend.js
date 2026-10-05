@@ -556,6 +556,22 @@ class Backend {
 		}
 
 	}
+
+	/**
+	 * Profiler label for a compute pass. Unnamed groups still get a label: the profiler
+	 * drops unlabeled queries reported outside its GPU spans.
+	 *
+	 * @param {ComputeNode|Array<ComputeNode>} computeGroup - The compute node(s).
+	 * @return {string} The label.
+	 */
+	getComputeProfilerLabel( computeGroup ) {
+
+		const nodes = Array.isArray( computeGroup ) ? computeGroup : [ computeGroup ];
+		const names = nodes.map( node => node.name ).filter( name => typeof name === 'string' && name !== '' );
+
+		return names.length > 0 ? `Compute (${names.join( ', ' )})` : 'Compute';
+
+	}
 	// !WITH_GENESYS
 
 	/**

@@ -1866,7 +1866,10 @@ class WebGPUBackend extends Backend {
 		_computePassDescriptor.label = label;
 		_commandEncoderDescriptor.label = label;
 
-		this.initTimestampQuery( TimestampQuery.COMPUTE, this.getTimestampUID( computeGroup ), _computePassDescriptor );
+		// WITH_GENESYS
+		this.initTimestampQuery( TimestampQuery.COMPUTE, this.getTimestampUID( computeGroup ), _computePassDescriptor, this.getComputeProfilerLabel( computeGroup ) );
+		// !WITH_GENESYS
+		// this.initTimestampQuery( TimestampQuery.COMPUTE, this.getTimestampUID( computeGroup ), _computePassDescriptor );
 
 		groupGPU.cmdEncoderGPU = this.device.createCommandEncoder( _commandEncoderDescriptor );
 		groupGPU.passEncoderGPU = groupGPU.cmdEncoderGPU.beginComputePass( _computePassDescriptor );
@@ -2600,10 +2603,35 @@ class WebGPUBackend extends Backend {
 	// WITH_GENESYS
 	initTimestampQuery( type, uid, descriptor, label = null ) {
 
-		// !WITH_GENESYS
-		// initTimestampQuery( type, uid, descriptor ) {
+		const allocation = this.allocateTimestampQuery( type, uid, label );
 
-		if ( ! this.trackTimestamp ) return;
+		// If query allocation fails, leave timestampWrites unset so WebGPU doesn't receive a null querySet.
+		if ( allocation === null ) return;
+
+		// Per-pass object: a shared descriptor is mutated by nested beginRender /
+		// copyFramebuffer restarts and can make unrelated passes write the same
+		// query indices (shadow maps collapsing to ~1µs is the common symptom).
+		descriptor.timestampWrites = {
+			querySet: allocation.querySet,
+			beginningOfPassWriteIndex: allocation.baseOffset,
+			endOfPassWriteIndex: allocation.baseOffset + 1,
+		};
+
+	}
+
+	/**
+	 * Allocates a begin/end timestamp pair for `uid` and reports it to the timestamp query
+	 * listeners. The caller writes `baseOffset` at the start of its GPU work and
+	 * `baseOffset + 1` at the end, which may be on different passes.
+	 *
+	 * @param {string} type - The type of the timestamp query (e.g. 'render', 'compute').
+	 * @param {string} uid - Unique id for the timed work.
+	 * @param {?string} [label=null] - Profiler label for the timed work.
+	 * @return {?{querySet: GPUQuerySet, baseOffset: number}} The allocation, or `null` when timestamps are not tracked or the pool has no query set.
+	 */
+	allocateTimestampQuery( type, uid, label = null ) {
+
+		if ( ! this.trackTimestamp ) return null;
 
 		if ( ! this.timestampQueryPool[ type ] ) {
 
@@ -2616,29 +2644,35 @@ class WebGPUBackend extends Backend {
 
 		const baseOffset = timestampQueryPool.allocateQueriesForContext( uid );
 
-		// WITH_GENESYS
-		// If query allocation fails, leave timestampWrites unset so WebGPU doesn't receive a null querySet.
-		if ( baseOffset === null || timestampQueryPool.querySet === null ) return;
-		// !WITH_GENESYS
-
-		// WITH_GENESYS
-		// Per-pass object: a shared descriptor is mutated by nested beginRender /
-		// copyFramebuffer restarts and can make unrelated passes write the same
-		// query indices (shadow maps collapsing to ~1µs is the common symptom).
-		descriptor.timestampWrites = {
-			querySet: timestampQueryPool.querySet,
-			beginningOfPassWriteIndex: baseOffset,
-			endOfPassWriteIndex: baseOffset + 1,
-		};
+		if ( baseOffset === null || timestampQueryPool.querySet === null ) return null;
 
 		this.notifyTimestampQuery( type, uid, label );
-		// !WITH_GENESYS
-		// _renderPassTimestampWrites.querySet = timestampQueryPool.querySet;
-		// _renderPassTimestampWrites.beginningOfPassWriteIndex = baseOffset;
-		// _renderPassTimestampWrites.endOfPassWriteIndex = baseOffset + 1;
-		// descriptor.timestampWrites = _renderPassTimestampWrites;
+
+		return { querySet: timestampQueryPool.querySet, baseOffset };
 
 	}
+	// !WITH_GENESYS
+	// initTimestampQuery( type, uid, descriptor ) {
+	//
+	// 	if ( ! this.trackTimestamp ) return;
+	//
+	// 	if ( ! this.timestampQueryPool[ type ] ) {
+	//
+	// 		// TODO: Variable maxQueries?
+	// 		this.timestampQueryPool[ type ] = new WebGPUTimestampQueryPool( this.device, type, 2048 );
+	//
+	// 	}
+	//
+	// 	const timestampQueryPool = this.timestampQueryPool[ type ];
+	//
+	// 	const baseOffset = timestampQueryPool.allocateQueriesForContext( uid );
+	//
+	// 	_renderPassTimestampWrites.querySet = timestampQueryPool.querySet;
+	// 	_renderPassTimestampWrites.beginningOfPassWriteIndex = baseOffset;
+	// 	_renderPassTimestampWrites.endOfPassWriteIndex = baseOffset + 1;
+	// 	descriptor.timestampWrites = _renderPassTimestampWrites;
+	//
+	// }
 
 
 	// node builder

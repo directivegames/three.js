@@ -23,6 +23,29 @@ const _shaderModuleDescriptor = new GPUShaderModuleDescriptor();
 const _textureDescriptor = new GPUTextureDescriptor();
 const _viewDescriptor = new GPUTextureViewDescriptor();
 
+// WITH_GENESYS
+/**
+ * Timestamp writes for one pass of a sequence timed by a single begin/end pair: the
+ * first pass writes the begin index and the last pass writes the end index.
+ *
+ * @param {{querySet: GPUQuerySet, baseOffset: number}} timestampQuery
+ * @param {boolean} first
+ * @param {boolean} last
+ * @return {Object|undefined}
+ */
+function getSpanTimestampWrites( timestampQuery, first, last ) {
+
+	if ( first === false && last === false ) return undefined;
+
+	const timestampWrites = { querySet: timestampQuery.querySet };
+	if ( first ) timestampWrites.beginningOfPassWriteIndex = timestampQuery.baseOffset;
+	if ( last ) timestampWrites.endOfPassWriteIndex = timestampQuery.baseOffset + 1;
+
+	return timestampWrites;
+
+}
+// !WITH_GENESYS
+
 /**
  * A WebGPU backend utility module used by {@link WebGPUTextureUtils}.
  *
@@ -313,8 +336,13 @@ fn main_cube( Varys: VarysStruct ) -> @location( 0 ) vec4<f32> {
 	 *
 	 * @param {GPUTexture} textureGPU - The GPU texture object.
 	 * @param {?GPUCommandEncoder} [encoder=null] - An optional command encoder used to generate mipmaps.
+	 * @param {?{querySet: GPUQuerySet, baseOffset: number}} [timestampQuery=null] - Timestamp pair covering every mipmap pass.
 	 */
-	generateMipmaps( textureGPU, encoder = null ) {
+	// WITH_GENESYS
+	generateMipmaps( textureGPU, encoder = null, timestampQuery = null ) {
+
+		// !WITH_GENESYS
+		// generateMipmaps( textureGPU, encoder = null ) {
 
 		const textureData = this.get( textureGPU );
 
@@ -330,7 +358,10 @@ fn main_cube( Varys: VarysStruct ) -> @location( 0 ) vec4<f32> {
 
 		}
 
-		this._mipmapRunBundles( commandEncoder, passes );
+		// WITH_GENESYS
+		this._mipmapRunBundles( commandEncoder, passes, timestampQuery );
+		// !WITH_GENESYS
+		// this._mipmapRunBundles( commandEncoder, passes );
 
 		if ( encoder === null ) submit( this.device, commandEncoder.finish() );
 
@@ -428,14 +459,24 @@ fn main_cube( Varys: VarysStruct ) -> @location( 0 ) vec4<f32> {
 	 *
 	 * @param {GPUCommandEncoder} commandEncoder - The GPU command encoder.
 	 * @param {Array<Object>} passes - An array of render bundles.
+	 * @param {?{querySet: GPUQuerySet, baseOffset: number}} [timestampQuery=null] - Timestamp pair covering every pass.
 	 */
-	_mipmapRunBundles( commandEncoder, passes ) {
+	// WITH_GENESYS
+	_mipmapRunBundles( commandEncoder, passes, timestampQuery = null ) {
+
+		// !WITH_GENESYS
+		// _mipmapRunBundles( commandEncoder, passes ) {
 
 		const levels = passes.length;
 
 		for ( let i = 0; i < levels; i ++ ) {
 
 			const pass = passes[ i ];
+
+			// WITH_GENESYS
+			// Pass descriptors are cached per texture, so writes from an earlier call must be cleared.
+			pass.passDescriptor.timestampWrites = timestampQuery === null ? undefined : getSpanTimestampWrites( timestampQuery, i === 0, i === levels - 1 );
+			// !WITH_GENESYS
 
 			const passEncoder = commandEncoder.beginRenderPass( pass.passDescriptor );
 

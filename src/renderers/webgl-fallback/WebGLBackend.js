@@ -916,7 +916,10 @@ class WebGLBackend extends Backend {
 		//
 
 		state.bindFramebuffer( gl.FRAMEBUFFER, null );
-		this.initTimestampQuery( TimestampQuery.COMPUTE, this.getTimestampUID( computeGroup ) );
+		// WITH_GENESYS
+		this.initTimestampQuery( TimestampQuery.COMPUTE, this.getTimestampUID( computeGroup ), this.getComputeProfilerLabel( computeGroup ) );
+		// !WITH_GENESYS
+		// this.initTimestampQuery( TimestampQuery.COMPUTE, this.getTimestampUID( computeGroup ) );
 
 	}
 

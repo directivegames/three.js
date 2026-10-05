@@ -38,7 +38,10 @@ import {
 	NeverCompare, AlwaysCompare, LessCompare, LessEqualCompare, EqualCompare, GreaterEqualCompare, GreaterCompare, NotEqualCompare, IntType, RedIntegerFormat, RGIntegerFormat, RGBAIntegerFormat,
 	UnsignedInt101111Type, RGBA_BPTC_Format, RGB_BPTC_SIGNED_Format, RGB_BPTC_UNSIGNED_Format, RGB_ETC1_Format, RGB_S3TC_DXT1_Format, RED_RGTC1_Format, SIGNED_RED_RGTC1_Format, RED_GREEN_RGTC2_Format,
 	SIGNED_RED_GREEN_RGTC2_Format, R11_EAC_Format, SIGNED_R11_EAC_Format, RG11_EAC_Format, SIGNED_RG11_EAC_Format,
-	Compatibility
+	Compatibility,
+	// WITH_GENESYS
+	TimestampQuery
+	// !WITH_GENESYS
 } from '../../../constants.js';
 import { CubeTexture } from '../../../textures/CubeTexture.js';
 import { Texture } from '../../../textures/Texture.js';
@@ -111,6 +114,16 @@ class WebGPUTextureUtils {
 		 * @default null
 		 */
 		this._passUtils = null;
+
+		// WITH_GENESYS
+		/**
+		 * Number of `generateMipmaps()` calls timed so far; keeps their timestamp uids unique.
+		 *
+		 * @private
+		 * @type {number}
+		 */
+		this._mipmapTimestampCount = 0;
+		// !WITH_GENESYS
 
 		/**
 		 * A dictionary for managing default textures. The key
@@ -518,9 +531,35 @@ class WebGPUTextureUtils {
 
 		const textureData = this.backend.get( texture );
 
-		this._generateMipmaps( textureData.texture, encoder );
+		// WITH_GENESYS
+		this._generateMipmaps( textureData.texture, encoder, this._allocateMipmapTimestampQuery( texture, textureData.texture ) );
+		// !WITH_GENESYS
+		// this._generateMipmaps( textureData.texture, encoder );
 
 	}
+
+	// WITH_GENESYS
+	/**
+	 * Allocates one timestamp pair covering every mipmap pass of a `generateMipmaps()` call.
+	 *
+	 * @private
+	 * @param {Texture} texture - The texture.
+	 * @param {GPUTexture} textureGPU - The GPU texture object.
+	 * @return {?{querySet: GPUQuerySet, baseOffset: number}} The allocation, or `null` when nothing is timed.
+	 */
+	_allocateMipmapTimestampQuery( texture, textureGPU ) {
+
+		// Without mip passes the pair would never be written and would resolve stale values.
+		if ( textureGPU.mipLevelCount < 2 ) return null;
+
+		const backend = this.backend;
+		const uid = `m:${ ++ this._mipmapTimestampCount }:${ texture.id }:f${ backend.renderer.info.frame }`;
+		const label = texture.name !== '' ? `Mipmaps (${ texture.name })` : 'Mipmaps';
+
+		return backend.allocateTimestampQuery( TimestampQuery.RENDER, uid, label );
+
+	}
+	// !WITH_GENESYS
 
 	/**
 	 * Returns the color buffer representing the color
@@ -1059,12 +1098,20 @@ class WebGPUTextureUtils {
 	 * @private
 	 * @param {GPUTexture} textureGPU - The GPU texture object.
 	 * @param {?GPUCommandEncoder} [encoder=null] - An optional command encoder used to generate mipmaps.
+	 * @param {?{querySet: GPUQuerySet, baseOffset: number}} [timestampQuery=null] - Timestamp pair covering every mipmap pass.
 	 */
-	_generateMipmaps( textureGPU, encoder = null ) {
+	// WITH_GENESYS
+	_generateMipmaps( textureGPU, encoder = null, timestampQuery = null ) {
 
-		this._getPassUtils().generateMipmaps( textureGPU, encoder );
+		this._getPassUtils().generateMipmaps( textureGPU, encoder, timestampQuery );
 
 	}
+	// !WITH_GENESYS
+	// _generateMipmaps( textureGPU, encoder = null ) {
+	//
+	// 	this._getPassUtils().generateMipmaps( textureGPU, encoder );
+	//
+	// }
 
 	/**
 	 * Flip the contents of the given GPU texture along its vertical axis.

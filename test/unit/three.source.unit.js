@@ -227,6 +227,7 @@ import './src/objects/Sprite.tests.js';
 import './src/profiler/ProfilerService.tests.js';
 import './src/profiler/ProfilerService.gpu.tests.js';
 import './src/profiler/ProfilerDecorators.tests.js';
+import './src/profiler/ProfilerGpuPasses.tests.js';
 // !WITH_GENESYS
 
 
