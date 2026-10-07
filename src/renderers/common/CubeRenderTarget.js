@@ -38,6 +38,11 @@ class CubeRenderTarget extends RenderTarget {
 		 */
 		this.isCubeRenderTarget = true;
 
+		// WITH_GENESYS
+		// Depth-only cube targets (e.g. point-light PCF shadows on WebGPU) have no color cube map.
+		if ( options.count === 0 ) return;
+		// !WITH_GENESYS
+
 		const image = { width: size, height: size, depth: 1 };
 		const images = [ image, image, image, image, image, image ];
 

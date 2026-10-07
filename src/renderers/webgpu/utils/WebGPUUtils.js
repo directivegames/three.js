@@ -156,7 +156,16 @@ class WebGPUUtils {
 
 		let format;
 
-		if ( renderContext.textures !== null ) {
+		// WITH_GENESYS
+		// Depth-only render contexts (no color textures) have no color format.
+		if ( renderContext.textures !== null && renderContext.textures.length === 0 ) {
+
+			format = undefined;
+
+		} else if ( renderContext.textures !== null ) {
+
+			// !WITH_GENESYS
+			// if ( renderContext.textures !== null ) {
 
 			format = this.getTextureFormatGPU( renderContext.textures[ 0 ] );
 
@@ -198,7 +207,11 @@ class WebGPUUtils {
 	 */
 	getCurrentColorSpace( renderContext ) {
 
-		if ( renderContext.textures !== null ) {
+		// WITH_GENESYS
+		if ( renderContext.textures !== null && renderContext.textures.length > 0 ) {
+
+			// !WITH_GENESYS
+			// if ( renderContext.textures !== null ) {
 
 			return renderContext.textures[ 0 ].colorSpace;
 

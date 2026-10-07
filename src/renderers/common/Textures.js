@@ -97,7 +97,21 @@ class Textures extends DataMap {
 
 		const textures = renderTarget.textures;
 
-		const size = this.getSize( textures[ 0 ] );
+		// WITH_GENESYS
+		// Depth-only render targets (count: 0) have no color texture to measure.
+		let size;
+
+		if ( textures.length > 0 ) {
+
+			size = this.getSize( textures[ 0 ] );
+
+		} else {
+
+			size = { width: renderTarget.width, height: renderTarget.height, depth: renderTarget.depth };
+
+		}
+		// !WITH_GENESYS
+		// const size = this.getSize( textures[ 0 ] );
 
 		const mipWidth = size.width >> activeMipmapLevel;
 		const mipHeight = size.height >> activeMipmapLevel;

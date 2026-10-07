@@ -613,7 +613,15 @@ class NodeBuilder {
 
 		if ( renderTarget !== null ) {
 
-			return getTextureType( renderTarget.textures[ index ] );
+			// WITH_GENESYS
+			// Depth-only render targets (count: 0) have no color texture.
+			const outputTexture = renderTarget.textures[ index ];
+
+			if ( outputTexture === undefined ) return 'vec4';
+
+			return getTextureType( outputTexture );
+			// !WITH_GENESYS
+			// return getTextureType( renderTarget.textures[ index ] );
 
 		}
 

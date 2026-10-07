@@ -7,7 +7,7 @@ import { renderGroup } from '../core/UniformGroupNode.js';
 import { Matrix4 } from '../../math/Matrix4.js';
 import { Vector3 } from '../../math/Vector3.js';
 import { Color } from '../../math/Color.js';
-import { BasicShadowMap, GreaterEqualCompare, LessEqualCompare, WebGPUCoordinateSystem } from '../../constants.js';
+import { BasicShadowMap, GreaterEqualCompare, LessEqualCompare, RedFormat, UnsignedByteType, VSMShadowMap, WebGPUCoordinateSystem } from '../../constants.js';
 import { CubeDepthTexture } from '../../textures/CubeDepthTexture.js';
 import { screenCoordinate } from '../display/ScreenNode.js';
 import { interleavedGradientNoise, vogelDiskSample } from '../utils/PostProcessingUtils.js';
@@ -228,8 +228,38 @@ class PointShadowNode extends ShadowNode {
 		depthTexture.name = 'PointShadowDepthTexture';
 		depthTexture.compareFunction = builder.renderer.reversedDepthBuffer ? GreaterEqualCompare : LessEqualCompare;
 
-		const shadowMap = builder.createCubeRenderTarget( shadow.mapSize.width );
-		shadowMap.texture.name = 'PointShadowMap';
+		const { type: shadowMapType, transmitted } = builder.renderer.shadowMap;
+
+		// WITH_GENESYS
+		// Point PCF/basic only sample the compare cube depth texture; drop the unused color cube on WebGPU.
+		const needsFullShadowColor = transmitted === true || shadowMapType === VSMShadowMap;
+		const depthOnly = needsFullShadowColor === false && builder.renderer.backend.isWebGPUBackend === true;
+
+		let shadowMapOptions = {};
+
+		if ( depthOnly ) {
+
+			shadowMapOptions = { count: 0 };
+
+		} else if ( needsFullShadowColor === false ) {
+
+			shadowMapOptions = { format: RedFormat, type: UnsignedByteType };
+
+		}
+
+		const shadowMap = builder.createCubeRenderTarget( shadow.mapSize.width, shadowMapOptions );
+
+		if ( shadowMap.texture !== undefined ) {
+
+			shadowMap.texture.name = 'PointShadowMap';
+
+			if ( needsFullShadowColor ) shadowMap.texture.type = shadow.mapType;
+
+		}
+		// !WITH_GENESYS
+		// const shadowMap = builder.createCubeRenderTarget( shadow.mapSize.width );
+		// shadowMap.texture.name = 'PointShadowMap';
+
 		shadowMap.depthTexture = depthTexture;
 
 		return { shadowMap, depthTexture };

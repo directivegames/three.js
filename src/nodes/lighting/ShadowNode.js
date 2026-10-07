@@ -11,7 +11,7 @@ import { add } from '../math/OperatorNode.js';
 import { DepthTexture } from '../../textures/DepthTexture.js';
 import { Loop } from '../utils/LoopNode.js';
 import { screenCoordinate } from '../display/ScreenNode.js';
-import { Compatibility, GreaterEqualCompare, HalfFloatType, LessEqualCompare, LinearFilter, NearestFilter, PCFShadowMap, RGFormat, VSMShadowMap } from '../../constants.js';
+import { Compatibility, GreaterEqualCompare, HalfFloatType, LessEqualCompare, LinearFilter, NearestFilter, PCFShadowMap, RedFormat, RGFormat, UnsignedByteType, VSMShadowMap } from '../../constants.js';
 import { renderGroup } from '../core/UniformGroupNode.js';
 import { viewZToLogarithmicDepth, perspectiveDepthToViewZ, orthographicDepthToViewZ, viewZToOrthographicDepth } from '../display/ViewportDepthNode.js';
 import { lightShadowMatrix } from '../accessors/Lights.js';
@@ -340,9 +340,41 @@ class ShadowNode extends ShadowBaseNode {
 		depthTexture.name = 'ShadowDepthTexture';
 		depthTexture.compareFunction = builder.renderer.reversedDepthBuffer ? GreaterEqualCompare : LessEqualCompare;
 
-		const shadowMap = builder.createRenderTarget( shadow.mapSize.width, shadow.mapSize.height );
-		shadowMap.texture.name = 'ShadowMap';
-		shadowMap.texture.type = shadow.mapType;
+		const { type: shadowMapType, transmitted } = builder.renderer.shadowMap;
+
+		// WITH_GENESYS
+		// PCF/Basic only sample the compare depth texture, so the color attachment is never read.
+		// WebGPU can render depth-only (no color attachment at all). Other backends keep a 1-byte
+		// color attachment instead of rgba8 (~4 B/texel).
+		const needsFullShadowColor = transmitted === true || shadowMapType === VSMShadowMap;
+		const depthOnly = needsFullShadowColor === false && builder.renderer.backend.isWebGPUBackend === true;
+
+		let shadowMapOptions = {};
+
+		if ( depthOnly ) {
+
+			shadowMapOptions = { count: 0 };
+
+		} else if ( needsFullShadowColor === false ) {
+
+			shadowMapOptions = { format: RedFormat, type: UnsignedByteType };
+
+		}
+
+		const shadowMap = builder.createRenderTarget( shadow.mapSize.width, shadow.mapSize.height, shadowMapOptions );
+
+		if ( shadowMap.texture !== undefined ) {
+
+			shadowMap.texture.name = 'ShadowMap';
+
+			if ( needsFullShadowColor ) shadowMap.texture.type = shadow.mapType;
+
+		}
+		// !WITH_GENESYS
+		// const shadowMap = builder.createRenderTarget( shadow.mapSize.width, shadow.mapSize.height );
+		// shadowMap.texture.name = 'ShadowMap';
+		// shadowMap.texture.type = shadow.mapType;
+
 		shadowMap.depthTexture = depthTexture;
 
 		return { shadowMap, depthTexture };
@@ -493,7 +525,7 @@ class ShadowNode extends ShadowBaseNode {
 
 		let shadowColor;
 
-		if ( renderer.shadowMap.transmitted === true ) {
+		if ( renderer.shadowMap.transmitted === true && shadowMap.texture !== undefined ) {
 
 			if ( shadowMap.texture.isCubeTexture ) {
 
@@ -558,13 +590,18 @@ class ShadowNode extends ShadowBaseNode {
 
 			let depthNode;
 
-			if ( this.shadowMap.texture.isCubeTexture ) {
+			// WITH_GENESYS
+			const depthTex = this.shadowMap.depthTexture;
+			if ( depthTex.isCubeTexture ) {
 
-				depthNode = cubeTexture( this.shadowMap.depthTexture, equirectDirection() ).r;
+				// !WITH_GENESYS
+				// if ( this.shadowMap.texture.isCubeTexture ) {
+
+				depthNode = cubeTexture( depthTex, equirectDirection() ).r;
 
 			} else {
 
-				depthNode = texture( this.shadowMap.depthTexture ).r;
+				depthNode = texture( depthTex ).r;
 
 			}
 

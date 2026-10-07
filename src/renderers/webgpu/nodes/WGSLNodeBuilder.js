@@ -2395,6 +2395,18 @@ ${ flowData.code }
 
 							flow += `return ${ flowSlotData.result };`;
 
+							// WITH_GENESYS
+
+						} else if ( this._isDepthOnlyOutput() ) {
+
+							// Depth-only render target (count: 0): no color attachment to write, so the
+							// fragment entry point returns nothing (alpha-test discards still apply).
+							stageData.returnType = null;
+
+							flow += 'return;';
+
+							// !WITH_GENESYS
+
 						} else {
 
 							let structSnippet = `\t@location( 0 ) color: ${ this.getType( this.getOutputType() ) }`;
@@ -2642,6 +2654,25 @@ fn main( ${shaderData.attributes} ) -> VaryingsStruct {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Whether the active render target is depth-only (no color attachments) and the
+	 * fragment stage has no other outputs such as `frag_depth`.
+	 *
+	 * @private
+	 * @return {boolean}
+	 */
+	_isDepthOnlyOutput() {
+
+		const renderTarget = this.renderer.getRenderTarget();
+
+		if ( renderTarget === null || renderTarget.textures.length !== 0 ) return false;
+
+		return ! this.getBuiltins( 'output' );
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * Returns a WGSL fragment shader based on the given shader data.
 	 *
@@ -2668,7 +2699,7 @@ ${shaderData.vars}
 ${shaderData.codes}
 
 @fragment
-fn main( ${shaderData.varyings} ) -> ${shaderData.returnType} {
+fn main( ${shaderData.varyings} )${ shaderData.returnType === null ? '' : ' -> ' + shaderData.returnType } {
 
 	// flow
 	${shaderData.flow}

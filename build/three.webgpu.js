@@ -25836,6 +25836,11 @@ class CubeRenderTarget extends RenderTarget {
 		 */
 		this.isCubeRenderTarget = true;
 
+		// WITH_GENESYS
+		// Depth-only cube targets (e.g. point-light PCF shadows on WebGPU) have no color cube map.
+		if ( options.count === 0 ) return;
+		// !WITH_GENESYS
+
 		const image = { width: size, height: size, depth: 1 };
 		const images = [ image, image, image, image, image, image ];
 
@@ -37306,8 +37311,13 @@ class RenderContexts {
 
 		} else {
 
-			const format = renderTarget.texture.format;
-			const type = renderTarget.texture.type;
+			// WITH_GENESYS
+			// Depth-only render targets (count: 0) have no color texture.
+			const format = renderTarget.texture ? renderTarget.texture.format : 'none';
+			const type = renderTarget.texture ? renderTarget.texture.type : 'none';
+			// !WITH_GENESYS
+			// const format = renderTarget.texture.format;
+			// const type = renderTarget.texture.type;
 			const count = renderTarget.textures.length;
 
 			attachmentState = `${ count }:${ format }:${ type }:${ renderTarget.samples }:${ renderTarget.depthBuffer }:${ renderTarget.stencilBuffer }`;
@@ -37444,7 +37454,21 @@ class Textures extends DataMap {
 
 		const textures = renderTarget.textures;
 
-		const size = this.getSize( textures[ 0 ] );
+		// WITH_GENESYS
+		// Depth-only render targets (count: 0) have no color texture to measure.
+		let size;
+
+		if ( textures.length > 0 ) {
+
+			size = this.getSize( textures[ 0 ] );
+
+		} else {
+
+			size = { width: renderTarget.width, height: renderTarget.height, depth: renderTarget.depth };
+
+		}
+		// !WITH_GENESYS
+		// const size = this.getSize( textures[ 0 ] );
 
 		const mipWidth = size.width >> activeMipmapLevel;
 		const mipHeight = size.height >> activeMipmapLevel;
@@ -49388,9 +49412,41 @@ class ShadowNode extends ShadowBaseNode {
 		depthTexture.name = 'ShadowDepthTexture';
 		depthTexture.compareFunction = builder.renderer.reversedDepthBuffer ? GreaterEqualCompare : LessEqualCompare;
 
-		const shadowMap = builder.createRenderTarget( shadow.mapSize.width, shadow.mapSize.height );
-		shadowMap.texture.name = 'ShadowMap';
-		shadowMap.texture.type = shadow.mapType;
+		const { type: shadowMapType, transmitted } = builder.renderer.shadowMap;
+
+		// WITH_GENESYS
+		// PCF/Basic only sample the compare depth texture, so the color attachment is never read.
+		// WebGPU can render depth-only (no color attachment at all). Other backends keep a 1-byte
+		// color attachment instead of rgba8 (~4 B/texel).
+		const needsFullShadowColor = transmitted === true || shadowMapType === VSMShadowMap;
+		const depthOnly = needsFullShadowColor === false && builder.renderer.backend.isWebGPUBackend === true;
+
+		let shadowMapOptions = {};
+
+		if ( depthOnly ) {
+
+			shadowMapOptions = { count: 0 };
+
+		} else if ( needsFullShadowColor === false ) {
+
+			shadowMapOptions = { format: RedFormat, type: UnsignedByteType };
+
+		}
+
+		const shadowMap = builder.createRenderTarget( shadow.mapSize.width, shadow.mapSize.height, shadowMapOptions );
+
+		if ( shadowMap.texture !== undefined ) {
+
+			shadowMap.texture.name = 'ShadowMap';
+
+			if ( needsFullShadowColor ) shadowMap.texture.type = shadow.mapType;
+
+		}
+		// !WITH_GENESYS
+		// const shadowMap = builder.createRenderTarget( shadow.mapSize.width, shadow.mapSize.height );
+		// shadowMap.texture.name = 'ShadowMap';
+		// shadowMap.texture.type = shadow.mapType;
+
 		shadowMap.depthTexture = depthTexture;
 
 		return { shadowMap, depthTexture };
@@ -49541,7 +49597,7 @@ class ShadowNode extends ShadowBaseNode {
 
 		let shadowColor;
 
-		if ( renderer.shadowMap.transmitted === true ) {
+		if ( renderer.shadowMap.transmitted === true && shadowMap.texture !== undefined ) {
 
 			if ( shadowMap.texture.isCubeTexture ) {
 
@@ -49606,13 +49662,18 @@ class ShadowNode extends ShadowBaseNode {
 
 			let depthNode;
 
-			if ( this.shadowMap.texture.isCubeTexture ) {
+			// WITH_GENESYS
+			const depthTex = this.shadowMap.depthTexture;
+			if ( depthTex.isCubeTexture ) {
 
-				depthNode = cubeTexture( this.shadowMap.depthTexture, equirectDirection() ).r;
+				// !WITH_GENESYS
+				// if ( this.shadowMap.texture.isCubeTexture ) {
+
+				depthNode = cubeTexture( depthTex, equirectDirection() ).r;
 
 			} else {
 
-				depthNode = texture( this.shadowMap.depthTexture ).r;
+				depthNode = texture( depthTex ).r;
 
 			}
 
@@ -50146,8 +50207,38 @@ class PointShadowNode extends ShadowNode {
 		depthTexture.name = 'PointShadowDepthTexture';
 		depthTexture.compareFunction = builder.renderer.reversedDepthBuffer ? GreaterEqualCompare : LessEqualCompare;
 
-		const shadowMap = builder.createCubeRenderTarget( shadow.mapSize.width );
-		shadowMap.texture.name = 'PointShadowMap';
+		const { type: shadowMapType, transmitted } = builder.renderer.shadowMap;
+
+		// WITH_GENESYS
+		// Point PCF/basic only sample the compare cube depth texture; drop the unused color cube on WebGPU.
+		const needsFullShadowColor = transmitted === true || shadowMapType === VSMShadowMap;
+		const depthOnly = needsFullShadowColor === false && builder.renderer.backend.isWebGPUBackend === true;
+
+		let shadowMapOptions = {};
+
+		if ( depthOnly ) {
+
+			shadowMapOptions = { count: 0 };
+
+		} else if ( needsFullShadowColor === false ) {
+
+			shadowMapOptions = { format: RedFormat, type: UnsignedByteType };
+
+		}
+
+		const shadowMap = builder.createCubeRenderTarget( shadow.mapSize.width, shadowMapOptions );
+
+		if ( shadowMap.texture !== undefined ) {
+
+			shadowMap.texture.name = 'PointShadowMap';
+
+			if ( needsFullShadowColor ) shadowMap.texture.type = shadow.mapType;
+
+		}
+		// !WITH_GENESYS
+		// const shadowMap = builder.createCubeRenderTarget( shadow.mapSize.width );
+		// shadowMap.texture.name = 'PointShadowMap';
+
 		shadowMap.depthTexture = depthTexture;
 
 		return { shadowMap, depthTexture };
@@ -55746,7 +55837,15 @@ class NodeBuilder {
 
 		if ( renderTarget !== null ) {
 
-			return getTextureType( renderTarget.textures[ index ] );
+			// WITH_GENESYS
+			// Depth-only render targets (count: 0) have no color texture.
+			const outputTexture = renderTarget.textures[ index ];
+
+			if ( outputTexture === undefined ) return 'vec4';
+
+			return getTextureType( outputTexture );
+			// !WITH_GENESYS
+			// return getTextureType( renderTarget.textures[ index ] );
 
 		}
 
@@ -81321,7 +81420,16 @@ class WebGPUUtils {
 
 		let format;
 
-		if ( renderContext.textures !== null ) {
+		// WITH_GENESYS
+		// Depth-only render contexts (no color textures) have no color format.
+		if ( renderContext.textures !== null && renderContext.textures.length === 0 ) {
+
+			format = undefined;
+
+		} else if ( renderContext.textures !== null ) {
+
+			// !WITH_GENESYS
+			// if ( renderContext.textures !== null ) {
 
 			format = this.getTextureFormatGPU( renderContext.textures[ 0 ] );
 
@@ -81363,7 +81471,11 @@ class WebGPUUtils {
 	 */
 	getCurrentColorSpace( renderContext ) {
 
-		if ( renderContext.textures !== null ) {
+		// WITH_GENESYS
+		if ( renderContext.textures !== null && renderContext.textures.length > 0 ) {
+
+			// !WITH_GENESYS
+			// if ( renderContext.textures !== null ) {
 
 			return renderContext.textures[ 0 ].colorSpace;
 
@@ -87594,6 +87706,18 @@ ${ flowData.code }
 
 							flow += `return ${ flowSlotData.result };`;
 
+							// WITH_GENESYS
+
+						} else if ( this._isDepthOnlyOutput() ) {
+
+							// Depth-only render target (count: 0): no color attachment to write, so the
+							// fragment entry point returns nothing (alpha-test discards still apply).
+							stageData.returnType = null;
+
+							flow += 'return;';
+
+							// !WITH_GENESYS
+
 						} else {
 
 							let structSnippet = `\t@location( 0 ) color: ${ this.getType( this.getOutputType() ) }`;
@@ -87841,6 +87965,25 @@ fn main( ${shaderData.attributes} ) -> VaryingsStruct {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Whether the active render target is depth-only (no color attachments) and the
+	 * fragment stage has no other outputs such as `frag_depth`.
+	 *
+	 * @private
+	 * @return {boolean}
+	 */
+	_isDepthOnlyOutput() {
+
+		const renderTarget = this.renderer.getRenderTarget();
+
+		if ( renderTarget === null || renderTarget.textures.length !== 0 ) return false;
+
+		return ! this.getBuiltins( 'output' );
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * Returns a WGSL fragment shader based on the given shader data.
 	 *
@@ -87867,7 +88010,7 @@ ${shaderData.vars}
 ${shaderData.codes}
 
 @fragment
-fn main( ${shaderData.varyings} ) -> ${shaderData.returnType} {
+fn main( ${shaderData.varyings} )${ shaderData.returnType === null ? '' : ' -> ' + shaderData.returnType } {
 
 	// flow
 	${shaderData.flow}

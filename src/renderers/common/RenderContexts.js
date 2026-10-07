@@ -50,8 +50,13 @@ class RenderContexts {
 
 		} else {
 
-			const format = renderTarget.texture.format;
-			const type = renderTarget.texture.type;
+			// WITH_GENESYS
+			// Depth-only render targets (count: 0) have no color texture.
+			const format = renderTarget.texture ? renderTarget.texture.format : 'none';
+			const type = renderTarget.texture ? renderTarget.texture.type : 'none';
+			// !WITH_GENESYS
+			// const format = renderTarget.texture.format;
+			// const type = renderTarget.texture.type;
 			const count = renderTarget.textures.length;
 
 			attachmentState = `${ count }:${ format }:${ type }:${ renderTarget.samples }:${ renderTarget.depthBuffer }:${ renderTarget.stencilBuffer }`;
