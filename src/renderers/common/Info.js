@@ -499,7 +499,12 @@ class Info {
 
 			}
 
-			size += mipmapSize;
+			// WITH_GENESYS
+			// {@link Textures#getMipLevels} uses mipmaps.length as the total level count
+			// (levels 0..length-1), not base image plus extra mips — do not add base again.
+			size = mipmapSize;
+			// !WITH_GENESYS
+			// size += mipmapSize;
 
 		} else if ( texture.generateMipmaps ) {
 
