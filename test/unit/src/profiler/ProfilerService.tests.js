@@ -1093,6 +1093,57 @@ export default QUnit.module( 'Profiler', () => {
 
 			} );
 
+			QUnit.test( 'slices carry their nesting depth, so equal ts and dur still say who encloses whom', assert => {
+
+				ProfilerService.setProfile( 'stats' );
+				ProfilerService.enable();
+
+				/** @type {Array<{name: string, ts: number, dur: number, args: {depth: number}}>} */
+				const events = [];
+				ProfilerService.setTraceSink( { write( event ) {
+
+					events.push( event );
+
+				} } );
+				ProfilerService.beginTraceCapture();
+
+				// The clock does not move between begin calls, so these share one ts and dur.
+				ProfilerService.begin( 'outer' );
+				ProfilerService.begin( 'middle' );
+				ProfilerService.begin( 'inner' );
+				clock.advance( 2 );
+				ProfilerService.end( 'inner' );
+				ProfilerService.end( 'middle' );
+				ProfilerService.end( 'outer' );
+
+				const byName = new Map( events.map( event => [ event.name, event ] ) );
+				assert.strictEqual( byName.get( 'outer' ).ts, byName.get( 'inner' ).ts, 'same ts' );
+				assert.strictEqual( byName.get( 'outer' ).dur, byName.get( 'inner' ).dur, 'same dur' );
+				assert.deepEqual(
+					[ 'outer', 'middle', 'inner' ].map( name => byName.get( name ).args.depth ),
+					[ 0, 1, 2 ],
+					'depth tells the viewer the nesting'
+				);
+
+			} );
+
+			QUnit.test( 'exported slices list the enclosing slice first and carry depth', assert => {
+
+				ProfilerService.setProfile( 'full' );
+				ProfilerService.enable();
+
+				ProfilerService.begin( 'outer' );
+				ProfilerService.begin( 'inner' );
+				clock.advance( 2 );
+				ProfilerService.end( 'inner' );
+				ProfilerService.end( 'outer' );
+
+				const exported = sliceEvents();
+				assert.deepEqual( exported.map( event => event.name ), [ 'outer', 'inner' ] );
+				assert.deepEqual( exported.map( event => event.args.depth ), [ 0, 1 ] );
+
+			} );
+
 			QUnit.test( 'beginTraceCapture enables a disabled profiler', assert => {
 
 				ProfilerService.setProfile( 'stats' );

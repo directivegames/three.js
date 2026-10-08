@@ -98,6 +98,7 @@ function buildChromeTrace( trace, minDurUs ) {
 		pid: 1,
 		tid: tid[ i ],
 		cat: tid[ i ] === TRACE_TID_GPU ? 'gnsx-gpu' : 'gnsx',
+		args: { depth: depth[ i ] },
 	} ) );
 	const asyncRowCount = assignAsyncRows( slices );
 

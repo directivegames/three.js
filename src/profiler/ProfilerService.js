@@ -6,7 +6,7 @@ import { TRACE_TID_ASYNC, TRACE_TID_GPU, TRACE_TID_MAIN, TraceBuffer, buildChrom
 
 /**
  * @typedef {Object} TraceSink
- * @property {(event: {name: string, ph: 'X', ts: number, dur: number, pid: 1, tid: number, cat: 'gnsx'|'gnsx-gpu'}) => void} write
+ * @property {(event: {name: string, ph: 'X', ts: number, dur: number, pid: 1, tid: number, cat: 'gnsx'|'gnsx-gpu', args: {depth: number}}) => void} write
  * @property {(() => void)=} close
  */
 
@@ -734,6 +734,7 @@ class ProfilerServiceClass {
 				pid: 1,
 				tid,
 				cat: tid === TRACE_TID_GPU ? 'gnsx-gpu' : 'gnsx',
+				args: { depth },
 			} );
 			return;
 
@@ -1425,6 +1426,9 @@ function toThresholdMs( minDurationMs ) {
  * @property {1} pid
  * @property {number} tid
  * @property {'gnsx'|'gnsx-gpu'} cat
+ * @property {{ depth: number }} args `depth` is the nesting depth when the slice was recorded.
+ * It breaks ties between slices with the same `ts` and `dur`, where overlap cannot say which
+ * encloses which.
  */
 
 /**
