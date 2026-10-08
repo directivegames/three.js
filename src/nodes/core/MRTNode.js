@@ -19,11 +19,21 @@ export function getTextureIndex( textures, name ) {
 
 	for ( let i = 0; i < textures.length; i ++ ) {
 
-		if ( textures[ i ].name === name ) {
+		const textureName = textures[ i ].name;
+
+		// WITH_GENESYS
+		// PassNode labels MRT attachments as "{passName}.{slot}" for GPU memory reports.
+		if ( textureName === name || textureName.endsWith( '.' + name ) ) {
 
 			return i;
 
 		}
+		// !WITH_GENESYS
+		// if ( textureName === name ) {
+		//
+		// 	return i;
+		//
+		// }
 
 	}
 

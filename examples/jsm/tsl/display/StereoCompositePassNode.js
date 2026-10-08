@@ -1,4 +1,7 @@
 import { RenderTarget, StereoCamera, HalfFloatType, LinearFilter, NearestFilter, Vector2, PassNode, QuadMesh, RendererUtils } from 'three/webgpu';
+// WITH_GENESYS
+import { labelRenderTargetTextures } from '../../../../src/utils/RenderTargetLabels.js';
+// !WITH_GENESYS
 import { texture } from 'three/tsl';
 
 const _size = /*@__PURE__*/ new Vector2();
@@ -68,6 +71,11 @@ class StereoCompositePassNode extends PassNode {
 		 * @type {RenderTarget}
 		 */
 		this._renderTargetR = new RenderTarget( 1, 1, _params );
+
+		// WITH_GENESYS
+		labelRenderTargetTextures( this._renderTargetL, 'StereoCompositePass.left', { colorAttachment: 'output' } );
+		labelRenderTargetTextures( this._renderTargetR, 'StereoCompositePass.right', { colorAttachment: 'output' } );
+		// !WITH_GENESYS
 
 		/**
 		 * A texture node representing the left's eye view.

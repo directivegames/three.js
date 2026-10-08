@@ -11,6 +11,9 @@ import { Vector4 } from '../../math/Vector4.js';
 import { DepthTexture } from '../../textures/DepthTexture.js';
 import { RenderTarget } from '../../core/RenderTarget.js';
 import { warn } from '../../utils.js';
+// WITH_GENESYS
+import { labelRenderTargetTextures, passAttachmentTextureName } from '../../utils/RenderTargetLabels.js';
+// !WITH_GENESYS
 
 const _size = /*@__PURE__*/ new Vector2();
 
@@ -244,7 +247,9 @@ class PassNode extends TempNode {
 		this._height = 1;
 
 		const renderTarget = new RenderTarget( this._width, this._height, { type: HalfFloatType, ...options, } );
+		// WITH_GENESYS
 		renderTarget.texture.name = 'output';
+		// !WITH_GENESYS
 
 		let depthTexture = null;
 
@@ -253,7 +258,9 @@ class PassNode extends TempNode {
 			depthTexture = options.depthTexture || new DepthTexture();
 			depthTexture.isRenderTargetTexture = true;
 			//depthTexture.type = FloatType;
+			// WITH_GENESYS
 			depthTexture.name = 'depth';
+			// !WITH_GENESYS
 
 			renderTarget.depthTexture = depthTexture;
 
@@ -485,6 +492,28 @@ class PassNode extends TempNode {
 		 */
 		this.global = true;
 
+		// WITH_GENESYS
+		const _passNodeName = { value: '' };
+
+		Object.defineProperty( this, 'name', {
+			get() {
+
+				return _passNodeName.value;
+
+			},
+			set( value ) {
+
+				_passNodeName.value = value;
+				this._syncPassTextureNames();
+
+			},
+			enumerable: true,
+			configurable: true,
+		} );
+
+		this._syncPassTextureNames();
+		// !WITH_GENESYS
+
 	}
 
 	/**
@@ -614,7 +643,9 @@ class PassNode extends TempNode {
 			const refTexture = this.renderTarget.texture;
 
 			texture = refTexture.clone();
-			texture.name = name;
+			// WITH_GENESYS
+			texture.name = this._passTextureName( name );
+			// !WITH_GENESYS
 
 			this._textures[ name ] = texture;
 
@@ -639,6 +670,9 @@ class PassNode extends TempNode {
 		if ( texture === undefined ) {
 
 			texture = this.getTexture( name ).clone();
+			// WITH_GENESYS
+			texture.name = this._passTextureName( name + '.previous' );
+			// !WITH_GENESYS
 
 			this._previousTextures[ name ] = texture;
 
@@ -807,6 +841,10 @@ class PassNode extends TempNode {
 
 		}
 
+		// WITH_GENESYS
+		this._syncPassTextureNames();
+		// !WITH_GENESYS
+
 		return this.scope === PassNode.COLOR ? this.getTextureNode() : this.getLinearDepthNode();
 
 	}
@@ -942,6 +980,10 @@ class PassNode extends TempNode {
 
 		this.renderTarget.setSize( effectiveWidth, effectiveHeight );
 
+		// WITH_GENESYS
+		this._syncPassTextureNames();
+		// !WITH_GENESYS
+
 		// scissor
 
 		if ( this._scissor !== null ) {
@@ -1033,6 +1075,49 @@ class PassNode extends TempNode {
 		}
 
 	}
+
+	// WITH_GENESYS
+	_passTextureName( attachment ) {
+
+		return passAttachmentTextureName( this.name, attachment );
+
+	}
+
+	_syncPassTextureNames() {
+
+		const passName = this.name || 'Pass';
+
+		labelRenderTargetTextures( this.renderTarget, passName, {
+			colorAttachment: 'output',
+			depthAttachment: 'depth',
+		} );
+
+		for ( const attachmentName in this._textures ) {
+
+			const texture = this._textures[ attachmentName ];
+
+			if ( texture ) {
+
+				texture.name = this._passTextureName( attachmentName );
+
+			}
+
+		}
+
+		for ( const attachmentName in this._previousTextures ) {
+
+			const texture = this._previousTextures[ attachmentName ];
+
+			if ( texture ) {
+
+				texture.name = this._passTextureName( attachmentName + '.previous' );
+
+			}
+
+		}
+
+	}
+	// !WITH_GENESYS
 
 	/**
 	 * Frees internal resources. Should be called when the node is no longer in use.

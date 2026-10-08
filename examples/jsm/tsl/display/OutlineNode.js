@@ -1,4 +1,7 @@
 import { DepthTexture, FloatType, RenderTarget, Vector2, TempNode, QuadMesh, NodeMaterial, SpriteNodeMaterial, RendererUtils, NodeUpdateType } from 'three/webgpu';
+// WITH_GENESYS
+import { labelRenderTargetTextures } from '../../../../src/utils/RenderTargetLabels.js';
+// !WITH_GENESYS
 import { Loop, int, exp, min, float, mul, uv, vec2, vec3, Fn, textureSize, orthographicDepthToViewZ, screenUV, nodeObject, uniform, vec4, passTexture, texture, perspectiveDepthToViewZ, positionView, reference, color } from 'three/tsl';
 
 const _quadMesh = /*@__PURE__*/ new QuadMesh();
@@ -191,6 +194,17 @@ class OutlineNode extends TempNode {
 		 * @type {RenderTarget}
 		 */
 		this._renderTargetComposite = new RenderTarget( 1, 1, { depthBuffer: false } );
+
+		// WITH_GENESYS
+		labelRenderTargetTextures( this._renderTargetDepthBuffer, 'OutlineNode.Depth' );
+		labelRenderTargetTextures( this._renderTargetMaskBuffer, 'OutlineNode.Mask', { colorAttachment: 'mask' } );
+		labelRenderTargetTextures( this._renderTargetMaskDownSampleBuffer, 'OutlineNode.MaskDownsample', { colorAttachment: 'mask' } );
+		labelRenderTargetTextures( this._renderTargetEdgeBuffer1, 'OutlineNode.Edge1', { colorAttachment: 'edge' } );
+		labelRenderTargetTextures( this._renderTargetEdgeBuffer2, 'OutlineNode.Edge2', { colorAttachment: 'edge' } );
+		labelRenderTargetTextures( this._renderTargetBlurBuffer1, 'OutlineNode.Blur1', { colorAttachment: 'blur' } );
+		labelRenderTargetTextures( this._renderTargetBlurBuffer2, 'OutlineNode.Blur2', { colorAttachment: 'blur' } );
+		labelRenderTargetTextures( this._renderTargetComposite, 'OutlineNode.Composite', { colorAttachment: 'output' } );
+		// !WITH_GENESYS
 
 		// uniforms
 

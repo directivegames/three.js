@@ -20836,6 +20836,9 @@ class ViewportDepthTextureNode extends ViewportTextureNode {
 			if ( _sharedDepthbuffer === null ) {
 
 				_sharedDepthbuffer = new DepthTexture();
+				// WITH_GENESYS
+				_sharedDepthbuffer.name = 'ViewportDepthTexture.shared';
+				// !WITH_GENESYS
 
 			}
 
@@ -22535,11 +22538,21 @@ function getTextureIndex( textures, name ) {
 
 	for ( let i = 0; i < textures.length; i ++ ) {
 
-		if ( textures[ i ].name === name ) {
+		const textureName = textures[ i ].name;
+
+		// WITH_GENESYS
+		// PassNode labels MRT attachments as "{passName}.{slot}" for GPU memory reports.
+		if ( textureName === name || textureName.endsWith( '.' + name ) ) {
 
 			return i;
 
 		}
+		// !WITH_GENESYS
+		// if ( textureName === name ) {
+		//
+		// 	return i;
+		//
+		// }
 
 	}
 
@@ -37363,6 +37376,109 @@ class RenderContexts {
 
 }
 
+// WITH_GENESYS
+// Genesys: stable GPU texture names for perf.snapshot / VRAM tooling.
+
+/**
+ * @param {import('../core/RenderTarget.js').RenderTarget} renderTarget
+ * @param {string} baseName
+ * @param {string} [attachmentName='color']
+ */
+function labelColorTextures( renderTarget, baseName, attachmentName = 'color' ) {
+
+	const textures = renderTarget.textures;
+
+	for ( let i = 0; i < textures.length; i ++ ) {
+
+		const texture = textures[ i ];
+
+		if ( textures.length === 1 ) {
+
+			texture.name = `${ baseName }.${ attachmentName }`;
+
+		} else {
+
+			texture.name = `${ baseName }.${ attachmentName }${ i }`;
+
+		}
+
+	}
+
+}
+
+/**
+ * Assigns `renderTarget.name` and names color / depth attachments for GPU memory reports.
+ *
+ * @param {import('../core/RenderTarget.js').RenderTarget} renderTarget
+ * @param {string} baseName
+ * @param {Object} [options]
+ * @param {string} [options.colorAttachment='color']
+ * @param {string} [options.depthAttachment='depth']
+ */
+function labelRenderTargetTextures( renderTarget, baseName, options = {} ) {
+
+	const { colorAttachment = 'color', depthAttachment = 'depth' } = options;
+
+	renderTarget.name = baseName;
+	labelColorTextures( renderTarget, baseName, colorAttachment );
+
+	if ( renderTarget.depthTexture !== null && renderTarget.depthTexture !== undefined ) {
+
+		renderTarget.depthTexture.name = `${ baseName }.${ depthAttachment }`;
+
+	}
+
+}
+
+/**
+ * @param {string} passName
+ * @param {string} attachment
+ * @return {string}
+ */
+function passAttachmentTextureName( passName, attachment ) {
+
+	const base = passName || 'Pass';
+
+	return `${ base }.${ attachment }`;
+
+}
+
+/**
+ * Names a depth attachment for GPU memory reports. Reuses the primary depth
+ * texture's name when the renderer allocates mips or replacement buffers.
+ *
+ * @param {import('../core/RenderTarget.js').RenderTarget} renderTarget
+ * @param {import('../textures/DepthTexture.js').DepthTexture} depthTexture
+ * @param {number} [mipLevel=0]
+ */
+function labelDepthTextureForRenderTarget( renderTarget, depthTexture, mipLevel = 0 ) {
+
+	if ( depthTexture === null || depthTexture === undefined ) {
+
+		return;
+
+	}
+
+	const primary = renderTarget.depthTexture;
+
+	if ( primary && primary !== depthTexture && primary.name !== '' ) {
+
+		depthTexture.name = mipLevel === 0 ? primary.name : `${ primary.name }.mip${ mipLevel }`;
+		return;
+
+	}
+
+	const rtName = renderTarget.name || 'RenderTarget';
+	const suffix = mipLevel === 0 ? 'depth' : `depth.mip${ mipLevel }`;
+
+	depthTexture.name = `${ rtName }.${ suffix }`;
+
+}
+
+// !WITH_GENESYS
+
+// !WITH_GENESYS
+
 const _size$3 = /*@__PURE__*/ new Vector3();
 
 /**
@@ -37494,11 +37610,23 @@ class Textures extends DataMap {
 
 			depthTextureMips[ activeMipmapLevel ] = depthTexture;
 
+			// WITH_GENESYS
+			labelDepthTextureForRenderTarget( renderTarget, depthTexture, activeMipmapLevel );
+			// !WITH_GENESYS
+
 		}
 
 		if ( depthTexture ) {
 
 			depthTexture.isArrayTexture = useArrayDepth;
+
+			// WITH_GENESYS
+			if ( depthTexture.name === '' ) {
+
+				labelDepthTextureForRenderTarget( renderTarget, depthTexture, activeMipmapLevel );
+
+			}
+			// !WITH_GENESYS
 
 		}
 
@@ -37613,6 +37741,14 @@ class Textures extends DataMap {
 			// it's an update
 
 			backend.destroyTexture( texture );
+
+			// WITH_GENESYS
+			if ( texture.isDepthTexture && texture.name === '' && texture.renderTarget ) {
+
+				labelDepthTextureForRenderTarget( texture.renderTarget, texture );
+
+			}
+			// !WITH_GENESYS
 
 		}
 
@@ -40974,6 +41110,8 @@ const triplanarTextures = /*@__PURE__*/ Fn( ( [ textureXNode, textureYNode = nul
  */
 const triplanarTexture = ( ...params ) => triplanarTextures( ...params );
 
+// !WITH_GENESYS
+
 const _reflectorPlane = new Plane();
 const _normal = new Vector3();
 const _reflectorWorldPosition = new Vector3();
@@ -40992,6 +41130,9 @@ const _defaultRT = new RenderTarget();
 const _defaultUV = screenUV.flipX();
 
 _defaultRT.depthTexture = new DepthTexture( 1, 1 );
+// WITH_GENESYS
+labelRenderTargetTextures( _defaultRT, 'Reflector.default', { colorAttachment: 'output' } );
+// !WITH_GENESYS
 
 let _inReflector = false;
 
@@ -41387,6 +41528,17 @@ class ReflectorBaseNode extends Node {
 				renderTarget.depthTexture = new DepthTexture();
 
 			}
+
+			// WITH_GENESYS
+			const ownerName = this.target.name || this.textureNode.name;
+			const reflectorLabel = ownerName ? `Reflector.${ ownerName }` : 'Reflector';
+			labelRenderTargetTextures( renderTarget, reflectorLabel, { colorAttachment: 'output' } );
+			if ( renderTarget.depthTexture ) {
+
+				labelDepthTextureForRenderTarget( renderTarget, renderTarget.depthTexture );
+
+			}
+			// !WITH_GENESYS
 
 			this.renderTargets.set( camera, renderTarget );
 
@@ -41920,6 +42072,8 @@ var RendererUtils = /*#__PURE__*/Object.freeze({
 	saveSceneState: saveSceneState
 });
 
+// !WITH_GENESYS
+
 const _size$1 = /*@__PURE__*/ new Vector2();
 
 /**
@@ -41957,6 +42111,9 @@ class RTTNode extends TextureNode {
 		} = options;
 
 		const renderTarget = new RenderTarget( width ?? 1, height ?? 1, { type: HalfFloatType, ...options } );
+		// WITH_GENESYS
+		labelRenderTargetTextures( renderTarget, 'RTT', { colorAttachment: 'output' } );
+		// !WITH_GENESYS
 
 		super( renderTarget.texture, uv$1() );
 
@@ -42199,6 +42356,11 @@ class RTTNode extends TextureNode {
 		}
 
 		this._quadMesh.name = name;
+
+		// WITH_GENESYS
+		const rttBase = callName ? `${ callName }.RTT` : 'RTT';
+		labelRenderTargetTextures( this.renderTarget, rttBase, { colorAttachment: 'output' } );
+		// !WITH_GENESYS
 
 		//
 
@@ -44021,6 +44183,8 @@ class ViewportSharedTextureNode extends ViewportTextureNode {
  */
 const viewportSharedTexture = /*@__PURE__*/ nodeProxy( ViewportSharedTextureNode ).setParameterLength( 0, 2 );
 
+// !WITH_GENESYS
+
 const _size = /*@__PURE__*/ new Vector2();
 
 /**
@@ -44253,7 +44417,9 @@ class PassNode extends TempNode {
 		this._height = 1;
 
 		const renderTarget = new RenderTarget( this._width, this._height, { type: HalfFloatType, ...options, } );
+		// WITH_GENESYS
 		renderTarget.texture.name = 'output';
+		// !WITH_GENESYS
 
 		let depthTexture = null;
 
@@ -44262,7 +44428,9 @@ class PassNode extends TempNode {
 			depthTexture = options.depthTexture || new DepthTexture();
 			depthTexture.isRenderTargetTexture = true;
 			//depthTexture.type = FloatType;
+			// WITH_GENESYS
 			depthTexture.name = 'depth';
+			// !WITH_GENESYS
 
 			renderTarget.depthTexture = depthTexture;
 
@@ -44494,6 +44662,28 @@ class PassNode extends TempNode {
 		 */
 		this.global = true;
 
+		// WITH_GENESYS
+		const _passNodeName = { value: '' };
+
+		Object.defineProperty( this, 'name', {
+			get() {
+
+				return _passNodeName.value;
+
+			},
+			set( value ) {
+
+				_passNodeName.value = value;
+				this._syncPassTextureNames();
+
+			},
+			enumerable: true,
+			configurable: true,
+		} );
+
+		this._syncPassTextureNames();
+		// !WITH_GENESYS
+
 	}
 
 	/**
@@ -44623,7 +44813,9 @@ class PassNode extends TempNode {
 			const refTexture = this.renderTarget.texture;
 
 			texture = refTexture.clone();
-			texture.name = name;
+			// WITH_GENESYS
+			texture.name = this._passTextureName( name );
+			// !WITH_GENESYS
 
 			this._textures[ name ] = texture;
 
@@ -44648,6 +44840,9 @@ class PassNode extends TempNode {
 		if ( texture === undefined ) {
 
 			texture = this.getTexture( name ).clone();
+			// WITH_GENESYS
+			texture.name = this._passTextureName( name + '.previous' );
+			// !WITH_GENESYS
 
 			this._previousTextures[ name ] = texture;
 
@@ -44816,6 +45011,10 @@ class PassNode extends TempNode {
 
 		}
 
+		// WITH_GENESYS
+		this._syncPassTextureNames();
+		// !WITH_GENESYS
+
 		return this.scope === PassNode.COLOR ? this.getTextureNode() : this.getLinearDepthNode();
 
 	}
@@ -44951,6 +45150,10 @@ class PassNode extends TempNode {
 
 		this.renderTarget.setSize( effectiveWidth, effectiveHeight );
 
+		// WITH_GENESYS
+		this._syncPassTextureNames();
+		// !WITH_GENESYS
+
 		// scissor
 
 		if ( this._scissor !== null ) {
@@ -45042,6 +45245,49 @@ class PassNode extends TempNode {
 		}
 
 	}
+
+	// WITH_GENESYS
+	_passTextureName( attachment ) {
+
+		return passAttachmentTextureName( this.name, attachment );
+
+	}
+
+	_syncPassTextureNames() {
+
+		const passName = this.name || 'Pass';
+
+		labelRenderTargetTextures( this.renderTarget, passName, {
+			colorAttachment: 'output',
+			depthAttachment: 'depth',
+		} );
+
+		for ( const attachmentName in this._textures ) {
+
+			const texture = this._textures[ attachmentName ];
+
+			if ( texture ) {
+
+				texture.name = this._passTextureName( attachmentName );
+
+			}
+
+		}
+
+		for ( const attachmentName in this._previousTextures ) {
+
+			const texture = this._previousTextures[ attachmentName ];
+
+			if ( texture ) {
+
+				texture.name = this._passTextureName( attachmentName + '.previous' );
+
+			}
+
+		}
+
+	}
+	// !WITH_GENESYS
 
 	/**
 	 * Frees internal resources. Should be called when the node is no longer in use.

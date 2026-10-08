@@ -13,6 +13,9 @@ import { Matrix4 } from '../../math/Matrix4.js';
 import { RenderTarget } from '../../core/RenderTarget.js';
 import { DepthTexture } from '../../textures/DepthTexture.js';
 import { warnOnce } from '../../utils.js';
+// WITH_GENESYS
+import { labelDepthTextureForRenderTarget, labelRenderTargetTextures } from '../../utils/RenderTargetLabels.js';
+// !WITH_GENESYS
 
 const _reflectorPlane = new Plane();
 const _normal = new Vector3();
@@ -32,6 +35,9 @@ const _defaultRT = new RenderTarget();
 const _defaultUV = screenUV.flipX();
 
 _defaultRT.depthTexture = new DepthTexture( 1, 1 );
+// WITH_GENESYS
+labelRenderTargetTextures( _defaultRT, 'Reflector.default', { colorAttachment: 'output' } );
+// !WITH_GENESYS
 
 let _inReflector = false;
 
@@ -427,6 +433,17 @@ class ReflectorBaseNode extends Node {
 				renderTarget.depthTexture = new DepthTexture();
 
 			}
+
+			// WITH_GENESYS
+			const ownerName = this.target.name || this.textureNode.name;
+			const reflectorLabel = ownerName ? `Reflector.${ ownerName }` : 'Reflector';
+			labelRenderTargetTextures( renderTarget, reflectorLabel, { colorAttachment: 'output' } );
+			if ( renderTarget.depthTexture ) {
+
+				labelDepthTextureForRenderTarget( renderTarget, renderTarget.depthTexture );
+
+			}
+			// !WITH_GENESYS
 
 			this.renderTargets.set( camera, renderTarget );
 

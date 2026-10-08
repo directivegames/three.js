@@ -11,6 +11,9 @@ import { Vector2 } from '../../math/Vector2.js';
 import { HalfFloatType } from '../../constants.js';
 import { error } from '../../utils.js';
 import { resetRendererState, restoreRendererState } from '../../renderers/common/RendererUtils.js';
+// WITH_GENESYS
+import { labelRenderTargetTextures } from '../../utils/RenderTargetLabels.js';
+// !WITH_GENESYS
 
 const _size = /*@__PURE__*/ new Vector2();
 
@@ -49,6 +52,9 @@ class RTTNode extends TextureNode {
 		} = options;
 
 		const renderTarget = new RenderTarget( width ?? 1, height ?? 1, { type: HalfFloatType, ...options } );
+		// WITH_GENESYS
+		labelRenderTargetTextures( renderTarget, 'RTT', { colorAttachment: 'output' } );
+		// !WITH_GENESYS
 
 		super( renderTarget.texture, uv() );
 
@@ -291,6 +297,11 @@ class RTTNode extends TextureNode {
 		}
 
 		this._quadMesh.name = name;
+
+		// WITH_GENESYS
+		const rttBase = callName ? `${ callName }.RTT` : 'RTT';
+		labelRenderTargetTextures( this.renderTarget, rttBase, { colorAttachment: 'output' } );
+		// !WITH_GENESYS
 
 		//
 

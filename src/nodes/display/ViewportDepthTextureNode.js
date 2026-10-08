@@ -35,6 +35,9 @@ class ViewportDepthTextureNode extends ViewportTextureNode {
 			if ( _sharedDepthbuffer === null ) {
 
 				_sharedDepthbuffer = new DepthTexture();
+				// WITH_GENESYS
+				_sharedDepthbuffer.name = 'ViewportDepthTexture.shared';
+				// !WITH_GENESYS
 
 			}
 

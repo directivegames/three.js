@@ -81,13 +81,17 @@ class OITPassNode extends PassNode {
 		oitRenderTarget.depthTexture = this.renderTarget.depthTexture;
 
 		const accumTexture = oitRenderTarget.textures[ 0 ]; // RGBA16
-		accumTexture.name = 'accum';
 		accumTexture.type = HalfFloatType;
 
 		const revealageTexture = oitRenderTarget.textures[ 1 ]; // R8
-		revealageTexture.name = 'revealage';
 		revealageTexture.format = RedFormat;
 		revealageTexture.type = UnsignedByteType;
+
+		// WITH_GENESYS
+		oitRenderTarget.name = 'OITPass';
+		accumTexture.name = 'OITPass.accum';
+		revealageTexture.name = 'OITPass.revealage';
+		// !WITH_GENESYS
 
 		/**
 		 * The render target holding the OIT accumulation textures.

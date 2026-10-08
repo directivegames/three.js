@@ -5,6 +5,9 @@ import { DepthTexture } from '../../textures/DepthTexture.js';
 import { DepthStencilFormat, DepthFormat, UnsignedIntType, UnsignedInt248Type, UnsignedByteType, SRGBTransfer } from '../../constants.js';
 import { ColorManagement } from '../../math/ColorManagement.js';
 import { warn } from '../../utils.js';
+// WITH_GENESYS
+import { labelDepthTextureForRenderTarget } from '../../utils/RenderTargetLabels.js';
+// !WITH_GENESYS
 
 const _size = /*@__PURE__*/ new Vector3();
 
@@ -137,11 +140,23 @@ class Textures extends DataMap {
 
 			depthTextureMips[ activeMipmapLevel ] = depthTexture;
 
+			// WITH_GENESYS
+			labelDepthTextureForRenderTarget( renderTarget, depthTexture, activeMipmapLevel );
+			// !WITH_GENESYS
+
 		}
 
 		if ( depthTexture ) {
 
 			depthTexture.isArrayTexture = useArrayDepth;
+
+			// WITH_GENESYS
+			if ( depthTexture.name === '' ) {
+
+				labelDepthTextureForRenderTarget( renderTarget, depthTexture, activeMipmapLevel );
+
+			}
+			// !WITH_GENESYS
 
 		}
 
@@ -256,6 +271,14 @@ class Textures extends DataMap {
 			// it's an update
 
 			backend.destroyTexture( texture );
+
+			// WITH_GENESYS
+			if ( texture.isDepthTexture && texture.name === '' && texture.renderTarget ) {
+
+				labelDepthTextureForRenderTarget( texture.renderTarget, texture );
+
+			}
+			// !WITH_GENESYS
 
 		}
 
