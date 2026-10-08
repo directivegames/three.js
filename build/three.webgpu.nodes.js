@@ -35133,7 +35133,12 @@ class Info {
 
 			}
 
-			size += mipmapSize;
+			// WITH_GENESYS
+			// {@link Textures#getMipLevels} uses mipmaps.length as the total level count
+			// (levels 0..length-1), not base image plus extra mips — do not add base again.
+			size = mipmapSize;
+			// !WITH_GENESYS
+			// size += mipmapSize;
 
 		} else if ( texture.generateMipmaps ) {
 
@@ -61437,15 +61442,48 @@ class NodeManager extends DataMap {
 
 		const nodeBuilder = renderObject.getNodeBuilderState();
 
+		// WITH_GENESYS
+		const ownedNodes = this._getRenderPipelineOwnedNodes( renderObject );
+		// !WITH_GENESYS
+
 		for ( const node of nodeBuilder.updateBeforeNodes ) {
 
 			// update frame state for each node
 
 			this.getNodeFrameForRender( renderObject ).updateBeforeNode( node );
 
+			// WITH_GENESYS
+			if ( ownedNodes !== null ) ownedNodes.add( node );
+			// !WITH_GENESYS
+
 		}
 
 	}
+
+	// WITH_GENESYS
+	/**
+	 * Returns the node set of the render pipeline that is currently rendering when the given render
+	 * object is one of its post-processing quads (the pipeline quad or an RTT quad it drives).
+	 *
+	 * Nodes created while a shader is built, for example `convertToTexture()` inside a `Fn()` body,
+	 * are not children of any node, so they cannot be found from `RenderPipeline#outputNode`. They do
+	 * run through `updateBefore()` / `updateAfter()` of these quads, which is where the pipeline learns
+	 * about them and can free their render targets in `RenderPipeline#dispose()`.
+	 *
+	 * @private
+	 * @param {RenderObject} renderObject - The render object.
+	 * @return {?Set<Node>} The pipeline's owned nodes, or `null` outside post-processing quads.
+	 */
+	_getRenderPipelineOwnedNodes( renderObject ) {
+
+		if ( renderObject.object.isQuadMesh !== true ) return null;
+
+		const renderPipeline = this.renderer._activeRenderPipeline;
+
+		return renderPipeline ? renderPipeline.ownedNodes : null;
+
+	}
+	// !WITH_GENESYS
 
 	/**
 	 * Triggers the call of `updateAfter()` methods
@@ -61457,11 +61495,19 @@ class NodeManager extends DataMap {
 
 		const nodeBuilder = renderObject.getNodeBuilderState();
 
+		// WITH_GENESYS
+		const ownedNodes = this._getRenderPipelineOwnedNodes( renderObject );
+		// !WITH_GENESYS
+
 		for ( const node of nodeBuilder.updateAfterNodes ) {
 
 			// update frame state for each node
 
 			this.getNodeFrameForRender( renderObject ).updateAfterNode( node );
+
+			// WITH_GENESYS
+			if ( ownedNodes !== null ) ownedNodes.add( node );
+			// !WITH_GENESYS
 
 		}
 
@@ -65543,6 +65589,17 @@ class Renderer {
 		 * @default null
 		 */
 		this._nodes = null;
+
+		// WITH_GENESYS
+		/**
+		 * The render pipeline that is currently inside {@link RenderPipeline#render}, if any.
+		 *
+		 * @private
+		 * @type {?RenderPipeline}
+		 * @default null
+		 */
+		this._activeRenderPipeline = null;
+		// !WITH_GENESYS
 
 		/**
 		 * A reference to a renderer module for managing the internal animation loop.
@@ -94965,6 +95022,57 @@ class BundleGroup extends Group {
 
 // !WITH_GENESYS
 
+// WITH_GENESYS
+/**
+ * Calls `dispose()` once on every node reachable from the given roots.
+ *
+ * @private
+ * @param {Array<Node>} roots - The root nodes. Entries that are not nodes are ignored.
+ */
+function disposeNodeGraph( roots ) {
+
+	const visited = new Set();
+	const stack = [];
+
+	for ( const root of roots ) {
+
+		if ( root && root.isNode === true ) stack.push( root );
+
+	}
+
+	while ( stack.length > 0 ) {
+
+		const node = stack.pop();
+
+		if ( visited.has( node ) ) continue;
+
+		visited.add( node );
+
+		for ( const child of node.getChildren() ) {
+
+			if ( visited.has( child ) === false ) stack.push( child );
+
+		}
+
+	}
+
+	for ( const node of visited ) {
+
+		try {
+
+			node.dispose();
+
+		} catch ( error ) {
+
+			console.warn( 'RenderPipeline: Failed to dispose node.', error );
+
+		}
+
+	}
+
+}
+// !WITH_GENESYS
+
 /**
  * This module is responsible to manage the rendering pipeline setups in apps.
  * You usually create a single instance of this class and use it to define
@@ -95041,6 +95149,22 @@ class RenderPipeline {
 		 */
 		this.needsUpdate = true;
 
+		// WITH_GENESYS
+		/**
+		 * Extra root nodes released by {@link RenderPipeline#dispose} together with the graph under
+		 * {@link RenderPipeline#outputNode}. Add nodes that were built for this pipeline but are not
+		 * reachable from the output node, for example stages whose result nothing reads or that were
+		 * pruned from the chain. Their render targets are otherwise never freed.
+		 *
+		 * Nodes that the pipeline's quads update while rendering are added automatically. That covers
+		 * nodes created during the shader build (such as `convertToTexture()` inside a `Fn()` body),
+		 * which no graph walk can reach.
+		 *
+		 * @type {Set<Node>}
+		 */
+		this.ownedNodes = new Set();
+		// !WITH_GENESYS
+
 		const material = new NodeMaterial();
 		material.name = 'RenderPipeline';
 
@@ -95111,7 +95235,23 @@ class RenderPipeline {
 		const currentXR = renderer.xr.enabled;
 		renderer.xr.enabled = false;
 
-		this._quadMesh.render( renderer );
+		// WITH_GENESYS
+		// Lets the node manager hand this pipeline the nodes its quads update, including nodes created
+		// while the shader is built that no graph walk can reach (see NodeManager#_getRenderPipelineOwnedNodes).
+		const previousRenderPipeline = renderer._activeRenderPipeline;
+		renderer._activeRenderPipeline = this;
+
+		try {
+
+			this._quadMesh.render( renderer );
+
+		} finally {
+
+			renderer._activeRenderPipeline = previousRenderPipeline;
+
+		}
+		// !WITH_GENESYS
+		// this._quadMesh.render( renderer );
 
 		renderer.xr.enabled = currentXR;
 
@@ -95128,6 +95268,14 @@ class RenderPipeline {
 	 * Frees internal resources.
 	 */
 	dispose() {
+
+		// WITH_GENESYS
+		// Upstream only frees the quad material. The pass, render-to-texture, and effect nodes below
+		// the output node (and anything in `ownedNodes`) own screen-sized render targets that are only
+		// released through `Node.dispose()`; without this each pipeline rebuild leaks them on the GPU.
+		disposeNodeGraph( [ this.outputNode, ...this.ownedNodes ] );
+		this.ownedNodes.clear();
+		// !WITH_GENESYS
 
 		this._quadMesh.material.dispose();
 

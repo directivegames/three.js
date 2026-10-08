@@ -1078,15 +1078,48 @@ class NodeManager extends DataMap {
 
 		const nodeBuilder = renderObject.getNodeBuilderState();
 
+		// WITH_GENESYS
+		const ownedNodes = this._getRenderPipelineOwnedNodes( renderObject );
+		// !WITH_GENESYS
+
 		for ( const node of nodeBuilder.updateBeforeNodes ) {
 
 			// update frame state for each node
 
 			this.getNodeFrameForRender( renderObject ).updateBeforeNode( node );
 
+			// WITH_GENESYS
+			if ( ownedNodes !== null ) ownedNodes.add( node );
+			// !WITH_GENESYS
+
 		}
 
 	}
+
+	// WITH_GENESYS
+	/**
+	 * Returns the node set of the render pipeline that is currently rendering when the given render
+	 * object is one of its post-processing quads (the pipeline quad or an RTT quad it drives).
+	 *
+	 * Nodes created while a shader is built, for example `convertToTexture()` inside a `Fn()` body,
+	 * are not children of any node, so they cannot be found from `RenderPipeline#outputNode`. They do
+	 * run through `updateBefore()` / `updateAfter()` of these quads, which is where the pipeline learns
+	 * about them and can free their render targets in `RenderPipeline#dispose()`.
+	 *
+	 * @private
+	 * @param {RenderObject} renderObject - The render object.
+	 * @return {?Set<Node>} The pipeline's owned nodes, or `null` outside post-processing quads.
+	 */
+	_getRenderPipelineOwnedNodes( renderObject ) {
+
+		if ( renderObject.object.isQuadMesh !== true ) return null;
+
+		const renderPipeline = this.renderer._activeRenderPipeline;
+
+		return renderPipeline ? renderPipeline.ownedNodes : null;
+
+	}
+	// !WITH_GENESYS
 
 	/**
 	 * Triggers the call of `updateAfter()` methods
@@ -1098,11 +1131,19 @@ class NodeManager extends DataMap {
 
 		const nodeBuilder = renderObject.getNodeBuilderState();
 
+		// WITH_GENESYS
+		const ownedNodes = this._getRenderPipelineOwnedNodes( renderObject );
+		// !WITH_GENESYS
+
 		for ( const node of nodeBuilder.updateAfterNodes ) {
 
 			// update frame state for each node
 
 			this.getNodeFrameForRender( renderObject ).updateAfterNode( node );
+
+			// WITH_GENESYS
+			if ( ownedNodes !== null ) ownedNodes.add( node );
+			// !WITH_GENESYS
 
 		}
 

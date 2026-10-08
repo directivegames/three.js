@@ -8,6 +8,57 @@ import { warnOnce } from '../../utils.js';
 import { debugViewAccumulates, debugViewSkipsToneMapping } from '../../nodes/display/ComplexityDebug.js';
 // !WITH_GENESYS
 
+// WITH_GENESYS
+/**
+ * Calls `dispose()` once on every node reachable from the given roots.
+ *
+ * @private
+ * @param {Array<Node>} roots - The root nodes. Entries that are not nodes are ignored.
+ */
+function disposeNodeGraph( roots ) {
+
+	const visited = new Set();
+	const stack = [];
+
+	for ( const root of roots ) {
+
+		if ( root && root.isNode === true ) stack.push( root );
+
+	}
+
+	while ( stack.length > 0 ) {
+
+		const node = stack.pop();
+
+		if ( visited.has( node ) ) continue;
+
+		visited.add( node );
+
+		for ( const child of node.getChildren() ) {
+
+			if ( visited.has( child ) === false ) stack.push( child );
+
+		}
+
+	}
+
+	for ( const node of visited ) {
+
+		try {
+
+			node.dispose();
+
+		} catch ( error ) {
+
+			console.warn( 'RenderPipeline: Failed to dispose node.', error );
+
+		}
+
+	}
+
+}
+// !WITH_GENESYS
+
 /**
  * This module is responsible to manage the rendering pipeline setups in apps.
  * You usually create a single instance of this class and use it to define
@@ -84,6 +135,22 @@ class RenderPipeline {
 		 */
 		this.needsUpdate = true;
 
+		// WITH_GENESYS
+		/**
+		 * Extra root nodes released by {@link RenderPipeline#dispose} together with the graph under
+		 * {@link RenderPipeline#outputNode}. Add nodes that were built for this pipeline but are not
+		 * reachable from the output node, for example stages whose result nothing reads or that were
+		 * pruned from the chain. Their render targets are otherwise never freed.
+		 *
+		 * Nodes that the pipeline's quads update while rendering are added automatically. That covers
+		 * nodes created during the shader build (such as `convertToTexture()` inside a `Fn()` body),
+		 * which no graph walk can reach.
+		 *
+		 * @type {Set<Node>}
+		 */
+		this.ownedNodes = new Set();
+		// !WITH_GENESYS
+
 		const material = new NodeMaterial();
 		material.name = 'RenderPipeline';
 
@@ -154,7 +221,23 @@ class RenderPipeline {
 		const currentXR = renderer.xr.enabled;
 		renderer.xr.enabled = false;
 
-		this._quadMesh.render( renderer );
+		// WITH_GENESYS
+		// Lets the node manager hand this pipeline the nodes its quads update, including nodes created
+		// while the shader is built that no graph walk can reach (see NodeManager#_getRenderPipelineOwnedNodes).
+		const previousRenderPipeline = renderer._activeRenderPipeline;
+		renderer._activeRenderPipeline = this;
+
+		try {
+
+			this._quadMesh.render( renderer );
+
+		} finally {
+
+			renderer._activeRenderPipeline = previousRenderPipeline;
+
+		}
+		// !WITH_GENESYS
+		// this._quadMesh.render( renderer );
 
 		renderer.xr.enabled = currentXR;
 
@@ -171,6 +254,14 @@ class RenderPipeline {
 	 * Frees internal resources.
 	 */
 	dispose() {
+
+		// WITH_GENESYS
+		// Upstream only frees the quad material. The pass, render-to-texture, and effect nodes below
+		// the output node (and anything in `ownedNodes`) own screen-sized render targets that are only
+		// released through `Node.dispose()`; without this each pipeline rebuild leaks them on the GPU.
+		disposeNodeGraph( [ this.outputNode, ...this.ownedNodes ] );
+		this.ownedNodes.clear();
+		// !WITH_GENESYS
 
 		this._quadMesh.material.dispose();
 

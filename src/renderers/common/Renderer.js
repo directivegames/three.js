@@ -365,6 +365,17 @@ class Renderer {
 		 */
 		this._nodes = null;
 
+		// WITH_GENESYS
+		/**
+		 * The render pipeline that is currently inside {@link RenderPipeline#render}, if any.
+		 *
+		 * @private
+		 * @type {?RenderPipeline}
+		 * @default null
+		 */
+		this._activeRenderPipeline = null;
+		// !WITH_GENESYS
+
 		/**
 		 * A reference to a renderer module for managing the internal animation loop.
 		 *
