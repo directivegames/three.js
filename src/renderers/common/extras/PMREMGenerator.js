@@ -166,6 +166,10 @@ class PMREMGenerator {
 
 		this._cleanup( cubeUVRenderTarget );
 
+		// WITH_GENESYS
+		this._releaseScratchBuffers();
+		// !WITH_GENESYS
+
 		return cubeUVRenderTarget;
 
 	}
@@ -328,7 +332,10 @@ class PMREMGenerator {
 	 */
 	dispose() {
 
-		this._dispose();
+		// WITH_GENESYS
+		this._releaseScratchBuffers();
+		// !WITH_GENESYS
+		// this._dispose();
 
 		if ( this._cubemapMaterial !== null ) this._cubemapMaterial.dispose();
 		if ( this._equirectMaterial !== null ) this._equirectMaterial.dispose();
@@ -379,6 +386,24 @@ class PMREMGenerator {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Releases ping-pong and GGX/blur pass resources after a bake. The CubeUV result
+	 * render target is kept; scratch is reallocated on the next generation.
+	 */
+	_releaseScratchBuffers() {
+
+		this._dispose();
+
+		this._pingPongRenderTarget = null;
+		this._blurMaterial = null;
+		this._ggxMaterial = null;
+		this._lodMeshes = [];
+		this._sizeLods = [];
+
+	}
+	// !WITH_GENESYS
+
 	_cleanup( outputTarget ) {
 
 		this._renderer.setRenderTarget( _oldTarget, _oldActiveCubeFace, _oldActiveMipmapLevel );
@@ -400,6 +425,10 @@ class PMREMGenerator {
 		this._textureToCubeUV( texture, cubeUVRenderTarget );
 		this._applyPMREM( cubeUVRenderTarget );
 		this._cleanup( cubeUVRenderTarget );
+
+		// WITH_GENESYS
+		this._releaseScratchBuffers();
+		// !WITH_GENESYS
 
 		return cubeUVRenderTarget;
 

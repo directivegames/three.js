@@ -2749,6 +2749,10 @@ class PMREMGenerator {
 		this._applyPMREM( cubeUVRenderTarget );
 		this._cleanup( cubeUVRenderTarget );
 
+		// WITH_GENESYS
+		this._releaseScratchBuffers();
+		// !WITH_GENESYS
+
 		return cubeUVRenderTarget;
 
 	}
@@ -2822,7 +2826,10 @@ class PMREMGenerator {
 	 */
 	dispose() {
 
-		this._dispose();
+		// WITH_GENESYS
+		this._releaseScratchBuffers();
+		// !WITH_GENESYS
+		// this._dispose();
 
 		if ( this._cubemapMaterial !== null ) this._cubemapMaterial.dispose();
 		if ( this._equirectMaterial !== null ) this._equirectMaterial.dispose();
@@ -2860,6 +2867,56 @@ class PMREMGenerator {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Releases ping-pong and GGX/blur pass resources after a bake. The CubeUV result
+	 * render target is kept; scratch is reallocated on the next generation.
+	 */
+	_releaseScratchBuffers() {
+
+		this._dispose();
+
+		this._pingPongRenderTarget = null;
+		this._blurMaterial = null;
+		this._ggxMaterial = null;
+		this._lodMeshes = [];
+		this._sizeLods = [];
+
+	}
+
+	_initScratchBuffers( width, height ) {
+
+		if ( this._pingPongRenderTarget === null || this._pingPongRenderTarget.width !== width || this._pingPongRenderTarget.height !== height ) {
+
+			if ( this._pingPongRenderTarget !== null ) {
+
+				this._dispose();
+
+			}
+
+			const params = {
+				magFilter: LinearFilter,
+				minFilter: LinearFilter,
+				generateMipmaps: false,
+				type: HalfFloatType,
+				format: RGBAFormat,
+				colorSpace: LinearSRGBColorSpace,
+				depthBuffer: false
+			};
+
+			this._pingPongRenderTarget = _createRenderTarget( width, height, params );
+
+			const { _lodMax } = this;
+			( { lodMeshes: this._lodMeshes, sizeLods: this._sizeLods } = _createPlanes( _lodMax ) );
+
+			this._blurMaterial = _getBlurShader( _lodMax, width, height );
+			this._ggxMaterial = _getGGXShader( _lodMax, width, height );
+
+		}
+
+	}
+	// !WITH_GENESYS
+
 	_cleanup( outputTarget ) {
 
 		this._renderer.setRenderTarget( _oldTarget, _oldActiveCubeFace, _oldActiveMipmapLevel );
@@ -2890,9 +2947,22 @@ class PMREMGenerator {
 		this._renderer.xr.enabled = false;
 
 		const cubeUVRenderTarget = renderTarget || this._allocateTargets();
+
+		// WITH_GENESYS
+		if ( renderTarget !== null ) {
+
+			this._initScratchBuffers( cubeUVRenderTarget.width, cubeUVRenderTarget.height );
+
+		}
+		// !WITH_GENESYS
+
 		this._textureToCubeUV( texture, cubeUVRenderTarget );
 		this._applyPMREM( cubeUVRenderTarget );
 		this._cleanup( cubeUVRenderTarget );
+
+		// WITH_GENESYS
+		this._releaseScratchBuffers();
+		// !WITH_GENESYS
 
 		return cubeUVRenderTarget;
 
@@ -2915,23 +2985,9 @@ class PMREMGenerator {
 
 		const cubeUVRenderTarget = _createRenderTarget( width, height, params );
 
-		if ( this._pingPongRenderTarget === null || this._pingPongRenderTarget.width !== width || this._pingPongRenderTarget.height !== height ) {
-
-			if ( this._pingPongRenderTarget !== null ) {
-
-				this._dispose();
-
-			}
-
-			this._pingPongRenderTarget = _createRenderTarget( width, height, params );
-
-			const { _lodMax } = this;
-			( { lodMeshes: this._lodMeshes, sizeLods: this._sizeLods } = _createPlanes( _lodMax ) );
-
-			this._blurMaterial = _getBlurShader( _lodMax, width, height );
-			this._ggxMaterial = _getGGXShader( _lodMax, width, height );
-
-		}
+		// WITH_GENESYS
+		this._initScratchBuffers( width, height );
+		// !WITH_GENESYS
 
 		return cubeUVRenderTarget;
 
