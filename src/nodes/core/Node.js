@@ -85,6 +85,18 @@ class Node extends EventDispatcher {
 		 */
 		this.name = '';
 
+		// WITH_GENESYS
+		/**
+		 * Display label for profiler scopes and GPU resource names, such as the post-process
+		 * effect that owns the node. Unlike {@link Node#name}, it never reaches generated shader
+		 * code, so any text is allowed.
+		 *
+		 * @type {string}
+		 * @default ''
+		 */
+		this.debugLabel = '';
+		// !WITH_GENESYS
+
 		/**
 		 * Whether this node is global or not. This property is relevant for the internal
 		 * node caching system. All nodes which should be declared just once should

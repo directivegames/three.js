@@ -912,15 +912,16 @@ class ProfilerServiceClass {
 	}
 
 	/**
-	 * @param {string} label
+	 * @param {string} label Stats key.
 	 * @param {Object} renderer
+	 * @param {string} [traceName] Trace slice name; the handle's `traceName` can also be set while it is open.
 	 * @return {GpuSpanHandle}
 	 */
-	_beginGpuImpl( label, renderer ) {
+	_beginGpuImpl( label, renderer, traceName ) {
 
 		const timer = this._gpuTimers.get( renderer );
 		if ( timer === undefined || timer.available === false ) return DUMMY_GPU_SPAN;
-		return timer.begin( label );
+		return timer.begin( label, traceName ?? null );
 
 	}
 
@@ -1411,6 +1412,7 @@ function toThresholdMs( minDurationMs ) {
 /**
  * @typedef {Object} GpuSpanHandle
  * @property {string} label
+ * @property {?string} [traceName] Trace slice name when it differs from `label`.
  * @property {?Object} renderer
  * @property {number} t0
  * @property {number} _seq

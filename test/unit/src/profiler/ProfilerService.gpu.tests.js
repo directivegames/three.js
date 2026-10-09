@@ -252,26 +252,50 @@ export default QUnit.module( 'Profiler', () => {
 
 			} );
 
-			QUnit.test( 'lists the outer span first when nested spans share an envelope', async assert => {
+			QUnit.test( 'a pass takes the name of the innermost span that only times it', async assert => {
 
 				const renderer = createCommonRenderer();
 				await ProfilerService.attachGpuRenderer( renderer );
 
 				const outer = ProfilerService.beginGpu( 'outer', renderer );
-				const inner = ProfilerService.beginGpu( 'inner', renderer );
+				const inner = ProfilerService.beginGpu( 'inner', renderer, 'Inner (1920x1080)' );
 				renderer.backend.emit( 'render', 'r:0:1:f1', 2, 'Scene', 10 );
 				ProfilerService.endGpu( inner );
 				ProfilerService.endGpu( outer );
 				await ProfilerService.flushGpu( renderer );
 
 				const gpuSlices = ProfilerService.exportChromeTrace().traceEvents.filter( event => event.ph === 'X' && event.tid === 3 );
-				const range = event => `${event.ts}+${event.dur}`;
-				assert.strictEqual( range( gpuSlices[ 0 ] ), range( gpuSlices[ 1 ] ), 'both spans cover the same range' );
+				assert.deepEqual( gpuSlices.map( event => event.name ), [ 'Inner (1920x1080)' ], 'one slice instead of three identical ones' );
+				for ( const label of [ 'outer', 'inner', 'GPU pass: Scene' ] ) {
+
+					assert.strictEqual( ProfilerService.getGpuStats( label )?.avg, 2, `stats keep ${ label }` );
+
+				}
+
+			} );
+
+			QUnit.test( 'leaves out a span that repeats a deeper span and names a group\'s own pass', async assert => {
+
+				const renderer = createCommonRenderer();
+				await ProfilerService.attachGpuRenderer( renderer );
+
+				const stage = ProfilerService.beginGpu( 'DepthOfFieldNode.updateBefore', renderer, 'Depth Of Field' );
+				const output = ProfilerService.beginGpu( 'Renderer.render (Output)', renderer, 'Output (RTT, 64x64)' );
+				const blur = ProfilerService.beginGpu( 'Renderer.render (Blur)', renderer, 'Blur (Quad, 32x32)' );
+				renderer.backend.emit( 'render', 'r:0:1:f1', 1, 'Blur', 10 );
+				ProfilerService.endGpu( blur );
+				renderer.backend.emit( 'render', 'r:1:2:f1', 2, 'Output', 12 );
+				ProfilerService.endGpu( output );
+				ProfilerService.endGpu( stage );
+				await ProfilerService.flushGpu( renderer );
+
+				const gpuSlices = ProfilerService.exportChromeTrace().traceEvents.filter( event => event.ph === 'X' && event.tid === 3 );
 				assert.deepEqual(
 					gpuSlices.map( event => event.name ),
-					[ 'outer', 'inner', 'GPU pass: Scene' ],
-					'outer span first, so viewers nest inner inside it'
+					[ 'Output (RTT, 64x64)', 'Blur (Quad, 32x32)', 'Output (pass)' ],
+					'the stage span adds nothing over the render span, and the render\'s own pass reads apart from it'
 				);
+				assert.strictEqual( ProfilerService.getGpuStats( 'DepthOfFieldNode.updateBefore' )?.avg, 3, 'stats keep the left-out span' );
 
 			} );
 
@@ -334,12 +358,10 @@ export default QUnit.module( 'Profiler', () => {
 					[
 						'Renderer.render (Scene)',
 						'Renderer.render (Shadow A)',
-						'GPU pass: Shadow A',
 						'Renderer.render (Shadow B)',
-						'GPU pass: Shadow B',
-						'GPU pass: Scene',
+						'Scene (pass)',
 					],
-					'each render is listed before the pass it covers'
+					'single-pass renders are one slice each, and the scene\'s own pass reads apart from its render'
 				);
 
 			} );

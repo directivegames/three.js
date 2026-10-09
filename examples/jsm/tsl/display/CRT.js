@@ -68,6 +68,11 @@ export const colorBleeding = Fn( ( [ color, amount = float( 0.002 ) ] ) => {
 
 	const inputTexture = convertToTexture( color );
 
+	// WITH_GENESYS
+	// Created while the shader builds, so graph walks that label effect nodes never reach it.
+	if ( inputTexture.isRTTNode === true ) inputTexture.debugLabel = 'CRT colorBleeding';
+	// !WITH_GENESYS
+
 	// Get the original color
 	const original = inputTexture.sample( screenUV ).rgb;
 

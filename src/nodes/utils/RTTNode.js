@@ -288,7 +288,10 @@ class RTTNode extends TextureNode {
 
 		let name = 'RTT';
 
-		const callName = this.name || this.node.name;
+		// WITH_GENESYS
+		const callName = this.name || this.node.name || this.debugLabel;
+		// !WITH_GENESYS
+		// const callName = this.name || this.node.name;
 
 		if ( callName ) {
 

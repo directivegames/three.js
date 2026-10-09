@@ -2,6 +2,73 @@ import { NodeUpdateType } from './constants.js';
 
 // WITH_GENESYS
 import { ProfilerService } from '../../profiler/ProfilerService.js';
+
+const _updateLabels = { updateBefore: new Map(), updateAfter: new Map() };
+
+/**
+ * Stats key such as `RTTNode.updateBefore`, cached per node type so profiling does not allocate per call.
+ *
+ * @param {Node} node
+ * @param {('updateBefore'|'updateAfter')} method
+ * @return {string}
+ */
+function getUpdateLabel( node, method ) {
+
+	const labels = _updateLabels[ method ];
+	let label = labels.get( node.type );
+
+	if ( label === undefined ) {
+
+		label = `${ node.type }.${ method }`;
+		labels.set( node.type, label );
+
+	}
+
+	return label;
+
+}
+
+/**
+ * Calls `node[ method ]( frame )` inside a profiler scope. Only updates that actually run are
+ * recorded, and the trace slice leads with the node's `debugLabel` (or `name`) so passes show
+ * which effect they belong to. A matching GPU span groups the passes the update renders, so an
+ * effect's passes sit under its name on the GPU track too. `RTTNode` updates are a single quad
+ * render that already records a `Renderer._renderQuad` scope with the same label, so they get no
+ * scope of their own.
+ *
+ * @param {Node} node
+ * @param {('updateBefore'|'updateAfter')} method
+ * @param {NodeFrame} frame
+ * @return {?boolean} The update method's result.
+ */
+function callProfiled( node, method, frame ) {
+
+	if ( ProfilerService.isEnabled() === false || node.isRTTNode === true ) return node[ method ]( frame );
+
+	const label = getUpdateLabel( node, method );
+	const owner = node.debugLabel || node.name;
+	const tracing = ProfilerService.isTracing();
+
+	ProfilerService.begin( label, owner && tracing ? `${ owner } (${ label })` : undefined );
+	const gpuSpan = ProfilerService.beginGpu( label, frame.renderer, tracing ? owner || label.slice( 0, label.lastIndexOf( '.' ) ) : undefined );
+	let result;
+
+	try {
+
+		result = node[ method ]( frame );
+
+	} finally {
+
+		// An open GPU span holds back every later GPU timing, so it must close on a throw.
+		ProfilerService.endGpu( gpuSpan );
+
+	}
+
+	ProfilerService.end( label );
+
+	return result;
+
+}
 // !WITH_GENESYS
 
 /**
@@ -158,11 +225,6 @@ class NodeFrame {
 	 */
 	updateBeforeNode( node ) {
 
-		// WITH_GENESYS
-		const label = `${node.type}.updateBefore`;
-		ProfilerService.begin( label );
-		// !WITH_GENESYS
-
 		const updateType = node.getUpdateBeforeType( this );
 		const reference = node.updateReference( this );
 
@@ -176,7 +238,12 @@ class NodeFrame {
 
 				nodeUpdateBeforeMap.frameId = this.frameId;
 
-				if ( node.updateBefore( this ) === false ) {
+				// WITH_GENESYS
+				const result = callProfiled( node, 'updateBefore', this );
+				// !WITH_GENESYS
+				// const result = node.updateBefore( this );
+
+				if ( result === false ) {
 
 					nodeUpdateBeforeMap.frameId = previousFrameId;
 
@@ -194,7 +261,12 @@ class NodeFrame {
 
 				nodeUpdateBeforeMap.renderId = this.renderId;
 
-				if ( node.updateBefore( this ) === false ) {
+				// WITH_GENESYS
+				const result = callProfiled( node, 'updateBefore', this );
+				// !WITH_GENESYS
+				// const result = node.updateBefore( this );
+
+				if ( result === false ) {
 
 					nodeUpdateBeforeMap.renderId = previousRenderId;
 
@@ -204,13 +276,12 @@ class NodeFrame {
 
 		} else if ( updateType === NodeUpdateType.OBJECT ) {
 
-			node.updateBefore( this );
+			// WITH_GENESYS
+			callProfiled( node, 'updateBefore', this );
+			// !WITH_GENESYS
+			// node.updateBefore( this );
 
 		}
-
-		// WITH_GENESYS
-		ProfilerService.end( label );
-		// !WITH_GENESYS
 
 	}
 
@@ -224,11 +295,6 @@ class NodeFrame {
 	 */
 	updateAfterNode( node ) {
 
-		// WITH_GENESYS
-		const label = `${node.type}.updateAfter`;
-		ProfilerService.begin( label );
-		// !WITH_GENESYS
-
 		const updateType = node.getUpdateAfterType( this );
 		const reference = node.updateReference( this );
 
@@ -238,7 +304,12 @@ class NodeFrame {
 
 			if ( nodeUpdateAfterMap.frameId !== this.frameId ) {
 
-				if ( node.updateAfter( this ) !== false ) {
+				// WITH_GENESYS
+				const result = callProfiled( node, 'updateAfter', this );
+				// !WITH_GENESYS
+				// const result = node.updateAfter( this );
+
+				if ( result !== false ) {
 
 					nodeUpdateAfterMap.frameId = this.frameId;
 
@@ -252,7 +323,12 @@ class NodeFrame {
 
 			if ( nodeUpdateAfterMap.renderId !== this.renderId ) {
 
-				if ( node.updateAfter( this ) !== false ) {
+				// WITH_GENESYS
+				const result = callProfiled( node, 'updateAfter', this );
+				// !WITH_GENESYS
+				// const result = node.updateAfter( this );
+
+				if ( result !== false ) {
 
 					nodeUpdateAfterMap.renderId = this.renderId;
 
@@ -262,13 +338,12 @@ class NodeFrame {
 
 		} else if ( updateType === NodeUpdateType.OBJECT ) {
 
-			node.updateAfter( this );
+			// WITH_GENESYS
+			callProfiled( node, 'updateAfter', this );
+			// !WITH_GENESYS
+			// node.updateAfter( this );
 
 		}
-
-		// WITH_GENESYS
-		ProfilerService.end( label );
-		// !WITH_GENESYS
 
 	}
 

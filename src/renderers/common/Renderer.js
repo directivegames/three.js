@@ -76,6 +76,48 @@ function getProfilerSceneName( scene ) {
 	return '';
 
 }
+
+/**
+ * Trace slice name for one `_renderScene()` call. Fullscreen quads lead with the quad name
+ * because flame graph boxes for post-process passes are narrow and truncate on the right;
+ * `RTTNode` quads (named `<label> [ RTT ]`) read as `<label> (RTT, WxH)`, and quads that draw to
+ * the canvas as `<name> (Screen, WxH)`.
+ *
+ * @param {string} name - Scene name, else render target texture name (the GPU pass label).
+ * @param {RenderContext} renderContext - The context with its final size.
+ * @param {boolean} toScreen - Whether the render ends up in the canvas rather than a user render target.
+ * @param {?string} scope - Scope that leads scene (non-quad) render names, or null to lead with the scene name.
+ * @return {string}
+ */
+function getRenderSceneTraceName( name, renderContext, toScreen, scope ) {
+
+	const size = `${ renderContext.width }x${ renderContext.height }`;
+
+	if ( renderContext.fullscreenPass === true ) {
+
+		const rttLabel = getRTTLabel( name );
+		if ( rttLabel !== null ) return `${ rttLabel } (RTT, ${ size })`;
+		if ( name === 'RTT' ) return `RTT (${ size })`;
+
+		return `${ name || 'QuadMesh' } (${ toScreen ? 'Screen' : 'Quad' }, ${ size })`;
+
+	}
+
+	if ( scope === null ) return `${ name || 'Scene' } (${ size })`;
+
+	return name !== '' ? `${ scope } (${ name }, ${ size })` : `${ scope } (${ size })`;
+
+}
+
+/**
+ * @param {string} name - A quad name.
+ * @return {?string} The label of an `RTTNode` quad named `<label> [ RTT ]`, else null.
+ */
+function getRTTLabel( name ) {
+
+	return name.endsWith( ' [ RTT ]' ) ? name.slice( 0, - 8 ) : null;
+
+}
 // !WITH_GENESYS
 
 /**
@@ -475,6 +517,28 @@ class Renderer {
 		 * @default null
 		 */
 		this._currentRenderContext = null;
+
+		// WITH_GENESYS
+		/**
+		 * Whether the render list methods open profiler scopes. Off while a fullscreen quad
+		 * renders: its single draw is already covered by the `Renderer._renderQuad` scope.
+		 *
+		 * @private
+		 * @type {boolean}
+		 * @default true
+		 */
+		this._profileRenderObjects = true;
+
+		/**
+		 * GPU span `render()` opened for the `_renderScene()` call it is about to make, which
+		 * takes it and names it once the target size is known.
+		 *
+		 * @private
+		 * @type {?Object}
+		 * @default null
+		 */
+		this._pendingGpuRenderSpan = null;
+		// !WITH_GENESYS
 
 		/**
 		 * A custom sort function for the opaque render list.
@@ -1596,12 +1660,14 @@ class Renderer {
 		// WITH_GENESYS
 		const label = ProfilerService.isEnabled() ? `Renderer.render (${getProfilerSceneName( scene ) || scene.type})` : '';
 		const handle = ProfilerService.beginGpu( label, this );
+		this._pendingGpuRenderSpan = handle;
 		try {
 
 			this._renderScene( scene, camera );
 
 		} finally {
 
+			this._pendingGpuRenderSpan = null;
 			ProfilerService.endGpu( handle );
 
 		}
@@ -1757,6 +1823,11 @@ class Renderer {
 	 */
 	_renderScene( scene, camera, useFrameBufferTarget = true ) {
 
+		// WITH_GENESYS
+		const gpuRenderSpan = this._pendingGpuRenderSpan;
+		this._pendingGpuRenderSpan = null;
+		// !WITH_GENESYS
+
 		if ( this._isDeviceLost === true ) return;
 
 		if ( this.shadowMap.type === PCFSoftShadowMap ) {
@@ -1852,7 +1923,7 @@ class Renderer {
 
 		}
 
-		renderContext.gpuProfilerLabel = gpuProfilerLabel;
+		renderContext.gpuProfilerLabel = scene.isQuadMesh === true && gpuProfilerLabel !== null ? getRTTLabel( gpuProfilerLabel ) ?? gpuProfilerLabel : gpuProfilerLabel;
 		// !WITH_GENESYS
 		// renderContext.gpuProfilerLabel = scene.name !== '' ? scene.name : null;
 
@@ -2008,11 +2079,22 @@ class Renderer {
 		renderContext.fullscreenPass = scene.isQuadMesh === true;
 
 		// WITH_GENESYS
-		// Size is finalized above from the active RT or drawing buffer.
-		ProfilerService.begin(
-			'Renderer._renderScene',
-			ProfilerService.isTracing() ? `Renderer._renderScene (${renderContext.width}x${renderContext.height})` : undefined
-		);
+		// Size is finalized above from the active RT or drawing buffer. Fullscreen quads get their own
+		// stats key so post-process passes do not inflate the scene render numbers.
+		const profilerLabel = renderContext.fullscreenPass === true ? 'Renderer._renderQuad' : 'Renderer._renderScene';
+		const tracing = ProfilerService.isTracing();
+		const toScreen = outputRenderTarget === null;
+		ProfilerService.begin( profilerLabel, tracing ? getRenderSceneTraceName( gpuProfilerLabel ?? '', renderContext, toScreen, profilerLabel ) : undefined );
+
+		// The GPU track has no CPU scope names, so its slices lead with what was rendered.
+		if ( tracing && gpuRenderSpan !== null && gpuRenderSpan._seq !== 0 ) {
+
+			gpuRenderSpan.traceName = getRenderSceneTraceName( gpuProfilerLabel ?? '', renderContext, toScreen, null );
+
+		}
+
+		const previousProfileRenderObjects = this._profileRenderObjects;
+		this._profileRenderObjects = renderContext.fullscreenPass !== true;
 		// !WITH_GENESYS
 
 		//
@@ -2111,7 +2193,8 @@ class Renderer {
 		//
 
 		// WITH_GENESYS
-		ProfilerService.end( 'Renderer._renderScene' );
+		this._profileRenderObjects = previousProfileRenderObjects;
+		ProfilerService.end( profilerLabel );
 		// !WITH_GENESYS
 
 		return renderContext;
@@ -3743,7 +3826,8 @@ class Renderer {
 	_renderTransparents( renderList, doublePassList, camera, scene, lightsNode ) {
 
 		// WITH_GENESYS
-		ProfilerService.begin( '_renderTransparents' );
+		const profile = this._profileRenderObjects;
+		if ( profile ) ProfilerService.begin( '_renderTransparents' );
 		// !WITH_GENESYS
 
 		if ( doublePassList.length > 0 ) {
@@ -3783,7 +3867,7 @@ class Renderer {
 		}
 
 		// WITH_GENESYS
-		ProfilerService.end( '_renderTransparents' );
+		if ( profile ) ProfilerService.end( '_renderTransparents' );
 		// !WITH_GENESYS
 
 	}
@@ -3801,7 +3885,8 @@ class Renderer {
 	_renderObjects( renderList, camera, scene, lightsNode, passId = null ) {
 
 		// WITH_GENESYS
-		ProfilerService.begin( '_renderObjects', ProfilerService.isTracing() ? `_renderObjects (${renderList.length})` : undefined );
+		const profile = this._profileRenderObjects;
+		if ( profile ) ProfilerService.begin( '_renderObjects', ProfilerService.isTracing() ? `_renderObjects (${renderList.length})` : undefined );
 		// !WITH_GENESYS
 
 		for ( let i = 0, il = renderList.length; i < il; i ++ ) {
@@ -3813,7 +3898,7 @@ class Renderer {
 		}
 
 		// WITH_GENESYS
-		ProfilerService.end( '_renderObjects' );
+		if ( profile ) ProfilerService.end( '_renderObjects' );
 		// !WITH_GENESYS
 
 	}
@@ -4037,10 +4122,15 @@ class Renderer {
 	renderObject( object, scene, camera, geometry, material, group, lightsNode, clippingContext = null, passId = null ) {
 
 		// WITH_GENESYS
-		ProfilerService.begin(
-			'renderObject',
-			ProfilerService.isTracing() ? `renderObject (${object.name || object.type} - ${material.name || material.type})` : undefined
-		);
+		const profile = this._profileRenderObjects;
+		if ( profile ) {
+
+			ProfilerService.begin(
+				'renderObject',
+				ProfilerService.isTracing() ? `renderObject (${object.name || object.type} - ${material.name || material.type})` : undefined
+			);
+
+		}
 		// !WITH_GENESYS
 
 		let materialOverride = false;
@@ -4155,7 +4245,7 @@ class Renderer {
 		object.onAfterRender( this, scene, camera, geometry, material, group );
 
 		// WITH_GENESYS
-		ProfilerService.end( 'renderObject' );
+		if ( profile ) ProfilerService.end( 'renderObject' );
 		// !WITH_GENESYS
 
 	}

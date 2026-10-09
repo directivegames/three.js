@@ -91,12 +91,14 @@ class GpuTimer {
 
 	/**
 	 * @param {string} label
+	 * @param {?string} [traceName=null]
 	 * @return {Object} An identity object for the span (start `t0`, `_seq`, `_generation`).
 	 */
-	_createHandle( label ) {
+	_createHandle( label, traceName = null ) {
 
 		return {
 			label,
+			traceName,
 			renderer: this.renderer,
 			t0: performance.now(),
 			_seq: ++ this.profiler._seq,
@@ -170,9 +172,9 @@ class WebGPUTimer extends GpuTimer {
 
 	}
 
-	begin( label ) {
+	begin( label, traceName ) {
 
-		const handle = this._createHandle( label );
+		const handle = this._createHandle( label, traceName );
 		handle._first = this._queries.length;
 		handle._end = - 1;
 		handle._depth = this._openSpans.length;
@@ -237,7 +239,7 @@ class WebGPUTimer extends GpuTimer {
 
 			const parent = this._queries[ parentIndex ];
 			const name = hasLabel ? label : UNLABELED_SPAN;
-			this._pushQuery( uid, type, name, `${ parent.statsLabel } / ${ name }`, hasLabel, parent.depth + 1, parent );
+			this._pushQuery( uid, type, name, `${ parent.statsLabel } / ${ name }`, name, hasLabel, parent.depth + 1, parent );
 			return;
 
 		}
@@ -246,7 +248,7 @@ class WebGPUTimer extends GpuTimer {
 		if ( depth === 0 && hasLabel === false ) return;
 
 		const name = hasLabel ? `GPU pass: ${label}` : UNLABELED_PASS;
-		this._pushQuery( uid, type, name, name, hasLabel, depth, null );
+		this._pushQuery( uid, type, name, name, hasLabel ? label : UNLABELED_SPAN, hasLabel, depth, null );
 
 		if ( depth === 0 ) this.scheduleFlush();
 
@@ -257,11 +259,12 @@ class WebGPUTimer extends GpuTimer {
 	 * @param {'render'|'compute'} type
 	 * @param {string} label
 	 * @param {string} statsLabel
+	 * @param {string} passLabel
 	 * @param {boolean} labelled
 	 * @param {number} depth
 	 * @param {?GpuQuery} parent
 	 */
-	_pushQuery( uid, type, label, statsLabel, labelled, depth, parent ) {
+	_pushQuery( uid, type, label, statsLabel, passLabel, labelled, depth, parent ) {
 
 		this._queryIndex.set( uid, this._queries.length );
 		this._queries.push( {
@@ -269,6 +272,8 @@ class WebGPUTimer extends GpuTimer {
 			type,
 			label,
 			statsLabel,
+			passLabel,
+			traceName: null,
 			labelled,
 			cpuTime: performance.now(),
 			depth,
@@ -367,17 +372,18 @@ class WebGPUTimer extends GpuTimer {
 
 		const passes = this._placePasses( queries );
 		this._snapPasses( passes );
+		const untraced = this._nameSpanPasses( spans, queries );
 
 		for ( const query of passes ) {
 
-			this.profiler._commitGpuSample( query.statsLabel, query.duration, query.traceTs, query.traceDur, query.depth, query.label );
+			this.profiler._commitGpuSample( query.statsLabel, query.duration, query.traceTs, query.traceDur, query.depth, query.traceName ?? query.label );
 
 		}
 
 		let dropped = false;
 		for ( const span of spans ) {
 
-			if ( this._commitSpan( span, queries ) === false ) dropped = true;
+			if ( this._commitSpan( span, queries, untraced.has( span ) === false ) === false ) dropped = true;
 
 		}
 
@@ -539,14 +545,80 @@ class WebGPUTimer extends GpuTimer {
 	}
 
 	/**
+	 * Keeps the GPU trace free of slices that repeat their only child. A span that times a single
+	 * pass hands that pass its name, and a span with the same queries as a deeper span adds
+	 * nothing; neither gets a slice (stats keep both). A span's own pass among nested work is
+	 * named `<label> (pass)` so it reads apart from the span around it.
+	 *
+	 * @param {Object[]} spans
+	 * @param {GpuQuery[]} queries
+	 * @return {Set<Object>} Spans to leave out of the trace.
+	 */
+	_nameSpanPasses( spans, queries ) {
+
+		const untraced = new Set();
+		// Deepest first, so a pass takes the name of the innermost span around it.
+		const ordered = [ ...spans ].sort( ( a, b ) => b._depth - a._depth );
+
+		for ( let s = 0; s < ordered.length; s ++ ) {
+
+			const span = ordered[ s ];
+			let only = null;
+			let count = 0;
+			let direct = null;
+			let directCount = 0;
+
+			for ( let i = span._first; i < span._end; i ++ ) {
+
+				const query = queries[ i ];
+				if ( query.parent !== null || Number.isNaN( query.duration ) ) continue;
+
+				only = query;
+				count ++;
+				if ( query.depth === span._depth + 1 ) {
+
+					direct = query;
+					directCount ++;
+
+				}
+
+			}
+
+			if ( count === 1 ) {
+
+				untraced.add( span );
+				only.traceName ??= span.traceName ?? span.label;
+				continue;
+
+			}
+
+			let repeatsDeeper = false;
+			for ( let d = 0; d < s && repeatsDeeper === false; d ++ ) {
+
+				const deeper = ordered[ d ];
+				repeatsDeeper = deeper._depth > span._depth && deeper._first === span._first && deeper._end === span._end;
+
+			}
+
+			if ( repeatsDeeper ) untraced.add( span );
+			else if ( directCount === 1 && direct.labelled ) direct.traceName ??= `${ direct.passLabel } (pass)`;
+
+		}
+
+		return untraced;
+
+	}
+
+	/**
 	 * Stats use the summed busy time of the span's queries. The trace slice covers exactly its
 	 * snapped passes, so sibling spans never partially overlap and every pass nests inside.
 	 *
 	 * @param {Object} span
 	 * @param {GpuQuery[]} queries
+	 * @param {boolean} traced Whether the span gets a trace slice.
 	 * @return {boolean} False when none of the span's queries resolved.
 	 */
-	_commitSpan( span, queries ) {
+	_commitSpan( span, queries, traced ) {
 
 		let busy = 0;
 		let resolved = 0;
@@ -579,7 +651,7 @@ class WebGPUTimer extends GpuTimer {
 
 		}
 
-		this.profiler._commitGpuSample( span.label, busy, minTs, maxEnd - minTs, span._depth );
+		this.profiler._commitGpuSample( span.label, busy, minTs, traced ? maxEnd - minTs : 0, span._depth, span.traceName ?? span.label );
 		return true;
 
 	}
@@ -625,7 +697,7 @@ class WebGLTimer extends GpuTimer {
 
 	}
 
-	begin( label ) {
+	begin( label, traceName ) {
 
 		if ( this._active !== null ) {
 
@@ -649,7 +721,7 @@ class WebGLTimer extends GpuTimer {
 
 		}
 
-		const handle = this._createHandle( label );
+		const handle = this._createHandle( label, traceName );
 		handle._query = query;
 		this._active = handle;
 		return handle;
@@ -725,7 +797,7 @@ class WebGLTimer extends GpuTimer {
 
 			const ts = Math.round( this.profiler._toTraceUs( span.t0 ) );
 			const dur = Math.round( this.profiler._toTraceUs( span.t0 + duration ) ) - ts;
-			this.profiler._commitGpuSample( span.label, duration, ts, dur, 0 );
+			this.profiler._commitGpuSample( span.label, duration, ts, dur, 0, span.traceName ?? span.label );
 
 		}
 
@@ -807,6 +879,8 @@ class WebGLTimer extends GpuTimer {
  * @property {'render'|'compute'} type
  * @property {string} label Trace name: `GPU pass: …` for passes, the span label for nested spans.
  * @property {string} statsLabel Stats key; nested spans are `{parent statsLabel} / {label}`.
+ * @property {string} passLabel Label the backend reported, without the `GPU pass: ` prefix.
+ * @property {?string} traceName Trace name taken from the span around the pass, when one applies.
  * @property {boolean} labelled Whether the backend reported a label.
  * @property {number} cpuTime When the query was reported (ms).
  * @property {number} depth GPU spans open when it was reported, or parent depth + 1 when nested.

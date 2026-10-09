@@ -192,6 +192,26 @@ class RenderPipeline {
 
 	}
 
+	// WITH_GENESYS
+	/**
+	 * Name of the output quad, used as its profiler scope and GPU pass label.
+	 *
+	 * @type {string}
+	 * @default 'Render Pipeline'
+	 */
+	get name() {
+
+		return this._quadMesh.name;
+
+	}
+
+	set name( value ) {
+
+		this._quadMesh.name = value;
+
+	}
+	// !WITH_GENESYS
+
 	/**
 	 * When `RenderPipeline` is used to apply rendering pipeline and post processing effects,
 	 * the application must use this version of `render()` inside
