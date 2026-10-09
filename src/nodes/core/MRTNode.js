@@ -41,6 +41,42 @@ export function getTextureIndex( textures, name ) {
 
 }
 
+// WITH_GENESYS
+/**
+ * Maps an attachment texture name to the MRT output key it belongs to.
+ *
+ * PassNode labels attachments "{passName}.{slot}" (for example `Scene.output`), while blend modes
+ * and clear colors are keyed by the bare slot (`output`). An exact key wins; otherwise the longest
+ * key that ends the name after a `.` is used.
+ *
+ * @private
+ * @param {Object<string, any>} entries - Blend modes or clear colors, keyed by output name.
+ * @param {string} name - The output name or the labelled texture name.
+ * @return {string} The matching key, or `name` when none matches.
+ */
+function resolveOutputName( entries, name ) {
+
+	if ( Object.prototype.hasOwnProperty.call( entries, name ) ) return name;
+
+	let match = name;
+	let matchLength = 0;
+
+	for ( const key in entries ) {
+
+		if ( key.length > matchLength && name.endsWith( '.' + key ) ) {
+
+			match = key;
+			matchLength = key.length;
+
+		}
+
+	}
+
+	return match;
+
+}
+// !WITH_GENESYS
+
 /**
  * This node can be used setup a MRT context for rendering. A typical MRT setup for
  * post-processing is shown below:
@@ -130,7 +166,11 @@ class MRTNode extends OutputStructNode {
 	 */
 	getBlendMode( name ) {
 
-		return this.blendModes[ name ] || _noBlending;
+		// WITH_GENESYS
+		// Callers pass `texture.name`, which PassNode labels "{passName}.{slot}" for GPU memory reports.
+		return this.blendModes[ resolveOutputName( this.blendModes, name ) ] || _noBlending;
+		// !WITH_GENESYS
+		// return this.blendModes[ name ] || _noBlending;
 
 	}
 
@@ -162,7 +202,11 @@ class MRTNode extends OutputStructNode {
 	 */
 	getClearColor( name ) {
 
-		return this.clearColors[ name ] || null;
+		// WITH_GENESYS
+		// Callers pass `texture.name`, which PassNode labels "{passName}.{slot}" for GPU memory reports.
+		return this.clearColors[ resolveOutputName( this.clearColors, name ) ] || null;
+		// !WITH_GENESYS
+		// return this.clearColors[ name ] || null;
 
 	}
 
