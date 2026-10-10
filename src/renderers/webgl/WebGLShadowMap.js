@@ -18,7 +18,7 @@ import * as vsm from '../shaders/ShaderLib/vsm.glsl.js';
 import { warn } from '../../utils.js';
 import { Vector3 } from '../../math/Vector3.js';
 // WITH_GENESYS
-import { ProfilerService } from '../../profiler/ProfilerService.js';
+import { profileBlock } from '../../profiler/ProfilerService.js';
 // !WITH_GENESYS
 
 const _cubeDirections = [
@@ -137,29 +137,27 @@ function WebGLShadowMap( renderer, objects, capabilities ) {
 		if ( typeChanged ) {
 
 			// WITH_GENESYS
-			ProfilerService.begin( 'shadowMap.render.typeChangeMaterialUpdate' );
-			// !WITH_GENESYS
+			profileBlock( 'shadowMap.render.typeChangeMaterialUpdate', () => {
 
-			scene.traverse( function ( object ) {
+				scene.traverse( function ( object ) {
 
-				if ( object.material ) {
+					if ( object.material ) {
 
-					if ( Array.isArray( object.material ) ) {
+						if ( Array.isArray( object.material ) ) {
 
-						object.material.forEach( mat => mat.needsUpdate = true );
+							object.material.forEach( mat => mat.needsUpdate = true );
 
-					} else {
+						} else {
 
-						object.material.needsUpdate = true;
+							object.material.needsUpdate = true;
+
+						}
 
 					}
 
-				}
+				} );
 
 			} );
-
-			// WITH_GENESYS
-			ProfilerService.end( 'shadowMap.render.typeChangeMaterialUpdate' );
 			// !WITH_GENESYS
 
 		}
@@ -173,258 +171,252 @@ function WebGLShadowMap( renderer, objects, capabilities ) {
 
 			// WITH_GENESYS
 			const lightLabel = `shadowMap.render.light (${light.name || light.type})`;
-			ProfilerService.begin( lightLabel );
-			// !WITH_GENESYS
+			let skipLight = false;
+			profileBlock( lightLabel, () => {
 
-			if ( shadow === undefined ) {
+				if ( shadow === undefined ) {
 
-				warn( 'WebGLShadowMap:', light, 'has no shadow.' );
-				// WITH_GENESYS
-				ProfilerService.end( lightLabel );
-				// !WITH_GENESYS
-				continue;
-
-			}
-
-			if ( shadow.autoUpdate === false && shadow.needsUpdate === false ) {
-
-				// WITH_GENESYS
-				ProfilerService.end( lightLabel );
-				// !WITH_GENESYS
-				continue;
-
-			}
-
-			_shadowMapSize.copy( shadow.mapSize );
-
-			const shadowFrameExtents = shadow.getFrameExtents();
-
-			_shadowMapSize.multiply( shadowFrameExtents );
-
-			_viewportSize.copy( shadow.mapSize );
-
-			if ( _shadowMapSize.x > _maxTextureSize || _shadowMapSize.y > _maxTextureSize ) {
-
-				if ( _shadowMapSize.x > _maxTextureSize ) {
-
-					_viewportSize.x = Math.floor( _maxTextureSize / shadowFrameExtents.x );
-					_shadowMapSize.x = _viewportSize.x * shadowFrameExtents.x;
-					shadow.mapSize.x = _viewportSize.x;
+					warn( 'WebGLShadowMap:', light, 'has no shadow.' );
+					return;
 
 				}
 
-				if ( _shadowMapSize.y > _maxTextureSize ) {
+				if ( shadow.autoUpdate === false && shadow.needsUpdate === false ) {
 
-					_viewportSize.y = Math.floor( _maxTextureSize / shadowFrameExtents.y );
-					_shadowMapSize.y = _viewportSize.y * shadowFrameExtents.y;
-					shadow.mapSize.y = _viewportSize.y;
+					return;
 
 				}
 
-			}
+				_shadowMapSize.copy( shadow.mapSize );
 
-			const reversedDepthBuffer = renderer.state.buffers.depth.getReversed();
-			shadow.camera._reversedDepth = reversedDepthBuffer;
+				const shadowFrameExtents = shadow.getFrameExtents();
 
-			if ( shadow.map === null || typeChanged === true ) {
+				_shadowMapSize.multiply( shadowFrameExtents );
 
-				// WITH_GENESYS
-				ProfilerService.begin( 'shadowMap.render.setupMap' );
-				// !WITH_GENESYS
+				_viewportSize.copy( shadow.mapSize );
 
-				if ( shadow.map !== null ) {
+				if ( _shadowMapSize.x > _maxTextureSize || _shadowMapSize.y > _maxTextureSize ) {
 
-					if ( shadow.map.depthTexture !== null ) {
+					if ( _shadowMapSize.x > _maxTextureSize ) {
 
-						shadow.map.depthTexture.dispose();
-						shadow.map.depthTexture = null;
+						_viewportSize.x = Math.floor( _maxTextureSize / shadowFrameExtents.x );
+						_shadowMapSize.x = _viewportSize.x * shadowFrameExtents.x;
+						shadow.mapSize.x = _viewportSize.x;
 
 					}
 
-					shadow.map.dispose();
+					if ( _shadowMapSize.y > _maxTextureSize ) {
 
-				}
-
-				if ( this.type === VSMShadowMap ) {
-
-					if ( light.isPointLight ) {
-
-						warn( 'WebGLShadowMap: VSM shadow maps are not supported for PointLights. Use PCF or BasicShadowMap instead.' );
-						// WITH_GENESYS
-						ProfilerService.end( 'shadowMap.render.setupMap' );
-						ProfilerService.end( lightLabel );
-						// !WITH_GENESYS
-						continue;
+						_viewportSize.y = Math.floor( _maxTextureSize / shadowFrameExtents.y );
+						_shadowMapSize.y = _viewportSize.y * shadowFrameExtents.y;
+						shadow.mapSize.y = _viewportSize.y;
 
 					}
 
-					shadow.map = new WebGLRenderTarget( _shadowMapSize.x, _shadowMapSize.y, {
-						format: RGFormat,
-						type: HalfFloatType,
-						minFilter: LinearFilter,
-						magFilter: LinearFilter,
-						generateMipmaps: false
+				}
+
+				const reversedDepthBuffer = renderer.state.buffers.depth.getReversed();
+				shadow.camera._reversedDepth = reversedDepthBuffer;
+
+				if ( shadow.map === null || typeChanged === true ) {
+
+					// WITH_GENESYS
+					profileBlock( 'shadowMap.render.setupMap', () => {
+
+						if ( shadow.map !== null ) {
+
+							if ( shadow.map.depthTexture !== null ) {
+
+								shadow.map.depthTexture.dispose();
+								shadow.map.depthTexture = null;
+
+							}
+
+							shadow.map.dispose();
+
+						}
+
+						if ( this.type === VSMShadowMap ) {
+
+							if ( light.isPointLight ) {
+
+								warn( 'WebGLShadowMap: VSM shadow maps are not supported for PointLights. Use PCF or BasicShadowMap instead.' );
+								// WITH_GENESYS
+								skipLight = true;
+								return;
+								// !WITH_GENESYS
+
+							}
+
+							shadow.map = new WebGLRenderTarget( _shadowMapSize.x, _shadowMapSize.y, {
+								format: RGFormat,
+								type: HalfFloatType,
+								minFilter: LinearFilter,
+								magFilter: LinearFilter,
+								generateMipmaps: false
+							} );
+							shadow.map.texture.name = light.name + '.shadowMap';
+
+							// Native depth texture for VSM - depth is captured here, then blurred into the color texture
+							shadow.map.depthTexture = new DepthTexture( _shadowMapSize.x, _shadowMapSize.y, FloatType );
+							shadow.map.depthTexture.name = light.name + '.shadowMapDepth';
+							shadow.map.depthTexture.format = DepthFormat;
+							shadow.map.depthTexture.compareFunction = null; // For regular sampling (not shadow comparison)
+							shadow.map.depthTexture.minFilter = NearestFilter;
+							shadow.map.depthTexture.magFilter = NearestFilter;
+
+						} else {
+
+							if ( light.isPointLight ) {
+
+								shadow.map = new WebGLCubeRenderTarget( _shadowMapSize.x );
+								shadow.map.depthTexture = new CubeDepthTexture( _shadowMapSize.x, UnsignedIntType );
+
+							} else {
+
+								shadow.map = new WebGLRenderTarget( _shadowMapSize.x, _shadowMapSize.y );
+								shadow.map.depthTexture = new DepthTexture( _shadowMapSize.x, _shadowMapSize.y, UnsignedIntType );
+
+							}
+
+							shadow.map.depthTexture.name = light.name + '.shadowMap';
+							shadow.map.depthTexture.format = DepthFormat;
+
+							if ( this.type === PCFShadowMap ) {
+
+								shadow.map.depthTexture.compareFunction = reversedDepthBuffer ? GreaterEqualCompare : LessEqualCompare;
+								shadow.map.depthTexture.minFilter = LinearFilter;
+								shadow.map.depthTexture.magFilter = LinearFilter;
+
+							} else {
+
+								shadow.map.depthTexture.compareFunction = null;
+								shadow.map.depthTexture.minFilter = NearestFilter;
+								shadow.map.depthTexture.magFilter = NearestFilter;
+
+							}
+
+						}
+
+						shadow.camera.updateProjectionMatrix();
+
 					} );
-					shadow.map.texture.name = light.name + '.shadowMap';
+					// !WITH_GENESYS
 
-					// Native depth texture for VSM - depth is captured here, then blurred into the color texture
-					shadow.map.depthTexture = new DepthTexture( _shadowMapSize.x, _shadowMapSize.y, FloatType );
-					shadow.map.depthTexture.name = light.name + '.shadowMapDepth';
-					shadow.map.depthTexture.format = DepthFormat;
-					shadow.map.depthTexture.compareFunction = null; // For regular sampling (not shadow comparison)
-					shadow.map.depthTexture.minFilter = NearestFilter;
-					shadow.map.depthTexture.magFilter = NearestFilter;
+				}
 
-				} else {
+				if ( skipLight ) return;
+
+				if ( shadow.map.isWebGLCubeRenderTarget !== true && ( shadow.map.width !== _shadowMapSize.x || shadow.map.height !== _shadowMapSize.y ) ) {
+
+					shadow.map.setSize( _shadowMapSize.x, _shadowMapSize.y );
+
+				}
+
+				// For cube render targets (PointLights), render all 6 faces. Sun lights
+				// render one atlas viewport per cascade.
+				const faceCount = shadow.map.isWebGLCubeRenderTarget ? 6 : shadow.getViewportCount();
+
+				if ( light.isPointLight !== true ) shadow.updateMatrices( light, camera );
+
+				for ( let face = 0; face < faceCount; face ++ ) {
+
+					// WITH_GENESYS
+					const faceLabel = faceCount > 1 ? `shadowMap.render.depthPass (face ${face})` : 'shadowMap.render.depthPass';
+					// !WITH_GENESYS
+
+					const shadowCamera = shadow.getCamera( face );
 
 					if ( light.isPointLight ) {
 
-						shadow.map = new WebGLCubeRenderTarget( _shadowMapSize.x );
-						shadow.map.depthTexture = new CubeDepthTexture( _shadowMapSize.x, UnsignedIntType );
+						const camera = shadow.camera;
+						const shadowMatrix = shadow.matrix;
 
-					} else {
+						const far = light.distance || camera.far;
 
-						shadow.map = new WebGLRenderTarget( _shadowMapSize.x, _shadowMapSize.y );
-						shadow.map.depthTexture = new DepthTexture( _shadowMapSize.x, _shadowMapSize.y, UnsignedIntType );
+						if ( far !== camera.far ) {
 
-					}
+							camera.far = far;
+							camera.updateProjectionMatrix();
 
-					shadow.map.depthTexture.name = light.name + '.shadowMap';
-					shadow.map.depthTexture.format = DepthFormat;
+						}
 
-					if ( this.type === PCFShadowMap ) {
+						_lightPositionWorld.setFromMatrixPosition( light.matrixWorld );
+						camera.position.copy( _lightPositionWorld );
 
-						shadow.map.depthTexture.compareFunction = reversedDepthBuffer ? GreaterEqualCompare : LessEqualCompare;
-						shadow.map.depthTexture.minFilter = LinearFilter;
-						shadow.map.depthTexture.magFilter = LinearFilter;
+						_lookTarget.copy( camera.position );
+						_lookTarget.add( _cubeDirections[ face ] );
+						camera.up.copy( _cubeUps[ face ] );
+						camera.lookAt( _lookTarget );
+						camera.updateMatrixWorld();
 
-					} else {
+						shadowMatrix.makeTranslation( - _lightPositionWorld.x, - _lightPositionWorld.y, - _lightPositionWorld.z );
 
-						shadow.map.depthTexture.compareFunction = null;
-						shadow.map.depthTexture.minFilter = NearestFilter;
-						shadow.map.depthTexture.magFilter = NearestFilter;
-
-					}
-
-				}
-
-				shadow.camera.updateProjectionMatrix();
-
-				// WITH_GENESYS
-				ProfilerService.end( 'shadowMap.render.setupMap' );
-				// !WITH_GENESYS
-
-			}
-
-			if ( shadow.map.isWebGLCubeRenderTarget !== true && ( shadow.map.width !== _shadowMapSize.x || shadow.map.height !== _shadowMapSize.y ) ) {
-
-				shadow.map.setSize( _shadowMapSize.x, _shadowMapSize.y );
-
-			}
-
-			// For cube render targets (PointLights), render all 6 faces. Sun lights
-			// render one atlas viewport per cascade.
-			const faceCount = shadow.map.isWebGLCubeRenderTarget ? 6 : shadow.getViewportCount();
-
-			if ( light.isPointLight !== true ) shadow.updateMatrices( light, camera );
-
-			for ( let face = 0; face < faceCount; face ++ ) {
-
-				// WITH_GENESYS
-				const faceLabel = faceCount > 1 ? `shadowMap.render.depthPass (face ${face})` : 'shadowMap.render.depthPass';
-				// !WITH_GENESYS
-
-				const shadowCamera = shadow.getCamera( face );
-
-				if ( light.isPointLight ) {
-
-					const camera = shadow.camera;
-					const shadowMatrix = shadow.matrix;
-
-					const far = light.distance || camera.far;
-
-					if ( far !== camera.far ) {
-
-						camera.far = far;
-						camera.updateProjectionMatrix();
+						_projScreenMatrix.multiplyMatrices( camera.projectionMatrix, camera.matrixWorldInverse );
+						shadow._frustum.setFromProjectionMatrix( _projScreenMatrix, camera.coordinateSystem, camera.reversedDepth );
 
 					}
 
-					_lightPositionWorld.setFromMatrixPosition( light.matrixWorld );
-					camera.position.copy( _lightPositionWorld );
+					// For cube render targets, render to each face separately
+					if ( shadow.map.isWebGLCubeRenderTarget ) {
 
-					_lookTarget.copy( camera.position );
-					_lookTarget.add( _cubeDirections[ face ] );
-					camera.up.copy( _cubeUps[ face ] );
-					camera.lookAt( _lookTarget );
-					camera.updateMatrixWorld();
-
-					shadowMatrix.makeTranslation( - _lightPositionWorld.x, - _lightPositionWorld.y, - _lightPositionWorld.z );
-
-					_projScreenMatrix.multiplyMatrices( camera.projectionMatrix, camera.matrixWorldInverse );
-					shadow._frustum.setFromProjectionMatrix( _projScreenMatrix, camera.coordinateSystem, camera.reversedDepth );
-
-				}
-
-				// For cube render targets, render to each face separately
-				if ( shadow.map.isWebGLCubeRenderTarget ) {
-
-					renderer.setRenderTarget( shadow.map, face );
-					renderer.clear();
-
-				} else {
-
-					// For 2D render targets, use viewports
-					if ( face === 0 ) {
-
-						renderer.setRenderTarget( shadow.map );
+						renderer.setRenderTarget( shadow.map, face );
 						renderer.clear();
 
+					} else {
+
+						// For 2D render targets, use viewports
+						if ( face === 0 ) {
+
+							renderer.setRenderTarget( shadow.map );
+							renderer.clear();
+
+						}
+
+						const viewport = shadow.getViewport( face );
+
+						_viewport.set(
+							_viewportSize.x * viewport.x,
+							_viewportSize.y * viewport.y,
+							_viewportSize.x * viewport.z,
+							_viewportSize.y * viewport.w
+						);
+
+						_state.viewport( _viewport );
+
 					}
 
-					const viewport = shadow.getViewport( face );
+					_frustum = shadow.getFrustum( face );
 
-					_viewport.set(
-						_viewportSize.x * viewport.x,
-						_viewportSize.y * viewport.y,
-						_viewportSize.x * viewport.z,
-						_viewportSize.y * viewport.w
-					);
+					// WITH_GENESYS
+					profileBlock( faceLabel, () => {
 
-					_state.viewport( _viewport );
+						renderObject( scene, camera, shadowCamera, light, this.type );
+
+					} );
+					// !WITH_GENESYS
 
 				}
 
-				_frustum = shadow.getFrustum( face );
+				// do blur pass for VSM
+
+				if ( shadow.isPointLightShadow !== true && this.type === VSMShadowMap ) {
+
+					// WITH_GENESYS
+					profileBlock( 'shadowMap.render.vsmPass', () => {
+
+						VSMPass( shadow, camera );
+
+					} );
+					// !WITH_GENESYS
+
+				}
+
+				shadow.needsUpdate = false;
 
 				// WITH_GENESYS
-				ProfilerService.begin( faceLabel );
-				// !WITH_GENESYS
-				renderObject( scene, camera, shadowCamera, light, this.type );
-				// WITH_GENESYS
-				ProfilerService.end( faceLabel );
-				// !WITH_GENESYS
 
-			}
-
-			// do blur pass for VSM
-
-			if ( shadow.isPointLightShadow !== true && this.type === VSMShadowMap ) {
-
-				// WITH_GENESYS
-				ProfilerService.begin( 'shadowMap.render.vsmPass' );
-				// !WITH_GENESYS
-				VSMPass( shadow, camera );
-				// WITH_GENESYS
-				ProfilerService.end( 'shadowMap.render.vsmPass' );
-				// !WITH_GENESYS
-
-			}
-
-			shadow.needsUpdate = false;
-
-			// WITH_GENESYS
-			ProfilerService.end( lightLabel );
+			} );
 			// !WITH_GENESYS
 
 		}
@@ -467,31 +459,27 @@ function WebGLShadowMap( renderer, objects, capabilities ) {
 		// vertical pass - read from native depth texture
 
 		// WITH_GENESYS
-		ProfilerService.begin( 'shadowMap.vsmPass.vertical' );
-		// !WITH_GENESYS
-		shadowMaterialVertical.uniforms.shadow_pass.value = shadow.map.depthTexture;
-		shadowMaterialVertical.uniforms.resolution.value.set( shadow.map.width, shadow.map.height );
-		shadowMaterialVertical.uniforms.radius.value = shadow.radius;
-		renderer.setRenderTarget( shadow.mapPass );
-		renderer.clear();
-		renderer.renderBufferDirect( camera, null, geometry, shadowMaterialVertical, fullScreenMesh, null );
-		// WITH_GENESYS
-		ProfilerService.end( 'shadowMap.vsmPass.vertical' );
-		// !WITH_GENESYS
+		profileBlock( 'shadowMap.vsmPass.vertical', () => {
 
-		// horizontal pass
+			shadowMaterialVertical.uniforms.shadow_pass.value = shadow.map.depthTexture;
+			shadowMaterialVertical.uniforms.resolution.value.set( shadow.map.width, shadow.map.height );
+			shadowMaterialVertical.uniforms.radius.value = shadow.radius;
+			renderer.setRenderTarget( shadow.mapPass );
+			renderer.clear();
+			renderer.renderBufferDirect( camera, null, geometry, shadowMaterialVertical, fullScreenMesh, null );
 
-		// WITH_GENESYS
-		ProfilerService.begin( 'shadowMap.vsmPass.horizontal' );
-		// !WITH_GENESYS
-		shadowMaterialHorizontal.uniforms.shadow_pass.value = shadow.mapPass.texture;
-		shadowMaterialHorizontal.uniforms.resolution.value.set( shadow.map.width, shadow.map.height );
-		shadowMaterialHorizontal.uniforms.radius.value = shadow.radius;
-		renderer.setRenderTarget( shadow.map );
-		renderer.clear();
-		renderer.renderBufferDirect( camera, null, geometry, shadowMaterialHorizontal, fullScreenMesh, null );
-		// WITH_GENESYS
-		ProfilerService.end( 'shadowMap.vsmPass.horizontal' );
+		} );
+
+		profileBlock( 'shadowMap.vsmPass.horizontal', () => {
+
+			shadowMaterialHorizontal.uniforms.shadow_pass.value = shadow.mapPass.texture;
+			shadowMaterialHorizontal.uniforms.resolution.value.set( shadow.map.width, shadow.map.height );
+			shadowMaterialHorizontal.uniforms.radius.value = shadow.radius;
+			renderer.setRenderTarget( shadow.map );
+			renderer.clear();
+			renderer.renderBufferDirect( camera, null, geometry, shadowMaterialHorizontal, fullScreenMesh, null );
+
+		} );
 		// !WITH_GENESYS
 
 	}

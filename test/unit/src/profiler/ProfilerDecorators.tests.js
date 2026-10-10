@@ -1,5 +1,5 @@
 // WITH_GENESYS
-import { ProfilerService, profile, profileClass } from 'three';
+import { ProfilerService, profile, profileBlock, profileClass } from 'three';
 import { CONSOLE_LEVEL } from '../../utils/console-wrapper.js';
 import { installFakeClock, useRealPerformance } from './ProfilerTestUtils.js';
 
@@ -262,6 +262,93 @@ export default QUnit.module( 'Profiler', () => {
 			Factory.make();
 
 			assert.ok( ProfilerService.getStats( 'Factory.make' ), `labelled Factory.make (got ${ProfilerService.getAllStats().map( stats => stats.label )})` );
+
+		} );
+
+		QUnit.test( 'profileBlock() times a synchronous block and returns its value', assert => {
+
+			const value = profileBlock( 'parse', () => {
+
+				clock.advance( 2 );
+				return 5;
+
+			} );
+
+			assert.strictEqual( value, 5, 'return value preserved' );
+			assert.strictEqual( ProfilerService.getStats( 'parse' ).avg, 2, 'measured duration' );
+
+			const event = ProfilerService.exportChromeTrace().traceEvents.find( entry => entry.name === 'parse' );
+			assert.ok( event, 'sync slice exported' );
+			assert.strictEqual( event.tid, 1, 'main lane' );
+
+		} );
+
+		QUnit.test( 'profileBlock() rethrows synchronous errors and still records the call', assert => {
+
+			assert.throws( () => profileBlock( 'fail', () => {
+
+				clock.advance( 1 );
+				throw new Error( 'boom' );
+
+			} ), /boom/, 'error propagates' );
+			assert.strictEqual( ProfilerService.getStats( 'fail' ).avg, 1, 'sample recorded' );
+
+		} );
+
+		QUnit.test( 'profileBlock() records a thenable on the async lane', async assert => {
+
+			assert.strictEqual( await profileBlock( 'load', async () => {
+
+				clock.advance( 3 );
+				return 'value';
+
+			} ), 'value', 'resolved value preserved' );
+
+			const event = ProfilerService.exportChromeTrace().traceEvents.find( entry => entry.name === 'load (promise)' );
+			assert.ok( event, 'promise slice exported' );
+			assert.strictEqual( event.tid, 2, 'async lane' );
+			assert.strictEqual( ProfilerService.getStats( 'load' ).avg, 3, 'stats use the block label' );
+
+		} );
+
+		QUnit.test( 'profileBlock() on a thenable does not adopt sibling scopes', async assert => {
+
+			ProfilerService.begin( 'frame' );
+			const pending = profileBlock( 'load', async () => {
+
+				clock.advance( 3 );
+				return 1;
+
+			} );
+			ProfilerService.begin( 'sibling' );
+			clock.advance( 2 );
+			ProfilerService.end( 'sibling' );
+			ProfilerService.end( 'frame' );
+			await pending;
+
+			assert.strictEqual( ProfilerService.getStats( 'frame' ).selfAvg, 3, 'frame self time = 5 ms - 2 ms sibling' );
+
+		} );
+
+		QUnit.test( 'profileBlock() propagates rejections and records the call', async assert => {
+
+			await assert.rejects( profileBlock( 'reject', async () => {
+
+				throw new Error( 'nope' );
+
+			} ), /nope/, 'rejection propagates' );
+			assert.ok( ProfilerService.getStats( 'reject' ), 'sample recorded' );
+
+		} );
+
+		QUnit.test( 'profileBlock() runs directly while disabled', assert => {
+
+			ProfilerService.disable();
+
+			const pending = Promise.resolve( 1 );
+			assert.strictEqual( profileBlock( 'parse', () => pending ), pending, 'promise identity preserved' );
+			assert.strictEqual( profileBlock( 'parse', () => 4 ), 4, 'sync value preserved' );
+			assert.deepEqual( ProfilerService.getAllStats(), [], 'no samples' );
 
 		} );
 

@@ -1,5 +1,5 @@
 // WITH_GENESYS
-import { ProfilerService } from 'three';
+import { ProfilerService, profileGpuBlock } from 'three';
 import { CONSOLE_LEVEL } from '../../utils/console-wrapper.js';
 import {
 	captureConsole,
@@ -140,10 +140,12 @@ export default QUnit.module( 'Profiler', () => {
 				const renderer = createCommonRenderer();
 				assert.true( await ProfilerService.attachGpuRenderer( renderer ), 'renderer supports timestamps' );
 
-				const span = ProfilerService.beginGpu( 'gpu-pass', renderer );
-				renderer.backend.emit( 'render', 'r:0:1:f1', 2 );
-				renderer.backend.emit( 'compute', 'c:0:2:f1', 3 );
-				ProfilerService.endGpu( span );
+				profileGpuBlock( 'gpu-pass', renderer, () => {
+
+					renderer.backend.emit( 'render', 'r:0:1:f1', 2 );
+					renderer.backend.emit( 'compute', 'c:0:2:f1', 3 );
+
+				} );
 				await ProfilerService.flushGpu( renderer );
 
 				const stats = ProfilerService.getGpuStats( 'gpu-pass' );
@@ -179,11 +181,62 @@ export default QUnit.module( 'Profiler', () => {
 				const renderer = createCommonRenderer();
 				await ProfilerService.attachGpuRenderer( renderer );
 
-				ProfilerService.endGpu( ProfilerService.beginGpu( 'empty', renderer ) );
+				profileGpuBlock( 'empty', renderer, () => {} );
 				await ProfilerService.flushGpu( renderer );
 
 				assert.strictEqual( ProfilerService.getGpuStats( 'empty' ), null, 'no sample' );
 				assert.strictEqual( renderer.backend.resolveCalls, 0, 'nothing to resolve' );
+
+			} );
+
+			QUnit.test( 'profileGpuBlock() collects labelled GPU spans', async assert => {
+
+				const renderer = createCommonRenderer();
+				await ProfilerService.attachGpuRenderer( renderer );
+
+				const value = profileGpuBlock( 'gpu-block', renderer, () => {
+
+					renderer.backend.emit( 'render', 'r:0:1:f1', 2 );
+					return 7;
+
+				} );
+
+				assert.strictEqual( value, 7, 'return value preserved' );
+				await ProfilerService.flushGpu( renderer );
+
+				const stats = ProfilerService.getGpuStats( 'gpu-block' );
+				assert.strictEqual( stats.samples, 1, 'one sample committed' );
+				assert.strictEqual( stats.avg, 2, 'render duration is preserved' );
+
+			} );
+
+			QUnit.test( 'profileGpuBlock() keeps the span open until a thenable settles', async assert => {
+
+				const renderer = createCommonRenderer();
+				await ProfilerService.attachGpuRenderer( renderer );
+
+				await profileGpuBlock( 'gpu-async', renderer, async () => {
+
+					await delay( 0 );
+					renderer.backend.emit( 'render', 'r:0:1:f1', 4 );
+
+				} );
+
+				await ProfilerService.flushGpu( renderer );
+
+				const stats = ProfilerService.getGpuStats( 'gpu-async' );
+				assert.strictEqual( stats.samples, 1, 'one sample committed' );
+				assert.strictEqual( stats.avg, 4, 'post-await GPU work is inside the span' );
+
+			} );
+
+			QUnit.test( 'profileGpuBlock() runs directly while disabled', assert => {
+
+				const renderer = createCommonRenderer();
+				ProfilerService.disable();
+
+				assert.strictEqual( profileGpuBlock( 'gpu-block', renderer, () => 3 ), 3, 'sync value preserved' );
+				assert.deepEqual( ProfilerService.getAllGpuStats(), [], 'no GPU samples' );
 
 			} );
 

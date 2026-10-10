@@ -3,7 +3,7 @@
  * Copyright 2010-2026 Three.js Authors
  * SPDX-License-Identifier: MIT
  */
-import { DynamicDrawUsage, RenderObjectRefreshType, Color, Vector2, Vector3, Vector4, Matrix2, Matrix3, Matrix4, error, UnsignedIntType, IntType, RedFormat, RedIntegerFormat, DepthFormat, DepthStencilFormat, AlphaFormat, RGFormat, RGIntegerFormat, RGBFormat, RGBIntegerFormat, EventDispatcher, MathUtils, warn, WebGLCoordinateSystem, WebGPUCoordinateSystem, ColorManagement, SRGBTransfer, NoToneMapping, StaticDrawUsage, InterleavedBufferAttribute, InterleavedBuffer, NoColorSpace, log as log$1, warnOnce, Texture, Compatibility, LessCompare, LessEqualCompare, GreaterCompare, GreaterEqualCompare, NearestFilter, Sphere, BackSide, DoubleSide, CubeTexture, CubeReflectionMapping, CubeRefractionMapping, TangentSpaceNormalMap, NoNormalPacking, NormalRGPacking, NormalGAPacking, ObjectSpaceNormalMap, RED_GREEN_RGTC2_Format, RG11_EAC_Format, InstancedBufferAttribute, InstancedInterleavedBuffer, DataTexture, RGBAFormat, FloatType, DataArrayTexture, FramebufferTexture, LinearMipmapLinearFilter, DepthTexture, NormalBlending, SrcAlphaFactor, OneMinusSrcAlphaFactor, AddEquation, MaterialBlending, NoBlending, Material, LineBasicMaterial, LineDashedMaterial, MeshNormalMaterial, SRGBColorSpace, RenderTarget, BoxGeometry, Mesh, Scene, LinearFilter, CubeCamera, EquirectangularReflectionMapping, EquirectangularRefractionMapping, AddOperation, MixOperation, MultiplyOperation, MeshBasicMaterial, MeshLambertMaterial, MeshPhongMaterial, HalfFloatType, ClampToEdgeWrapping, BufferGeometry, OrthographicCamera, PerspectiveCamera, LinearSRGBColorSpace, CubeUVReflectionMapping, BufferAttribute, MeshStandardMaterial, MeshPhysicalMaterial, MeshToonMaterial, MeshMatcapMaterial, SpriteMaterial, PointsMaterial, ShadowMaterial, Uint32BufferAttribute, Uint16BufferAttribute, ByteType, UnsignedByteType, ShortType, UnsignedShortType, UnsignedShort4444Type, UnsignedShort5551Type, UnsignedInt248Type, UnsignedInt5999Type, UnsignedInt101111Type, Object3D, LinearMipMapLinearFilter, Plane, Float32BufferAttribute, UVMapping, Data3DTexture, VSMShadowMap, PCFShadowMap, ProfilerService, BasicShadowMap, CubeDepthTexture, SphereGeometry, LinearMipmapNearestFilter, NearestMipmapLinearFilter, Float16BufferAttribute, yieldToMain, REVISION, ArrayCamera, PlaneGeometry, FrontSide, CustomBlending, ZeroFactor, CylinderGeometry, Quaternion, WebXRController, RAD2DEG, PCFSoftShadowMap, FrustumArray, Frustum, PassTimestampLevel, EqualDepth, RGBAIntegerFormat, TimestampQuery, createCanvasElement, MaxEquation, MinEquation, ReverseSubtractEquation, SubtractEquation, OneMinusConstantAlphaFactor, ConstantAlphaFactor, OneMinusConstantColorFactor, ConstantColorFactor, OneMinusDstAlphaFactor, OneMinusDstColorFactor, OneMinusSrcColorFactor, DstAlphaFactor, DstColorFactor, SrcAlphaSaturateFactor, SrcColorFactor, OneFactor, CullFaceNone, CullFaceBack, CullFaceFront, MultiplyBlending, SubtractiveBlending, AdditiveBlending, NotEqualDepth, GreaterDepth, GreaterEqualDepth, LessEqualDepth, LessDepth, AlwaysDepth, NeverDepth, ReversedDepthFuncs, RGB_S3TC_DXT1_Format, RGBA_S3TC_DXT1_Format, RGBA_S3TC_DXT3_Format, RGBA_S3TC_DXT5_Format, RGB_PVRTC_4BPPV1_Format, RGB_PVRTC_2BPPV1_Format, RGBA_PVRTC_4BPPV1_Format, RGBA_PVRTC_2BPPV1_Format, RGB_ETC1_Format, RGB_ETC2_Format, RGBA_ETC2_EAC_Format, R11_EAC_Format, SIGNED_R11_EAC_Format, SIGNED_RG11_EAC_Format, RGBA_ASTC_4x4_Format, RGBA_ASTC_5x4_Format, RGBA_ASTC_5x5_Format, RGBA_ASTC_6x5_Format, RGBA_ASTC_6x6_Format, RGBA_ASTC_8x5_Format, RGBA_ASTC_8x6_Format, RGBA_ASTC_8x8_Format, RGBA_ASTC_10x5_Format, RGBA_ASTC_10x6_Format, RGBA_ASTC_10x8_Format, RGBA_ASTC_10x10_Format, RGBA_ASTC_12x10_Format, RGBA_ASTC_12x12_Format, RGBA_BPTC_Format, RGB_BPTC_SIGNED_Format, RGB_BPTC_UNSIGNED_Format, RED_RGTC1_Format, SIGNED_RED_RGTC1_Format, SIGNED_RED_GREEN_RGTC2_Format, MirroredRepeatWrapping, RepeatWrapping, NearestMipmapNearestFilter, NotEqualCompare, EqualCompare, AlwaysCompare, NeverCompare, LinearTransfer, getByteLength, isTypedArray, NotEqualStencilFunc, GreaterStencilFunc, GreaterEqualStencilFunc, EqualStencilFunc, LessEqualStencilFunc, LessStencilFunc, AlwaysStencilFunc, NeverStencilFunc, DecrementWrapStencilOp, IncrementWrapStencilOp, DecrementStencilOp, IncrementStencilOp, InvertStencilOp, ReplaceStencilOp, ZeroStencilOp, KeepStencilOp, SpotLight, PointLight, DirectionalLight, RectAreaLight, AmbientLight, HemisphereLight, LightProbe, LinearToneMapping, ReinhardToneMapping, CineonToneMapping, ACESFilmicToneMapping, AgXToneMapping, NeutralToneMapping, Group, Loader, FileLoader, MaterialLoader, ObjectLoader } from './three.core.js';
+import { DynamicDrawUsage, RenderObjectRefreshType, Color, Vector2, Vector3, Vector4, Matrix2, Matrix3, Matrix4, error, UnsignedIntType, IntType, RedFormat, RedIntegerFormat, DepthFormat, DepthStencilFormat, AlphaFormat, RGFormat, RGIntegerFormat, RGBFormat, RGBIntegerFormat, EventDispatcher, MathUtils, warn, WebGLCoordinateSystem, WebGPUCoordinateSystem, ColorManagement, SRGBTransfer, NoToneMapping, StaticDrawUsage, InterleavedBufferAttribute, InterleavedBuffer, NoColorSpace, log as log$1, warnOnce, Texture, Compatibility, LessCompare, LessEqualCompare, GreaterCompare, GreaterEqualCompare, NearestFilter, Sphere, BackSide, DoubleSide, CubeTexture, CubeReflectionMapping, CubeRefractionMapping, TangentSpaceNormalMap, NoNormalPacking, NormalRGPacking, NormalGAPacking, ObjectSpaceNormalMap, RED_GREEN_RGTC2_Format, RG11_EAC_Format, InstancedBufferAttribute, InstancedInterleavedBuffer, DataTexture, RGBAFormat, FloatType, DataArrayTexture, FramebufferTexture, LinearMipmapLinearFilter, DepthTexture, NormalBlending, SrcAlphaFactor, OneMinusSrcAlphaFactor, AddEquation, MaterialBlending, NoBlending, Material, LineBasicMaterial, LineDashedMaterial, MeshNormalMaterial, SRGBColorSpace, RenderTarget, BoxGeometry, Mesh, Scene, LinearFilter, CubeCamera, EquirectangularReflectionMapping, EquirectangularRefractionMapping, AddOperation, MixOperation, MultiplyOperation, MeshBasicMaterial, MeshLambertMaterial, MeshPhongMaterial, HalfFloatType, ClampToEdgeWrapping, BufferGeometry, OrthographicCamera, PerspectiveCamera, LinearSRGBColorSpace, CubeUVReflectionMapping, BufferAttribute, MeshStandardMaterial, MeshPhysicalMaterial, MeshToonMaterial, MeshMatcapMaterial, SpriteMaterial, PointsMaterial, ShadowMaterial, Uint32BufferAttribute, Uint16BufferAttribute, ByteType, UnsignedByteType, ShortType, UnsignedShortType, UnsignedShort4444Type, UnsignedShort5551Type, UnsignedInt248Type, UnsignedInt5999Type, UnsignedInt101111Type, Object3D, LinearMipMapLinearFilter, Plane, Float32BufferAttribute, UVMapping, Data3DTexture, VSMShadowMap, PCFShadowMap, profileBlock, BasicShadowMap, CubeDepthTexture, SphereGeometry, LinearMipmapNearestFilter, NearestMipmapLinearFilter, Float16BufferAttribute, yieldToMain, REVISION, ProfilerService, profileGpuBlock, ArrayCamera, PlaneGeometry, FrontSide, CustomBlending, ZeroFactor, CylinderGeometry, Quaternion, WebXRController, RAD2DEG, PCFSoftShadowMap, FrustumArray, Frustum, PassTimestampLevel, EqualDepth, RGBAIntegerFormat, TimestampQuery, createCanvasElement, MaxEquation, MinEquation, ReverseSubtractEquation, SubtractEquation, OneMinusConstantAlphaFactor, ConstantAlphaFactor, OneMinusConstantColorFactor, ConstantColorFactor, OneMinusDstAlphaFactor, OneMinusDstColorFactor, OneMinusSrcColorFactor, DstAlphaFactor, DstColorFactor, SrcAlphaSaturateFactor, SrcColorFactor, OneFactor, CullFaceNone, CullFaceBack, CullFaceFront, MultiplyBlending, SubtractiveBlending, AdditiveBlending, NotEqualDepth, GreaterDepth, GreaterEqualDepth, LessEqualDepth, LessDepth, AlwaysDepth, NeverDepth, ReversedDepthFuncs, RGB_S3TC_DXT1_Format, RGBA_S3TC_DXT1_Format, RGBA_S3TC_DXT3_Format, RGBA_S3TC_DXT5_Format, RGB_PVRTC_4BPPV1_Format, RGB_PVRTC_2BPPV1_Format, RGBA_PVRTC_4BPPV1_Format, RGBA_PVRTC_2BPPV1_Format, RGB_ETC1_Format, RGB_ETC2_Format, RGBA_ETC2_EAC_Format, R11_EAC_Format, SIGNED_R11_EAC_Format, SIGNED_RG11_EAC_Format, RGBA_ASTC_4x4_Format, RGBA_ASTC_5x4_Format, RGBA_ASTC_5x5_Format, RGBA_ASTC_6x5_Format, RGBA_ASTC_6x6_Format, RGBA_ASTC_8x5_Format, RGBA_ASTC_8x6_Format, RGBA_ASTC_8x8_Format, RGBA_ASTC_10x5_Format, RGBA_ASTC_10x6_Format, RGBA_ASTC_10x8_Format, RGBA_ASTC_10x10_Format, RGBA_ASTC_12x10_Format, RGBA_ASTC_12x12_Format, RGBA_BPTC_Format, RGB_BPTC_SIGNED_Format, RGB_BPTC_UNSIGNED_Format, RED_RGTC1_Format, SIGNED_RED_RGTC1_Format, SIGNED_RED_GREEN_RGTC2_Format, MirroredRepeatWrapping, RepeatWrapping, NearestMipmapNearestFilter, NotEqualCompare, EqualCompare, AlwaysCompare, NeverCompare, LinearTransfer, getByteLength, isTypedArray, NotEqualStencilFunc, GreaterStencilFunc, GreaterEqualStencilFunc, EqualStencilFunc, LessEqualStencilFunc, LessStencilFunc, AlwaysStencilFunc, NeverStencilFunc, DecrementWrapStencilOp, IncrementWrapStencilOp, DecrementStencilOp, IncrementStencilOp, InvertStencilOp, ReplaceStencilOp, ZeroStencilOp, KeepStencilOp, SpotLight, PointLight, DirectionalLight, RectAreaLight, AmbientLight, HemisphereLight, LightProbe, LinearToneMapping, ReinhardToneMapping, CineonToneMapping, ACESFilmicToneMapping, AgXToneMapping, NeutralToneMapping, Group, Loader, FileLoader, MaterialLoader, ObjectLoader } from './three.core.js';
 export { AdditiveAnimationBlendMode, AnimationAction, AnimationClip, AnimationLoader, AnimationMixer, AnimationObjectGroup, AnimationUtils, ArcCurve, ArrowHelper, AttachedBindMode, Audio, AudioAnalyser, AudioContext, AudioListener, AudioLoader, AxesHelper, BasicDepthPacking, BatchedMesh, BezierInterpolant, Bone, BooleanKeyframeTrack, Box2, Box3, Box3Helper, BoxHelper, BufferGeometryLoader, Cache, Camera, CameraHelper, CanvasTexture, CapsuleGeometry, CatmullRomCurve3, CircleGeometry, Clock, ColorKeyframeTrack, CompressedArrayTexture, CompressedCubeTexture, CompressedTexture, CompressedTextureLoader, ConeGeometry, Controls, CubeTextureLoader, CubicBezierCurve, CubicBezierCurve3, CubicInterpolant, CullFaceFrontBack, Curve, CurvePath, CustomToneMapping, Cylindrical, DataTextureLoader, DataUtils, DefaultLoadingManager, DetachedBindMode, DirectionalLightHelper, DiscreteInterpolant, DodecahedronGeometry, DynamicCopyUsage, DynamicReadUsage, EdgesGeometry, EllipseCurve, Euler, ExternalTexture, ExtrudeGeometry, Fog, FogExp2, GLBufferAttribute, GLSL1, GLSL3, GridHelper, HTMLTexture, HemisphereLightHelper, IcosahedronGeometry, ImageBitmapLoader, ImageLoader, ImageUtils, InstancedBufferGeometry, InstancedMesh, Int16BufferAttribute, Int32BufferAttribute, Int8BufferAttribute, Interpolant, InterpolateBezier, InterpolateDiscrete, InterpolateLinear, InterpolateSmooth, InterpolationSamplingMode, InterpolationSamplingType, KeyframeTrack, LOD, LatheGeometry, Layers, Light, LightShadow, Line, Line3, LineCurve, LineCurve3, LineLoop, LineSegments, LinearInterpolant, LinearMipMapNearestFilter, LoaderUtils, LoadingManager, LoopOnce, LoopPingPong, LoopRepeat, MOUSE, MeshDepthMaterial, MeshDistanceMaterial, NearestMipMapLinearFilter, NearestMipMapNearestFilter, NodePath, NormalAnimationBlendMode, NumberKeyframeTrack, OctahedronGeometry, Path, PlaneHelper, PointLightHelper, Points, PolarGridHelper, PolyhedronGeometry, PositionalAudio, PropertyBinding, PropertyMixer, QuadraticBezierCurve, QuadraticBezierCurve3, QuaternionKeyframeTrack, QuaternionLinearInterpolant, RGBADepthPacking, RGBDepthPacking, RGDepthPacking, RawShaderMaterial, Ray, Raycaster, RenderTarget3D, RingGeometry, ShaderMaterial, Shape, ShapeGeometry, ShapePath, ShapeUtils, Skeleton, SkeletonHelper, SkinnedMesh, Source, Spherical, SphericalHarmonics3, SplineCurve, SpotLightHelper, Sprite, StaticCopyUsage, StaticReadUsage, StereoCamera, StreamCopyUsage, StreamDrawUsage, StreamReadUsage, StringKeyframeTrack, TOUCH, TetrahedronGeometry, TextureLoader, TextureSource, TextureUtils, Timer, TorusGeometry, TorusKnotGeometry, Triangle, TriangleFanDrawMode, TriangleStripDrawMode, TrianglesDrawMode, TubeGeometry, Uint8BufferAttribute, Uint8ClampedBufferAttribute, Uniform, UniformsGroup, VectorKeyframeTrack, VideoFrameTexture, VideoTexture, WebGL3DRenderTarget, WebGLArrayRenderTarget, WebGLRenderTarget, WireframeGeometry, WrapAroundEnding, XorShift32, ZeroCurvatureEnding, ZeroSlopeEnding, allocateNodeId, collectSiblingNodeIds, configureNodeIdSeed, ensureUniqueNodeIdAmongParentChildren, generateNodeId, getConsoleFunction, hashStringToUint32, isValidNodeId, nodeIdFromKey, nodeIdFromString, nodeIdToString, profile, profileClass, randomSeedUint32, setConsoleFunction, xorshift32 } from './three.core.js';
 
 const refreshUniforms = [
@@ -50095,13 +50095,13 @@ class ShadowNode extends ShadowBaseNode {
 		const { renderer, scene } = frame;
 
 		// WITH_GENESYS
-		ProfilerService.begin( 'shadowMap.render.updateMatrices' );
-		// !WITH_GENESYS
-		shadow.updateMatrices( light );
+		profileBlock( 'shadowMap.render.updateMatrices', () => {
 
-		shadowMap.setSize( shadow.mapSize.width, shadow.mapSize.height, shadowMap.depth );
-		// WITH_GENESYS
-		ProfilerService.end( 'shadowMap.render.updateMatrices' );
+			shadow.updateMatrices( light );
+
+			shadowMap.setSize( shadow.mapSize.width, shadow.mapSize.height, shadowMap.depth );
+
+		} );
 		// !WITH_GENESYS
 
 		const currentSceneName = scene.name;
@@ -50109,11 +50109,11 @@ class ShadowNode extends ShadowBaseNode {
 		scene.name = `Shadow Map [ ${ light.name || 'ID: ' + light.id } ]`;
 
 		// WITH_GENESYS
-		ProfilerService.begin( 'shadowMap.render.depthPass' );
-		// !WITH_GENESYS
-		renderer.render( scene, shadow.camera );
-		// WITH_GENESYS
-		ProfilerService.end( 'shadowMap.render.depthPass' );
+		profileBlock( 'shadowMap.render.depthPass', () => {
+
+			renderer.render( scene, shadow.camera );
+
+		} );
 		// !WITH_GENESYS
 
 		scene.name = currentSceneName;
@@ -50132,64 +50132,64 @@ class ShadowNode extends ShadowBaseNode {
 
 		// WITH_GENESYS
 		const lightLabel = `shadowMap.render.light (${this.light.name || this.light.type})`;
-		ProfilerService.begin( lightLabel );
-		// !WITH_GENESYS
+		profileBlock( lightLabel, () => {
 
-		const shadowType = renderer.shadowMap.type;
+			const shadowType = renderer.shadowMap.type;
 
-		const depthVersion = shadowMap.depthTexture.version;
-		this._depthVersionCached = depthVersion;
+			const depthVersion = shadowMap.depthTexture.version;
+			this._depthVersionCached = depthVersion;
 
-		const _shadowCameraLayer = shadow.camera.layers.mask;
+			const _shadowCameraLayer = shadow.camera.layers.mask;
 
-		if ( ( shadow.camera.layers.mask & 0xFFFFFFFE ) === 0 ) {
+			if ( ( shadow.camera.layers.mask & 0xFFFFFFFE ) === 0 ) {
 
-			shadow.camera.layers.mask = camera.layers.mask;
+				shadow.camera.layers.mask = camera.layers.mask;
 
-		}
+			}
 
-		const currentRenderObjectFunction = renderer.getRenderObjectFunction();
-
-		// WITH_GENESYS
-		ProfilerService.begin( 'shadowMap.render.setupPass' );
-		// !WITH_GENESYS
-		_rendererState = resetRendererAndSceneState( renderer, scene, _rendererState );
-
-		scene.overrideMaterial = this.getShadowMaterial();
-
-		renderer.setRenderObjectFunction( this.getShadowRenderObjectFunction( renderer, this.shadow || this.light.shadow ) );
-
-		renderer.setClearColor( 0x000000, 0 );
-
-		renderer.setRenderTarget( shadowMap );
-		// WITH_GENESYS
-		ProfilerService.end( 'shadowMap.render.setupPass' );
-		// !WITH_GENESYS
-
-		this.renderShadow( frame );
-
-		renderer.setRenderObjectFunction( currentRenderObjectFunction );
-
-		// vsm blur pass
-
-		if ( shadowType === VSMShadowMap && shadow.isPointLightShadow !== true ) {
+			const currentRenderObjectFunction = renderer.getRenderObjectFunction();
 
 			// WITH_GENESYS
-			ProfilerService.begin( 'shadowMap.render.vsmPass' );
+			profileBlock( 'shadowMap.render.setupPass', () => {
+
+				_rendererState = resetRendererAndSceneState( renderer, scene, _rendererState );
+
+				scene.overrideMaterial = this.getShadowMaterial();
+
+				renderer.setRenderObjectFunction( this.getShadowRenderObjectFunction( renderer, this.shadow || this.light.shadow ) );
+
+				renderer.setClearColor( 0x000000, 0 );
+
+				renderer.setRenderTarget( shadowMap );
+
+			} );
 			// !WITH_GENESYS
-			this.vsmPass( renderer );
+
+			this.renderShadow( frame );
+
+			renderer.setRenderObjectFunction( currentRenderObjectFunction );
+
+			// vsm blur pass
+
+			if ( shadowType === VSMShadowMap && shadow.isPointLightShadow !== true ) {
+
+				// WITH_GENESYS
+				profileBlock( 'shadowMap.render.vsmPass', () => {
+
+					this.vsmPass( renderer );
+
+				} );
+				// !WITH_GENESYS
+
+			}
+
+			shadow.camera.layers.mask = _shadowCameraLayer;
+
+			restoreRendererAndSceneState( renderer, scene, _rendererState );
+
 			// WITH_GENESYS
-			ProfilerService.end( 'shadowMap.render.vsmPass' );
-			// !WITH_GENESYS
 
-		}
-
-		shadow.camera.layers.mask = _shadowCameraLayer;
-
-		restoreRendererAndSceneState( renderer, scene, _rendererState );
-
-		// WITH_GENESYS
-		ProfilerService.end( lightLabel );
+		} );
 		// !WITH_GENESYS
 
 	}
@@ -50208,23 +50208,21 @@ class ShadowNode extends ShadowBaseNode {
 		this.vsmShadowMapHorizontal.setSize( shadow.mapSize.width, shadow.mapSize.height, depth );
 
 		// WITH_GENESYS
-		ProfilerService.begin( 'shadowMap.vsmPass.vertical' );
-		// !WITH_GENESYS
-		renderer.setRenderTarget( this.vsmShadowMapVertical );
-		_quadMesh.material = this.vsmMaterialVertical;
-		_quadMesh.render( renderer );
-		// WITH_GENESYS
-		ProfilerService.end( 'shadowMap.vsmPass.vertical' );
-		// !WITH_GENESYS
+		profileBlock( 'shadowMap.vsmPass.vertical', () => {
 
-		// WITH_GENESYS
-		ProfilerService.begin( 'shadowMap.vsmPass.horizontal' );
-		// !WITH_GENESYS
-		renderer.setRenderTarget( this.vsmShadowMapHorizontal );
-		_quadMesh.material = this.vsmMaterialHorizontal;
-		_quadMesh.render( renderer );
-		// WITH_GENESYS
-		ProfilerService.end( 'shadowMap.vsmPass.horizontal' );
+			renderer.setRenderTarget( this.vsmShadowMapVertical );
+			_quadMesh.material = this.vsmMaterialVertical;
+			_quadMesh.render( renderer );
+
+		} );
+
+		profileBlock( 'shadowMap.vsmPass.horizontal', () => {
+
+			renderer.setRenderTarget( this.vsmShadowMapHorizontal );
+			_quadMesh.material = this.vsmMaterialHorizontal;
+			_quadMesh.render( renderer );
+
+		} );
 		// !WITH_GENESYS
 
 	}
@@ -50629,34 +50627,32 @@ class PointShadowNode extends ShadowNode {
 			// Update shadow camera matrices for this face
 
 			// WITH_GENESYS
-			ProfilerService.begin( 'shadowMap.render.updateMatrices' );
-			// !WITH_GENESYS
+			profileBlock( 'shadowMap.render.updateMatrices', () => {
 
-			const far = light.distance || camera.far;
+				const far = light.distance || camera.far;
 
-			if ( far !== camera.far ) {
+				if ( far !== camera.far ) {
 
-				camera.far = far;
-				camera.updateProjectionMatrix();
+					camera.far = far;
+					camera.updateProjectionMatrix();
 
-			}
+				}
 
-			_lightPositionWorld.setFromMatrixPosition( light.matrixWorld );
-			camera.position.copy( _lightPositionWorld );
+				_lightPositionWorld.setFromMatrixPosition( light.matrixWorld );
+				camera.position.copy( _lightPositionWorld );
 
-			_lookTarget.copy( camera.position );
-			_lookTarget.add( cubeDirections[ face ] );
-			camera.up.copy( cubeUps[ face ] );
-			camera.lookAt( _lookTarget );
-			camera.updateMatrixWorld();
+				_lookTarget.copy( camera.position );
+				_lookTarget.add( cubeDirections[ face ] );
+				camera.up.copy( cubeUps[ face ] );
+				camera.lookAt( _lookTarget );
+				camera.updateMatrixWorld();
 
-			shadowMatrix.makeTranslation( - _lightPositionWorld.x, - _lightPositionWorld.y, - _lightPositionWorld.z );
+				shadowMatrix.makeTranslation( - _lightPositionWorld.x, - _lightPositionWorld.y, - _lightPositionWorld.z );
 
-			_projScreenMatrix$1.multiplyMatrices( camera.projectionMatrix, camera.matrixWorldInverse );
-			shadow._frustum.setFromProjectionMatrix( _projScreenMatrix$1, camera.coordinateSystem, camera.reversedDepth );
+				_projScreenMatrix$1.multiplyMatrices( camera.projectionMatrix, camera.matrixWorldInverse );
+				shadow._frustum.setFromProjectionMatrix( _projScreenMatrix$1, camera.coordinateSystem, camera.reversedDepth );
 
-			// WITH_GENESYS
-			ProfilerService.end( 'shadowMap.render.updateMatrices' );
+			} );
 			// !WITH_GENESYS
 
 			//
@@ -50666,11 +50662,11 @@ class PointShadowNode extends ShadowNode {
 			scene.name = `Point Light Shadow [ ${ light.name || 'ID: ' + light.id } ] - Face ${ face + 1 }`;
 
 			// WITH_GENESYS
-			ProfilerService.begin( faceLabel );
-			// !WITH_GENESYS
-			renderer.render( scene, camera );
-			// WITH_GENESYS
-			ProfilerService.end( faceLabel );
+			profileBlock( faceLabel, () => {
+
+				renderer.render( scene, camera );
+
+			} );
 			// !WITH_GENESYS
 
 			scene.name = currentSceneName;
@@ -59164,24 +59160,16 @@ function callProfiled( node, method, frame ) {
 	const owner = node.debugLabel || node.name;
 	const tracing = ProfilerService.isTracing();
 
-	ProfilerService.begin( label, owner && tracing ? `${ owner } (${ label })` : undefined );
-	const gpuSpan = ProfilerService.beginGpu( label, frame.renderer, tracing ? owner || label.slice( 0, label.lastIndexOf( '.' ) ) : undefined );
-	let result;
-
-	try {
-
-		result = node[ method ]( frame );
-
-	} finally {
-
-		// An open GPU span holds back every later GPU timing, so it must close on a throw.
-		ProfilerService.endGpu( gpuSpan );
-
-	}
-
-	ProfilerService.end( label );
-
-	return result;
+	return profileBlock(
+		label,
+		() => profileGpuBlock(
+			label,
+			frame.renderer,
+			() => node[ method ]( frame ),
+			tracing ? owner || label.slice( 0, label.lastIndexOf( '.' ) ) : undefined
+		),
+		owner && tracing ? `${ owner } (${ label })` : undefined
+	);
 
 }
 // !WITH_GENESYS
@@ -66942,81 +66930,81 @@ class Renderer {
 	_renderBundle( bundle, sceneRef, lightsNode ) {
 
 		// WITH_GENESYS
-		ProfilerService.begin( 'renderBundle' );
-		// !WITH_GENESYS
+		profileBlock( 'renderBundle', () => {
 
-		const { bundleGroup, camera, renderList } = bundle;
+			const { bundleGroup, camera, renderList } = bundle;
 
-		const renderContext = this._currentRenderContext;
-
-		//
-
-		const renderBundle = this._bundles.get( bundleGroup, camera, renderContext );
-		const renderBundleData = this.backend.get( renderBundle );
-		const renderBundleNeedsUpdate = this._bundleNeedsUpdate( bundleGroup, renderBundleData );
-
-		if ( renderBundleNeedsUpdate ) {
-
-			this.backend.beginBundle( renderContext );
-
-			this._currentRenderBundle = renderBundle;
-
-			const {
-				transparentDoublePass: transparentDoublePassObjects,
-				transparent: transparentObjects,
-				opaque: opaqueObjects
-			} = renderList;
-
-			if ( this.opaque === true && opaqueObjects.length > 0 ) this._renderObjects( opaqueObjects, camera, sceneRef, lightsNode );
-			if ( this.transparent === true && transparentObjects.length > 0 ) this._renderTransparents( transparentObjects, transparentDoublePassObjects, camera, sceneRef, lightsNode );
-
-			this._currentRenderBundle = null;
+			const renderContext = this._currentRenderContext;
 
 			//
 
-			this.backend.finishBundle( renderContext, renderBundle );
+			const renderBundle = this._bundles.get( bundleGroup, camera, renderContext );
+			const renderBundleData = this.backend.get( renderBundle );
+			const renderBundleNeedsUpdate = this._bundleNeedsUpdate( bundleGroup, renderBundleData );
 
-			renderBundleData.version = bundleGroup.version;
+			if ( renderBundleNeedsUpdate ) {
 
-		} else {
+				this.backend.beginBundle( renderContext );
 
-			const { renderObjects } = renderBundleData;
+				this._currentRenderBundle = renderBundle;
 
-			for ( let i = 0, l = renderObjects.length; i < l; i ++ ) {
+				const {
+					transparentDoublePass: transparentDoublePassObjects,
+					transparent: transparentObjects,
+					opaque: opaqueObjects
+				} = renderList;
 
-				const renderObject = renderObjects[ i ];
+				if ( this.opaque === true && opaqueObjects.length > 0 ) this._renderObjects( opaqueObjects, camera, sceneRef, lightsNode );
+				if ( this.transparent === true && transparentObjects.length > 0 ) this._renderTransparents( transparentObjects, transparentDoublePassObjects, camera, sceneRef, lightsNode );
 
-				const refreshType = this._nodes.needsRefresh( renderObject );
+				this._currentRenderBundle = null;
 
-				if ( refreshType === RenderObjectRefreshType.FULL ) {
+				//
 
-					this._nodes.updateBefore( renderObject );
+				this.backend.finishBundle( renderContext, renderBundle );
 
-					this._geometries.updateForRender( renderObject );
-					this._nodes.updateForRender( renderObject );
-					this._bindings.updateForRender( renderObject );
+				renderBundleData.version = bundleGroup.version;
 
-					this._nodes.updateAfter( renderObject );
+			} else {
 
-				} else if ( refreshType === RenderObjectRefreshType.SHARED ) {
+				const { renderObjects } = renderBundleData;
 
-					this._nodes.updateBefore( renderObject );
+				for ( let i = 0, l = renderObjects.length; i < l; i ++ ) {
 
-					this._nodes.updateForRender( renderObject );
-					this._bindings.updateSharedForRender( renderObject );
+					const renderObject = renderObjects[ i ];
 
-					this._nodes.updateAfter( renderObject );
+					const refreshType = this._nodes.needsRefresh( renderObject );
+
+					if ( refreshType === RenderObjectRefreshType.FULL ) {
+
+						this._nodes.updateBefore( renderObject );
+
+						this._geometries.updateForRender( renderObject );
+						this._nodes.updateForRender( renderObject );
+						this._bindings.updateForRender( renderObject );
+
+						this._nodes.updateAfter( renderObject );
+
+					} else if ( refreshType === RenderObjectRefreshType.SHARED ) {
+
+						this._nodes.updateBefore( renderObject );
+
+						this._nodes.updateForRender( renderObject );
+						this._bindings.updateSharedForRender( renderObject );
+
+						this._nodes.updateAfter( renderObject );
+
+					}
 
 				}
 
 			}
 
-		}
+			this.backend.addBundle( renderContext, renderBundle );
 
-		this.backend.addBundle( renderContext, renderBundle );
+			// WITH_GENESYS
 
-		// WITH_GENESYS
-		ProfilerService.end( 'renderBundle' );
+		} );
 		// !WITH_GENESYS
 
 	}
@@ -67335,11 +67323,11 @@ class Renderer {
 		//
 
 		// WITH_GENESYS
-		ProfilerService.begin( 'scene.updateMatrixWorld' );
-		// !WITH_GENESYS
-		if ( scene.matrixWorldAutoUpdate === true ) scene.updateMatrixWorld();
-		// WITH_GENESYS
-		ProfilerService.end( 'scene.updateMatrixWorld' );
+		profileBlock( 'scene.updateMatrixWorld', () => {
+
+			if ( scene.matrixWorldAutoUpdate === true ) scene.updateMatrixWorld();
+
+		} );
 		// !WITH_GENESYS
 
 		camera = this._updateCamera( camera, useXRCamera );
@@ -67401,34 +67389,29 @@ class Renderer {
 		}
 
 		// WITH_GENESYS
-		ProfilerService.begin( 'buildRenderList' );
-		// !WITH_GENESYS
+		let renderList;
+		profileBlock( 'buildRenderList', () => {
 
-		this._renderLists.update( nodeFrame.frameId );
+			this._renderLists.update( nodeFrame.frameId );
 
-		const renderList = this._renderLists.get( scene, camera, this.lighting );
-		renderList.begin();
+			renderList = this._renderLists.get( scene, camera, this.lighting );
+			renderList.begin();
 
-		// WITH_GENESYS
-		ProfilerService.begin( 'projectObject' );
-		// !WITH_GENESYS
+			profileBlock( 'projectObject', () => {
 
-		this._projectObject( scene, camera, 0, renderList, renderContext.clippingContext );
+				this._projectObject( scene, camera, 0, renderList, renderContext.clippingContext );
 
-		// WITH_GENESYS
-		ProfilerService.end( 'projectObject' );
-		// !WITH_GENESYS
+			} );
 
-		renderList.finish();
+			renderList.finish();
 
-		if ( this.sortObjects === true ) {
+			if ( this.sortObjects === true ) {
 
-			renderList.sort( this._opaqueSort, this._transparentSort );
+				renderList.sort( this._opaqueSort, this._transparentSort );
 
-		}
+			}
 
-		// WITH_GENESYS
-		ProfilerService.end( 'buildRenderList' );
+		} );
 		// !WITH_GENESYS
 
 		//
@@ -67471,117 +67454,117 @@ class Renderer {
 		const profilerLabel = renderContext.fullscreenPass === true ? 'Renderer._renderQuad' : 'Renderer._renderScene';
 		const tracing = ProfilerService.isTracing();
 		const toScreen = outputRenderTarget === null;
-		ProfilerService.begin( profilerLabel, tracing ? getRenderSceneTraceName( gpuProfilerLabel ?? '', renderContext, toScreen, profilerLabel ) : undefined );
+		profileBlock( profilerLabel, () => {
 
-		// The GPU track has no CPU scope names, so its slices lead with what was rendered.
-		if ( tracing && gpuRenderSpan !== null && gpuRenderSpan._seq !== 0 ) {
+			// The GPU track has no CPU scope names, so its slices lead with what was rendered.
+			if ( tracing && gpuRenderSpan !== null && gpuRenderSpan._seq !== 0 ) {
 
-			gpuRenderSpan.traceName = getRenderSceneTraceName( gpuProfilerLabel ?? '', renderContext, toScreen, null );
+				gpuRenderSpan.traceName = getRenderSceneTraceName( gpuProfilerLabel ?? '', renderContext, toScreen, null );
 
-		}
+			}
 
-		const previousProfileRenderObjects = this._profileRenderObjects;
-		this._profileRenderObjects = renderContext.fullscreenPass !== true;
-		// !WITH_GENESYS
+			const previousProfileRenderObjects = this._profileRenderObjects;
+			this._profileRenderObjects = renderContext.fullscreenPass !== true;
 
-		//
+			//
 
-		renderContext.scissorValue.max( _vector4.set( 0, 0, 0, 0 ) );
+			renderContext.scissorValue.max( _vector4.set( 0, 0, 0, 0 ) );
 
-		if ( renderContext.scissorValue.x + renderContext.scissorValue.width > renderContext.width ) {
+			if ( renderContext.scissorValue.x + renderContext.scissorValue.width > renderContext.width ) {
 
-			renderContext.scissorValue.width = Math.max( renderContext.width - renderContext.scissorValue.x, 0 );
+				renderContext.scissorValue.width = Math.max( renderContext.width - renderContext.scissorValue.x, 0 );
 
-		}
+			}
 
-		if ( renderContext.scissorValue.y + renderContext.scissorValue.height > renderContext.height ) {
+			if ( renderContext.scissorValue.y + renderContext.scissorValue.height > renderContext.height ) {
 
-			renderContext.scissorValue.height = Math.max( renderContext.height - renderContext.scissorValue.y, 0 );
+				renderContext.scissorValue.height = Math.max( renderContext.height - renderContext.scissorValue.y, 0 );
 
-		}
+			}
 
-		//
+			//
 
-		this._background.update( sceneRef, renderList, renderContext );
+			this._background.update( sceneRef, renderList, renderContext );
 
-		//
+			//
 
-		renderContext.camera = camera;
-		this.backend.beginRender( renderContext );
+			renderContext.camera = camera;
+			this.backend.beginRender( renderContext );
 
-		// process render lists
+			// process render lists
 
-		const {
-			bundles,
-			lightsNode,
-			transparentDoublePass: transparentDoublePassObjects,
-			transparent: transparentObjects,
-			opaque: opaqueObjects
-		} = renderList;
+			const {
+				bundles,
+				lightsNode,
+				transparentDoublePass: transparentDoublePassObjects,
+				transparent: transparentObjects,
+				opaque: opaqueObjects
+			} = renderList;
 
-		if ( bundles.length > 0 ) this._renderBundles( bundles, sceneRef, lightsNode );
-		// WITH_GENESYS
-		if ( this.opaque === true && opaqueObjects.length > 0 ) {
+			if ( bundles.length > 0 ) this._renderBundles( bundles, sceneRef, lightsNode );
+			// WITH_GENESYS
+			if ( this.opaque === true && opaqueObjects.length > 0 ) {
 
-			const opaqueSpan = this.backend.beginPassTimestampSpan( renderContext, 'Opaque', PassTimestampLevel.STAGE );
-			this._renderObjects( opaqueObjects, camera, sceneRef, lightsNode );
-			this.backend.endPassTimestampSpan( opaqueSpan );
+				const opaqueSpan = this.backend.beginPassTimestampSpan( renderContext, 'Opaque', PassTimestampLevel.STAGE );
+				this._renderObjects( opaqueObjects, camera, sceneRef, lightsNode );
+				this.backend.endPassTimestampSpan( opaqueSpan );
 
-		}
+			}
 
-		if ( this.transparent === true && transparentObjects.length > 0 ) {
+			if ( this.transparent === true && transparentObjects.length > 0 ) {
 
-			const transparentSpan = this.backend.beginPassTimestampSpan( renderContext, 'Transparent', PassTimestampLevel.STAGE );
-			this._renderTransparents( transparentObjects, transparentDoublePassObjects, camera, sceneRef, lightsNode );
-			this.backend.endPassTimestampSpan( transparentSpan );
+				const transparentSpan = this.backend.beginPassTimestampSpan( renderContext, 'Transparent', PassTimestampLevel.STAGE );
+				this._renderTransparents( transparentObjects, transparentDoublePassObjects, camera, sceneRef, lightsNode );
+				this.backend.endPassTimestampSpan( transparentSpan );
 
-		}
-		// !WITH_GENESYS
-		// if ( this.opaque === true && opaqueObjects.length > 0 ) this._renderObjects( opaqueObjects, camera, sceneRef, lightsNode );
-		// if ( this.transparent === true && transparentObjects.length > 0 ) this._renderTransparents( transparentObjects, transparentDoublePassObjects, camera, sceneRef, lightsNode );
+			}
+			// !WITH_GENESYS
+			// if ( this.opaque === true && opaqueObjects.length > 0 ) this._renderObjects( opaqueObjects, camera, sceneRef, lightsNode );
+			// if ( this.transparent === true && transparentObjects.length > 0 ) this._renderTransparents( transparentObjects, transparentDoublePassObjects, camera, sceneRef, lightsNode );
 
-		// WITH_GENESYS
-		this._renderDoubleSideHidden( opaqueObjects, transparentObjects, camera, sceneRef, lightsNode );
-		// !WITH_GENESYS
+			// WITH_GENESYS
+			this._renderDoubleSideHidden( opaqueObjects, transparentObjects, camera, sceneRef, lightsNode );
+			// !WITH_GENESYS
 
-		// finish render pass
+			// finish render pass
 
-		this.backend.finishRender( renderContext );
+			this.backend.finishRender( renderContext );
 
-		// restore render tree
+			// restore render tree
 
-		nodeFrame.renderId = previousRenderId;
-		this._currentRenderContext = previousRenderContext;
-		this._currentRenderObjectFunction = previousRenderObjectFunction;
-		this._handleObjectFunction = previousHandleObjectFunction;
+			nodeFrame.renderId = previousRenderId;
+			this._currentRenderContext = previousRenderContext;
+			this._currentRenderObjectFunction = previousRenderObjectFunction;
+			this._handleObjectFunction = previousHandleObjectFunction;
 
-		this.lighting.finishRender( scene );
+			this.lighting.finishRender( scene );
 
-		//
+			//
 
-		this._callDepth --;
+			this._callDepth --;
 
-		if ( frameBufferTarget !== null ) {
+			if ( frameBufferTarget !== null ) {
 
-			this.setRenderTarget( outputRenderTarget, activeCubeFace, activeMipmapLevel );
+				this.setRenderTarget( outputRenderTarget, activeCubeFace, activeMipmapLevel );
 
-			this._renderOutput( renderTarget );
+				this._renderOutput( renderTarget );
 
-		}
+			}
 
-		//
+			//
 
-		sceneRef.onAfterRender( this, scene, camera, renderTarget );
+			sceneRef.onAfterRender( this, scene, camera, renderTarget );
 
-		//
+			//
 
-		this.inspector.finishRender( this.backend.getTimestampUID( renderContext ) );
+			this.inspector.finishRender( this.backend.getTimestampUID( renderContext ) );
 
-		//
+			//
 
-		// WITH_GENESYS
-		this._profileRenderObjects = previousProfileRenderObjects;
-		ProfilerService.end( profilerLabel );
+			// WITH_GENESYS
+			this._profileRenderObjects = previousProfileRenderObjects;
+
+		}, tracing ? getRenderSceneTraceName( gpuProfilerLabel ?? '', renderContext, toScreen, profilerLabel ) : undefined );
 		// !WITH_GENESYS
 
 		return renderContext;
@@ -69214,47 +69197,48 @@ class Renderer {
 
 		// WITH_GENESYS
 		const profile = this._profileRenderObjects;
-		if ( profile ) ProfilerService.begin( '_renderTransparents' );
-		// !WITH_GENESYS
+		const renderTransparents = () => {
 
-		if ( doublePassList.length > 0 ) {
+			if ( doublePassList.length > 0 ) {
 
-			// render back side
+				// render back side
 
-			for ( const { material } of doublePassList ) {
+				for ( const { material } of doublePassList ) {
 
-				material.side = BackSide;
+					material.side = BackSide;
+
+				}
+
+				this._renderObjects( doublePassList, camera, scene, lightsNode, 'backSide' );
+
+				// render front side
+
+				for ( const { material } of doublePassList ) {
+
+					material.side = FrontSide;
+
+				}
+
+				this._renderObjects( renderList, camera, scene, lightsNode );
+
+				// restore
+
+				for ( const { material } of doublePassList ) {
+
+					material.side = DoubleSide;
+
+				}
+
+			} else {
+
+				this._renderObjects( renderList, camera, scene, lightsNode );
 
 			}
 
-			this._renderObjects( doublePassList, camera, scene, lightsNode, 'backSide' );
+		};
 
-			// render front side
-
-			for ( const { material } of doublePassList ) {
-
-				material.side = FrontSide;
-
-			}
-
-			this._renderObjects( renderList, camera, scene, lightsNode );
-
-			// restore
-
-			for ( const { material } of doublePassList ) {
-
-				material.side = DoubleSide;
-
-			}
-
-		} else {
-
-			this._renderObjects( renderList, camera, scene, lightsNode );
-
-		}
-
-		// WITH_GENESYS
-		if ( profile ) ProfilerService.end( '_renderTransparents' );
+		if ( profile ) profileBlock( '_renderTransparents', renderTransparents );
+		else renderTransparents();
 		// !WITH_GENESYS
 
 	}
@@ -69273,19 +69257,31 @@ class Renderer {
 
 		// WITH_GENESYS
 		const profile = this._profileRenderObjects;
-		if ( profile ) ProfilerService.begin( '_renderObjects', ProfilerService.isTracing() ? `_renderObjects (${renderList.length})` : undefined );
-		// !WITH_GENESYS
+		const renderObjects = () => {
 
-		for ( let i = 0, il = renderList.length; i < il; i ++ ) {
+			for ( let i = 0, il = renderList.length; i < il; i ++ ) {
 
-			const { object, geometry, material, group, clippingContext } = renderList[ i ];
+				const { object, geometry, material, group, clippingContext } = renderList[ i ];
 
-			this._currentRenderObjectFunction( object, scene, camera, geometry, material, group, lightsNode, clippingContext, passId );
+				this._currentRenderObjectFunction( object, scene, camera, geometry, material, group, lightsNode, clippingContext, passId );
+
+			}
+
+		};
+
+		if ( profile ) {
+
+			profileBlock(
+				'_renderObjects',
+				renderObjects,
+				ProfilerService.isTracing() ? `_renderObjects (${renderList.length})` : undefined
+			);
+
+		} else {
+
+			renderObjects();
 
 		}
-
-		// WITH_GENESYS
-		if ( profile ) ProfilerService.end( '_renderObjects' );
 		// !WITH_GENESYS
 
 	}
@@ -69510,129 +69506,124 @@ class Renderer {
 
 		// WITH_GENESYS
 		const profile = this._profileRenderObjects;
-		if ( profile ) {
+		const traceName = ProfilerService.isTracing() ? `renderObject (${object.name || object.type} - ${material.name || material.type})` : undefined;
+		const renderObjectProfiled = () => {
 
-			ProfilerService.begin(
-				'renderObject',
-				ProfilerService.isTracing() ? `renderObject (${object.name || object.type} - ${material.name || material.type})` : undefined
-			);
+			let materialOverride = false;
+			let materialColorNode;
+			let materialDepthNode;
+			let materialPositionNode;
+			let materialSide;
+			let materialDisplacementMap;
+			let materialDisplacementScale;
+			let materialDisplacementBias;
 
-		}
-		// !WITH_GENESYS
+			const previousSourceMaterial = this._currentSourceMaterial;
 
-		let materialOverride = false;
-		let materialColorNode;
-		let materialDepthNode;
-		let materialPositionNode;
-		let materialSide;
-		let materialDisplacementMap;
-		let materialDisplacementScale;
-		let materialDisplacementBias;
+			//
 
-		const previousSourceMaterial = this._currentSourceMaterial;
+			object.onBeforeRender( this, scene, camera, geometry, material, group );
 
-		//
+			//
 
-		object.onBeforeRender( this, scene, camera, geometry, material, group );
+			if ( material.allowOverride === true && scene.overrideMaterial !== null ) {
 
-		//
+				this._currentSourceMaterial = material;
 
-		if ( material.allowOverride === true && scene.overrideMaterial !== null ) {
+				const overrideMaterial = scene.overrideMaterial;
 
-			this._currentSourceMaterial = material;
+				materialOverride = true;
 
-			const overrideMaterial = scene.overrideMaterial;
+				// store original nodes
+				materialColorNode = ( overrideMaterial.isNodeMaterial ) ? overrideMaterial.colorNode : null;
+				materialDepthNode = ( overrideMaterial.isNodeMaterial ) ? overrideMaterial.depthNode : null;
+				materialPositionNode = ( overrideMaterial.isNodeMaterial ) ? overrideMaterial.positionNode : null;
+				materialSide = scene.overrideMaterial.side;
+				materialDisplacementMap = overrideMaterial.displacementMap;
+				materialDisplacementScale = overrideMaterial.displacementScale;
+				materialDisplacementBias = overrideMaterial.displacementBias;
 
-			materialOverride = true;
+				if ( material.positionNode && material.positionNode.isNode ) {
 
-			// store original nodes
-			materialColorNode = ( overrideMaterial.isNodeMaterial ) ? overrideMaterial.colorNode : null;
-			materialDepthNode = ( overrideMaterial.isNodeMaterial ) ? overrideMaterial.depthNode : null;
-			materialPositionNode = ( overrideMaterial.isNodeMaterial ) ? overrideMaterial.positionNode : null;
-			materialSide = scene.overrideMaterial.side;
-			materialDisplacementMap = overrideMaterial.displacementMap;
-			materialDisplacementScale = overrideMaterial.displacementScale;
-			materialDisplacementBias = overrideMaterial.displacementBias;
-
-			if ( material.positionNode && material.positionNode.isNode ) {
-
-				overrideMaterial.positionNode = material.positionNode;
-
-			}
-
-			overrideMaterial.alphaTest = material.alphaTest;
-			overrideMaterial.alphaMap = material.alphaMap;
-			overrideMaterial.displacementMap = material.displacementMap;
-			overrideMaterial.displacementScale = material.displacementScale;
-			overrideMaterial.displacementBias = material.displacementBias;
-			overrideMaterial.transparent = material.transparent || material.transmission > 0 ||
-				( material.transmissionNode && material.transmissionNode.isNode ) ||
-				( material.backdropNode && material.backdropNode.isNode );
-
-			if ( overrideMaterial.isShadowPassMaterial ) {
-
-				const { colorNode, depthNode, positionNode } = this._getShadowNodes( material );
-
-				if ( this.shadowMap.type === VSMShadowMap ) {
-
-					overrideMaterial.side = ( material.shadowSide !== null ) ? material.shadowSide : material.side;
-
-				} else {
-
-					overrideMaterial.side = ( material.shadowSide !== null ) ? material.shadowSide : _shadowSide[ material.side ];
+					overrideMaterial.positionNode = material.positionNode;
 
 				}
 
-				if ( colorNode !== null ) overrideMaterial.colorNode = colorNode;
-				if ( depthNode !== null ) overrideMaterial.depthNode = depthNode;
-				if ( positionNode !== null ) overrideMaterial.positionNode = positionNode;
+				overrideMaterial.alphaTest = material.alphaTest;
+				overrideMaterial.alphaMap = material.alphaMap;
+				overrideMaterial.displacementMap = material.displacementMap;
+				overrideMaterial.displacementScale = material.displacementScale;
+				overrideMaterial.displacementBias = material.displacementBias;
+				overrideMaterial.transparent = material.transparent || material.transmission > 0 ||
+				( material.transmissionNode && material.transmissionNode.isNode ) ||
+				( material.backdropNode && material.backdropNode.isNode );
+
+				if ( overrideMaterial.isShadowPassMaterial ) {
+
+					const { colorNode, depthNode, positionNode } = this._getShadowNodes( material );
+
+					if ( this.shadowMap.type === VSMShadowMap ) {
+
+						overrideMaterial.side = ( material.shadowSide !== null ) ? material.shadowSide : material.side;
+
+					} else {
+
+						overrideMaterial.side = ( material.shadowSide !== null ) ? material.shadowSide : _shadowSide[ material.side ];
+
+					}
+
+					if ( colorNode !== null ) overrideMaterial.colorNode = colorNode;
+					if ( depthNode !== null ) overrideMaterial.depthNode = depthNode;
+					if ( positionNode !== null ) overrideMaterial.positionNode = positionNode;
+
+				}
+
+				material = overrideMaterial;
 
 			}
 
-			material = overrideMaterial;
+			//
 
-		}
+			if ( material.transparent === true && material.side === DoubleSide && material.forceSinglePass === false ) {
 
-		//
+				material.side = BackSide;
+				this._handleObjectFunction( object, material, scene, camera, lightsNode, group, clippingContext, 'backSide' ); // create backSide pass id
 
-		if ( material.transparent === true && material.side === DoubleSide && material.forceSinglePass === false ) {
+				material.side = FrontSide;
+				this._handleObjectFunction( object, material, scene, camera, lightsNode, group, clippingContext, passId ); // use default pass id
 
-			material.side = BackSide;
-			this._handleObjectFunction( object, material, scene, camera, lightsNode, group, clippingContext, 'backSide' ); // create backSide pass id
+				material.side = DoubleSide;
 
-			material.side = FrontSide;
-			this._handleObjectFunction( object, material, scene, camera, lightsNode, group, clippingContext, passId ); // use default pass id
+			} else {
 
-			material.side = DoubleSide;
+				this._handleObjectFunction( object, material, scene, camera, lightsNode, group, clippingContext, passId );
 
-		} else {
+			}
 
-			this._handleObjectFunction( object, material, scene, camera, lightsNode, group, clippingContext, passId );
+			//
 
-		}
+			if ( materialOverride ) {
 
-		//
+				scene.overrideMaterial.colorNode = materialColorNode;
+				scene.overrideMaterial.depthNode = materialDepthNode;
+				scene.overrideMaterial.positionNode = materialPositionNode;
+				scene.overrideMaterial.side = materialSide;
+				scene.overrideMaterial.displacementMap = materialDisplacementMap;
+				scene.overrideMaterial.displacementScale = materialDisplacementScale;
+				scene.overrideMaterial.displacementBias = materialDisplacementBias;
 
-		if ( materialOverride ) {
+			}
 
-			scene.overrideMaterial.colorNode = materialColorNode;
-			scene.overrideMaterial.depthNode = materialDepthNode;
-			scene.overrideMaterial.positionNode = materialPositionNode;
-			scene.overrideMaterial.side = materialSide;
-			scene.overrideMaterial.displacementMap = materialDisplacementMap;
-			scene.overrideMaterial.displacementScale = materialDisplacementScale;
-			scene.overrideMaterial.displacementBias = materialDisplacementBias;
+			this._currentSourceMaterial = previousSourceMaterial;
 
-		}
+			//
 
-		this._currentSourceMaterial = previousSourceMaterial;
+			object.onAfterRender( this, scene, camera, geometry, material, group );
 
-		//
+		};
 
-		object.onAfterRender( this, scene, camera, geometry, material, group );
-
-		// WITH_GENESYS
-		if ( profile ) ProfilerService.end( 'renderObject' );
+		if ( profile ) profileBlock( 'renderObject', renderObjectProfiled, traceName );
+		else renderObjectProfiled();
 		// !WITH_GENESYS
 
 	}
@@ -96629,4 +96620,4 @@ class ClippingGroup extends Group {
 
 }
 
-export { ACESFilmicToneMapping, AONode, AddEquation, AddOperation, AdditiveBlending, AgXToneMapping, AlphaFormat, AlwaysCompare, AlwaysDepth, AlwaysStencilFunc, AmbientLight, AmbientLightNode, AnalyticLightNode, ArrayCamera, ArrayElementNode, ArrayNode, AssignNode, AtomicFunctionNode, AttributeNode, BackSide, BarrierNode, BasicEnvironmentNode, BasicLightMapNode, BasicShadowMap, BitcastNode, BitcountNode, BlendMode, BoxGeometry, BufferAttribute, BufferAttributeNode, BufferGeometry, BufferNode, BuiltinNode, BumpMapNode, BundleGroup, BypassNode, ByteType, CanvasTarget, CineonToneMapping, ClampToEdgeWrapping, ClippingGroup, ClippingNode, CodeNode, Color, ColorManagement, ColorSpaceNode, Compatibility, ComputeBuiltinNode, ComputeNode, ConditionalNode, ConstNode, ConstantAlphaFactor, ConstantColorFactor, ContextNode, ConvertNode, CubeCamera, CubeDepthTexture, CubeMapNode, CubeReflectionMapping, CubeRefractionMapping, CubeTexture, CubeTextureNode, CubeUVReflectionMapping, CullFaceBack, CullFaceFront, CullFaceNone, CustomBlending, CylinderGeometry, Data3DTexture, DataArrayTexture, DataTexture, DebugNode, DecrementStencilOp, DecrementWrapStencilOp, DepthFormat, DepthStencilFormat, DepthTexture, DirectRenderPipeline, DirectionalLight, DirectionalLightNode, DoubleSide, DstAlphaFactor, DstColorFactor, DynamicDrawUsage, EnvironmentNode, EqualCompare, EqualDepth, EqualStencilFunc, EquirectangularReflectionMapping, EquirectangularRefractionMapping, EventDispatcher, EventNode, ExpressionNode, FileLoader, FlipNode, Float16BufferAttribute, Float32BufferAttribute, FloatType, FramebufferTexture, FrontFacingNode, FrontSide, Frustum, FrustumArray, FunctionCallNode, FunctionNode, FunctionOverloadingNode, GLSLNodeParser, GreaterCompare, GreaterDepth, GreaterEqualCompare, GreaterEqualDepth, GreaterEqualStencilFunc, GreaterStencilFunc, Group, HalfFloatType, HemisphereLight, HemisphereLightNode, IESSpotLight, IESSpotLightNode, IncrementStencilOp, IncrementWrapStencilOp, IndexNode, IndirectStorageBufferAttribute, InputNode, InspectorBase, InspectorNode, InstancedBufferAttribute, InstancedInterleavedBuffer, IntType, InterleavedBuffer, InterleavedBufferAttribute, InvertStencilOp, IrradianceNode, IsolateNode, JoinNode, KeepStencilOp, LessCompare, LessDepth, LessEqualCompare, LessEqualDepth, LessEqualStencilFunc, LessStencilFunc, LightProbe, LightProbeGridNode, LightProbeNode, Lighting, LightingContextNode, LightingModel, LightingNode, LightsNode, Line2NodeMaterial, LineBasicMaterial, LineBasicNodeMaterial, LineDashedMaterial, LineDashedNodeMaterial, LinearFilter, LinearMipMapLinearFilter, LinearMipmapLinearFilter, LinearMipmapNearestFilter, LinearSRGBColorSpace, LinearToneMapping, LinearTransfer, Loader, LoopNode, MRTNode, Material, MaterialBlending, MaterialLightsNode, MaterialLoader, MaterialNode, MaterialReferenceNode, MathNode, MathUtils, Matrix2, Matrix3, Matrix4, MaxEquation, MaxMipLevelNode, MemberNode, Mesh, MeshBasicMaterial, MeshBasicNodeMaterial, MeshLambertMaterial, MeshLambertNodeMaterial, MeshMatcapMaterial, MeshMatcapNodeMaterial, MeshNormalMaterial, MeshNormalNodeMaterial, MeshPhongMaterial, MeshPhongNodeMaterial, MeshPhysicalMaterial, MeshPhysicalNodeMaterial, MeshSSSNodeMaterial, MeshStandardMaterial, MeshStandardNodeMaterial, MeshToonMaterial, MeshToonNodeMaterial, MinEquation, MirroredRepeatWrapping, MixOperation, ModelNode, MultiplyBlending, MultiplyOperation, NearestFilter, NearestMipmapLinearFilter, NearestMipmapNearestFilter, NeutralToneMapping, NeverCompare, NeverDepth, NeverStencilFunc, NoBlending, NoColorSpace, NoNormalPacking, NoToneMapping, Node, NodeAccess, NodeAttribute, NodeBuilder, NodeCache, NodeCode, NodeError, NodeFrame, NodeFunctionInput, NodeLoader, NodeMaterial, NodeMaterialLoader, NodeMaterialObserver, NodeObjectLoader, NodeShaderStage, NodeType, NodeUniform, NodeUpdateType, NodeUtils, NodeVar, NodeVarying, NormalBlending, NormalGAPacking, NormalMapNode, NormalRGPacking, NotEqualCompare, NotEqualDepth, NotEqualStencilFunc, Object3D, Object3DNode, ObjectLoader, ObjectSpaceNormalMap, OneFactor, OneMinusConstantAlphaFactor, OneMinusConstantColorFactor, OneMinusDstAlphaFactor, OneMinusDstColorFactor, OneMinusSrcAlphaFactor, OneMinusSrcColorFactor, OperatorNode, OrthographicCamera, OutputStructNode, OverrideContextNode, PCFShadowMap, PCFSoftShadowMap, PMREMGenerator, PMREMNode, PackFloatNode, Packed4x8IntegerNode, ParameterNode, PassNode, PerspectiveCamera, PhongLightingModel, PhysicalLightingModel, Plane, PlaneGeometry, PointLight, PointLightNode, PointShadowNode, PointUVNode, PointsMaterial, PointsNodeMaterial, PostProcessing, ProfilerService, ProjectorLight, ProjectorLightNode, PropertyNode, QuadMesh, Quaternion, R11_EAC_Format, RED_GREEN_RGTC2_Format, RED_RGTC1_Format, REVISION, RG11_EAC_Format, RGBAFormat, RGBAIntegerFormat, RGBA_ASTC_10x10_Format, RGBA_ASTC_10x5_Format, RGBA_ASTC_10x6_Format, RGBA_ASTC_10x8_Format, RGBA_ASTC_12x10_Format, RGBA_ASTC_12x12_Format, RGBA_ASTC_4x4_Format, RGBA_ASTC_5x4_Format, RGBA_ASTC_5x5_Format, RGBA_ASTC_6x5_Format, RGBA_ASTC_6x6_Format, RGBA_ASTC_8x5_Format, RGBA_ASTC_8x6_Format, RGBA_ASTC_8x8_Format, RGBA_BPTC_Format, RGBA_ETC2_EAC_Format, RGBA_PVRTC_2BPPV1_Format, RGBA_PVRTC_4BPPV1_Format, RGBA_S3TC_DXT1_Format, RGBA_S3TC_DXT3_Format, RGBA_S3TC_DXT5_Format, RGBFormat, RGBIntegerFormat, RGB_BPTC_SIGNED_Format, RGB_BPTC_UNSIGNED_Format, RGB_ETC1_Format, RGB_ETC2_Format, RGB_PVRTC_2BPPV1_Format, RGB_PVRTC_4BPPV1_Format, RGB_S3TC_DXT1_Format, RGFormat, RGIntegerFormat, RTTNode, RangeNode, ReadbackBuffer, RectAreaLight, RectAreaLightNode, RedFormat, RedIntegerFormat, ReferenceBaseNode, ReferenceElementNode, ReferenceNode, ReflectorNode, ReinhardToneMapping, RenderObjectRefreshType, RenderOutputNode, RenderPipeline, RenderTarget, RendererReferenceNode, RendererUtils, RepeatWrapping, ReplaceStencilOp, ReverseSubtractEquation, RotateNode, SIGNED_R11_EAC_Format, SIGNED_RED_GREEN_RGTC2_Format, SIGNED_RED_RGTC1_Format, SIGNED_RG11_EAC_Format, SRGBColorSpace, SRGBTransfer, SampleNode, Scene, ScreenNode, SetNode, ShadowBaseNode, ShadowMaterial, ShadowNode, ShadowNodeMaterial, ShortType, Sphere, SphereGeometry, SplitNode, SpotLight, SpotLightNode, SpriteMaterial, SpriteNodeMaterial, SrcAlphaFactor, SrcAlphaSaturateFactor, SrcColorFactor, StackNode, StackTrace, StaticDrawUsage, StorageArrayElementNode, StorageBufferAttribute, StorageBufferNode, StorageInstancedBufferAttribute, StorageTexture, StorageTexture3DNode, StorageTextureNode, StructNode, StructTypeNode, SubBuildNode, SubgroupFunctionNode, SubtractEquation, SubtractiveBlending, TSL, TangentSpaceNormalMap, TempNode, Texture, Texture3DNode, TextureNode, TextureSizeNode, TimestampQuery, ToneMappingNode, ToonOutlinePassNode, UVMapping, Uint16BufferAttribute, Uint32BufferAttribute, UniformArrayNode, UniformGroupNode, UniformNode, UnpackFloatNode, UnsignedByteType, UnsignedInt101111Type, UnsignedInt248Type, UnsignedInt5999Type, UnsignedIntType, UnsignedShort4444Type, UnsignedShort5551Type, UnsignedShortType, UserDataNode, VSMShadowMap, VarNode, VaryingNode, Vector2, Vector3, Vector4, VelocityNode, VertexColorNode, ViewportDepthNode, ViewportDepthTextureNode, ViewportSharedTextureNode, ViewportTextureNode, VolumeNodeMaterial, WebGLBackend, WebGLCoordinateSystem, WebGPUBackend, WebGPUCoordinateSystem, WebGPURenderer, WebXRController, WorkgroupInfoNode, ZeroFactor, ZeroStencilOp, createCanvasElement, defaultBuildStages, defaultShaderStages, error, log$1 as log, shaderStages, vectorComponents, warn, warnOnce };
+export { ACESFilmicToneMapping, AONode, AddEquation, AddOperation, AdditiveBlending, AgXToneMapping, AlphaFormat, AlwaysCompare, AlwaysDepth, AlwaysStencilFunc, AmbientLight, AmbientLightNode, AnalyticLightNode, ArrayCamera, ArrayElementNode, ArrayNode, AssignNode, AtomicFunctionNode, AttributeNode, BackSide, BarrierNode, BasicEnvironmentNode, BasicLightMapNode, BasicShadowMap, BitcastNode, BitcountNode, BlendMode, BoxGeometry, BufferAttribute, BufferAttributeNode, BufferGeometry, BufferNode, BuiltinNode, BumpMapNode, BundleGroup, BypassNode, ByteType, CanvasTarget, CineonToneMapping, ClampToEdgeWrapping, ClippingGroup, ClippingNode, CodeNode, Color, ColorManagement, ColorSpaceNode, Compatibility, ComputeBuiltinNode, ComputeNode, ConditionalNode, ConstNode, ConstantAlphaFactor, ConstantColorFactor, ContextNode, ConvertNode, CubeCamera, CubeDepthTexture, CubeMapNode, CubeReflectionMapping, CubeRefractionMapping, CubeTexture, CubeTextureNode, CubeUVReflectionMapping, CullFaceBack, CullFaceFront, CullFaceNone, CustomBlending, CylinderGeometry, Data3DTexture, DataArrayTexture, DataTexture, DebugNode, DecrementStencilOp, DecrementWrapStencilOp, DepthFormat, DepthStencilFormat, DepthTexture, DirectRenderPipeline, DirectionalLight, DirectionalLightNode, DoubleSide, DstAlphaFactor, DstColorFactor, DynamicDrawUsage, EnvironmentNode, EqualCompare, EqualDepth, EqualStencilFunc, EquirectangularReflectionMapping, EquirectangularRefractionMapping, EventDispatcher, EventNode, ExpressionNode, FileLoader, FlipNode, Float16BufferAttribute, Float32BufferAttribute, FloatType, FramebufferTexture, FrontFacingNode, FrontSide, Frustum, FrustumArray, FunctionCallNode, FunctionNode, FunctionOverloadingNode, GLSLNodeParser, GreaterCompare, GreaterDepth, GreaterEqualCompare, GreaterEqualDepth, GreaterEqualStencilFunc, GreaterStencilFunc, Group, HalfFloatType, HemisphereLight, HemisphereLightNode, IESSpotLight, IESSpotLightNode, IncrementStencilOp, IncrementWrapStencilOp, IndexNode, IndirectStorageBufferAttribute, InputNode, InspectorBase, InspectorNode, InstancedBufferAttribute, InstancedInterleavedBuffer, IntType, InterleavedBuffer, InterleavedBufferAttribute, InvertStencilOp, IrradianceNode, IsolateNode, JoinNode, KeepStencilOp, LessCompare, LessDepth, LessEqualCompare, LessEqualDepth, LessEqualStencilFunc, LessStencilFunc, LightProbe, LightProbeGridNode, LightProbeNode, Lighting, LightingContextNode, LightingModel, LightingNode, LightsNode, Line2NodeMaterial, LineBasicMaterial, LineBasicNodeMaterial, LineDashedMaterial, LineDashedNodeMaterial, LinearFilter, LinearMipMapLinearFilter, LinearMipmapLinearFilter, LinearMipmapNearestFilter, LinearSRGBColorSpace, LinearToneMapping, LinearTransfer, Loader, LoopNode, MRTNode, Material, MaterialBlending, MaterialLightsNode, MaterialLoader, MaterialNode, MaterialReferenceNode, MathNode, MathUtils, Matrix2, Matrix3, Matrix4, MaxEquation, MaxMipLevelNode, MemberNode, Mesh, MeshBasicMaterial, MeshBasicNodeMaterial, MeshLambertMaterial, MeshLambertNodeMaterial, MeshMatcapMaterial, MeshMatcapNodeMaterial, MeshNormalMaterial, MeshNormalNodeMaterial, MeshPhongMaterial, MeshPhongNodeMaterial, MeshPhysicalMaterial, MeshPhysicalNodeMaterial, MeshSSSNodeMaterial, MeshStandardMaterial, MeshStandardNodeMaterial, MeshToonMaterial, MeshToonNodeMaterial, MinEquation, MirroredRepeatWrapping, MixOperation, ModelNode, MultiplyBlending, MultiplyOperation, NearestFilter, NearestMipmapLinearFilter, NearestMipmapNearestFilter, NeutralToneMapping, NeverCompare, NeverDepth, NeverStencilFunc, NoBlending, NoColorSpace, NoNormalPacking, NoToneMapping, Node, NodeAccess, NodeAttribute, NodeBuilder, NodeCache, NodeCode, NodeError, NodeFrame, NodeFunctionInput, NodeLoader, NodeMaterial, NodeMaterialLoader, NodeMaterialObserver, NodeObjectLoader, NodeShaderStage, NodeType, NodeUniform, NodeUpdateType, NodeUtils, NodeVar, NodeVarying, NormalBlending, NormalGAPacking, NormalMapNode, NormalRGPacking, NotEqualCompare, NotEqualDepth, NotEqualStencilFunc, Object3D, Object3DNode, ObjectLoader, ObjectSpaceNormalMap, OneFactor, OneMinusConstantAlphaFactor, OneMinusConstantColorFactor, OneMinusDstAlphaFactor, OneMinusDstColorFactor, OneMinusSrcAlphaFactor, OneMinusSrcColorFactor, OperatorNode, OrthographicCamera, OutputStructNode, OverrideContextNode, PCFShadowMap, PCFSoftShadowMap, PMREMGenerator, PMREMNode, PackFloatNode, Packed4x8IntegerNode, ParameterNode, PassNode, PerspectiveCamera, PhongLightingModel, PhysicalLightingModel, Plane, PlaneGeometry, PointLight, PointLightNode, PointShadowNode, PointUVNode, PointsMaterial, PointsNodeMaterial, PostProcessing, ProfilerService, ProjectorLight, ProjectorLightNode, PropertyNode, QuadMesh, Quaternion, R11_EAC_Format, RED_GREEN_RGTC2_Format, RED_RGTC1_Format, REVISION, RG11_EAC_Format, RGBAFormat, RGBAIntegerFormat, RGBA_ASTC_10x10_Format, RGBA_ASTC_10x5_Format, RGBA_ASTC_10x6_Format, RGBA_ASTC_10x8_Format, RGBA_ASTC_12x10_Format, RGBA_ASTC_12x12_Format, RGBA_ASTC_4x4_Format, RGBA_ASTC_5x4_Format, RGBA_ASTC_5x5_Format, RGBA_ASTC_6x5_Format, RGBA_ASTC_6x6_Format, RGBA_ASTC_8x5_Format, RGBA_ASTC_8x6_Format, RGBA_ASTC_8x8_Format, RGBA_BPTC_Format, RGBA_ETC2_EAC_Format, RGBA_PVRTC_2BPPV1_Format, RGBA_PVRTC_4BPPV1_Format, RGBA_S3TC_DXT1_Format, RGBA_S3TC_DXT3_Format, RGBA_S3TC_DXT5_Format, RGBFormat, RGBIntegerFormat, RGB_BPTC_SIGNED_Format, RGB_BPTC_UNSIGNED_Format, RGB_ETC1_Format, RGB_ETC2_Format, RGB_PVRTC_2BPPV1_Format, RGB_PVRTC_4BPPV1_Format, RGB_S3TC_DXT1_Format, RGFormat, RGIntegerFormat, RTTNode, RangeNode, ReadbackBuffer, RectAreaLight, RectAreaLightNode, RedFormat, RedIntegerFormat, ReferenceBaseNode, ReferenceElementNode, ReferenceNode, ReflectorNode, ReinhardToneMapping, RenderObjectRefreshType, RenderOutputNode, RenderPipeline, RenderTarget, RendererReferenceNode, RendererUtils, RepeatWrapping, ReplaceStencilOp, ReverseSubtractEquation, RotateNode, SIGNED_R11_EAC_Format, SIGNED_RED_GREEN_RGTC2_Format, SIGNED_RED_RGTC1_Format, SIGNED_RG11_EAC_Format, SRGBColorSpace, SRGBTransfer, SampleNode, Scene, ScreenNode, SetNode, ShadowBaseNode, ShadowMaterial, ShadowNode, ShadowNodeMaterial, ShortType, Sphere, SphereGeometry, SplitNode, SpotLight, SpotLightNode, SpriteMaterial, SpriteNodeMaterial, SrcAlphaFactor, SrcAlphaSaturateFactor, SrcColorFactor, StackNode, StackTrace, StaticDrawUsage, StorageArrayElementNode, StorageBufferAttribute, StorageBufferNode, StorageInstancedBufferAttribute, StorageTexture, StorageTexture3DNode, StorageTextureNode, StructNode, StructTypeNode, SubBuildNode, SubgroupFunctionNode, SubtractEquation, SubtractiveBlending, TSL, TangentSpaceNormalMap, TempNode, Texture, Texture3DNode, TextureNode, TextureSizeNode, TimestampQuery, ToneMappingNode, ToonOutlinePassNode, UVMapping, Uint16BufferAttribute, Uint32BufferAttribute, UniformArrayNode, UniformGroupNode, UniformNode, UnpackFloatNode, UnsignedByteType, UnsignedInt101111Type, UnsignedInt248Type, UnsignedInt5999Type, UnsignedIntType, UnsignedShort4444Type, UnsignedShort5551Type, UnsignedShortType, UserDataNode, VSMShadowMap, VarNode, VaryingNode, Vector2, Vector3, Vector4, VelocityNode, VertexColorNode, ViewportDepthNode, ViewportDepthTextureNode, ViewportSharedTextureNode, ViewportTextureNode, VolumeNodeMaterial, WebGLBackend, WebGLCoordinateSystem, WebGPUBackend, WebGPUCoordinateSystem, WebGPURenderer, WebXRController, WorkgroupInfoNode, ZeroFactor, ZeroStencilOp, createCanvasElement, defaultBuildStages, defaultShaderStages, error, log$1 as log, profileBlock, profileGpuBlock, shaderStages, vectorComponents, warn, warnOnce };

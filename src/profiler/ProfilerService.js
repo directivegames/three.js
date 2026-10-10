@@ -53,8 +53,8 @@ import { TRACE_TID_ASYNC, TRACE_TID_GPU, TRACE_TID_MAIN, TraceBuffer, buildChrom
  *   __gnsx_profiler.reset()          // clear samples and trace
  *   __gnsx_profiler.disable()
  *
- * Chrome trace: `tid=1` is synchronous work; `@profile` on async methods records the
- * promise lifetime on `tid=2` so long async does not flatten the main row. Overlapping
+ * Chrome trace: `tid=1` is synchronous work; `@profile` and `profileBlock()` record a
+ * promise's lifetime on `tid=2` so long async does not flatten the main row. Overlapping
  * promise lifetimes are exported on extra async rows (`tid=100+`) so every row nests. For
  * manual async spans, pass `{ asyncTimeline: true }` to both `beginSpan` and `endSpan` (the
  * latter in a `.finally()`). A scope or span that does not nest inside the work around it
@@ -1475,28 +1475,9 @@ function applyProfileToMethod( label, descriptor ) {
 	function profiled() {
 
 		// Disabled: no allocations, and promises come back unwrapped.
-		if ( ProfilerService._enabled === false ) return original.apply( this, arguments );
+		if ( ProfilerService.isEnabled() === false ) return original.apply( this, arguments );
 
-		const span = ProfilerService.beginSpan( label );
-		try {
-
-			const result = original.apply( this, arguments );
-			if ( isThenable( result ) ) {
-
-				ProfilerService._detachSpanFrame( span );
-				return Promise.resolve( result ).finally( () => ProfilerService.endSpan( span, { asyncTimeline: true } ) );
-
-			}
-
-			ProfilerService.endSpan( span );
-			return result;
-
-		} catch ( error ) {
-
-			ProfilerService.endSpan( span );
-			throw error;
-
-		}
+		return runProfiled( label, () => original.apply( this, arguments ) );
 
 	}
 
@@ -1504,6 +1485,170 @@ function applyProfileToMethod( label, descriptor ) {
 	profiledMethods.add( profiled );
 	descriptor.value = profiled;
 	return descriptor;
+
+}
+
+/**
+ * Times `fn`. The caller has already checked that profiling is enabled.
+ *
+ * A thenable is timed until it settles. Its frame is detached when the synchronous
+ * part returns, so later sibling scopes stay under the real parent, and the promise
+ * lifetime is recorded on the async lane.
+ *
+ * @template T
+ * @param {string} label
+ * @param {() => T} fn
+ * @return {T}
+ */
+function runProfiled( label, fn ) {
+
+	const span = ProfilerService.beginSpan( label );
+
+	try {
+
+		const result = fn();
+
+		if ( isThenable( result ) ) {
+
+			ProfilerService._detachSpanFrame( span );
+			return Promise.resolve( result ).finally( () => ProfilerService.endSpan( span, { asyncTimeline: true } ) );
+
+		}
+
+		ProfilerService.endSpan( span );
+		return result;
+
+	} catch ( error ) {
+
+		ProfilerService.endSpan( span );
+		throw error;
+
+	}
+
+}
+
+/**
+ * Profiles a synchronous or async code block.
+ *
+ * `fn` runs immediately. A thenable result is timed until it settles and recorded
+ * on the async lane, the same way `@profile` times async methods. While profiling
+ * is disabled, `fn` runs directly and its return value is unchanged.
+ *
+ * @example
+ * const mesh = profileBlock( 'parse', () => parseMesh( bytes ) );
+ * const scene = await profileBlock( 'load', () => loader.loadAsync( url ) );
+ *
+ * @template T
+ * @param {string} label Stats and trace label. Keep it stable so samples aggregate.
+ * @param {() => T} fn
+ * @param {string} [traceName] Optional trace slice name; uses label-based scopes instead of spans.
+ * @return {T}
+ */
+function runProfiledScope( label, fn, traceName ) {
+
+	ProfilerService.begin( label, traceName );
+
+	try {
+
+		const result = fn();
+
+		if ( isThenable( result ) ) {
+
+			return Promise.resolve( result ).finally( () => ProfilerService.end( label ) );
+
+		}
+
+		ProfilerService.end( label );
+		return result;
+
+	} catch ( error ) {
+
+		ProfilerService.end( label );
+		throw error;
+
+	}
+
+}
+
+/**
+ * @template T
+ * @param {string} label
+ * @param {() => T} fn
+ * @param {string} [traceName]
+ * @return {T}
+ */
+function profileBlock( label, fn, traceName ) {
+
+	if ( ProfilerService.isEnabled() === false ) return fn();
+	if ( arguments.length > 2 ) return runProfiledScope( label, fn, traceName );
+	return runProfiled( label, fn );
+
+}
+
+/**
+ * Times GPU work submitted in `fn`. The caller has already checked that profiling is enabled.
+ *
+ * A thenable is timed until it settles so GPU commands submitted after `await` stay inside
+ * the span. `endGpu()` always runs in `finally`.
+ *
+ * @template T
+ * @param {string} label
+ * @param {Object} renderer
+ * @param {() => T} fn
+ * @param {string} [traceName]
+ * @return {T}
+ */
+function runProfiledGpu( label, renderer, fn, traceName ) {
+
+	const span = ProfilerService.beginGpu( label, renderer, traceName );
+
+	try {
+
+		const result = fn();
+
+		if ( isThenable( result ) ) {
+
+			return Promise.resolve( result ).finally( () => ProfilerService.endGpu( span ) );
+
+		}
+
+		ProfilerService.endGpu( span );
+		return result;
+
+	} catch ( error ) {
+
+		ProfilerService.endGpu( span );
+		throw error;
+
+	}
+
+}
+
+/**
+ * Profiles GPU work a block submits on `renderer`.
+ *
+ * `fn` runs immediately. A thenable result keeps the GPU span open until it settles, the
+ * same way `profileBlock()` times async CPU work. While profiling is disabled, `fn` runs
+ * directly and its return value is unchanged.
+ *
+ * @example
+ * profileGpuBlock( 'CustomPass', renderer, () => submitPass( renderer ) );
+ * await profileGpuBlock( 'CustomPass', renderer, async () => {
+ *   await prepare();
+ *   submitPass( renderer );
+ * } );
+ *
+ * @template T
+ * @param {string} label Stats and trace label. Keep it stable so samples aggregate.
+ * @param {Object} renderer Renderer that receives the GPU commands.
+ * @param {() => T} fn
+ * @param {string} [traceName] Trace slice name, defaulting to `label`.
+ * @return {T}
+ */
+function profileGpuBlock( label, renderer, fn, traceName ) {
+
+	if ( ProfilerService.isEnabled() === false ) return fn();
+	return runProfiledGpu( label, renderer, fn, traceName );
 
 }
 
@@ -1567,5 +1712,5 @@ function profileClass( constructor ) {
 
 }
 
-export { ProfilerService, profile, profileClass };
+export { ProfilerService, profile, profileBlock, profileGpuBlock, profileClass };
 // !WITH_GENESYS

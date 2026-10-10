@@ -55,7 +55,7 @@ import { createCanvasElement, probeAsync, error, warn, log } from '../utils.js';
 import { ColorManagement } from '../math/ColorManagement.js';
 import { getDFGLUT } from './shaders/DFGLUTData.js';
 // WITH_GENESYS
-import { ProfilerService } from '../profiler/ProfilerService.js';
+import { profileBlock } from '../profiler/ProfilerService.js';
 // !WITH_GENESYS
 
 /**
@@ -1640,290 +1640,279 @@ class WebGLRenderer {
 		this.render = function ( scene, camera ) {
 
 			// WITH_GENESYS
-			ProfilerService.begin( 'WebGLRenderer.render' );
-			// !WITH_GENESYS
+			profileBlock( 'WebGLRenderer.render', () => {
 
-			if ( camera !== undefined && camera.isCamera !== true ) {
+				if ( camera !== undefined && camera.isCamera !== true ) {
 
-				error( 'WebGLRenderer.render: camera is not an instance of THREE.Camera.' );
-				// WITH_GENESYS
-				ProfilerService.end( 'WebGLRenderer.render' );
-				// !WITH_GENESYS
-				return;
-
-			}
-
-			if ( _isContextLost === true ) {
-
-				// WITH_GENESYS
-				ProfilerService.end( 'WebGLRenderer.render' );
-				// !WITH_GENESYS
-				return;
-
-			}
-
-			// update node builder if available
-			if ( _nodesHandler !== null ) {
-
-				_nodesHandler.renderStart( scene, camera );
-
-			}
-
-			// use internal render target for HalfFloatType color buffer (only when tone mapping is enabled)
-
-			const isXRPresenting = xr.enabled === true && xr.isPresenting === true;
-
-			const useOutput = output !== null && ( _currentRenderTarget === null || isXRPresenting ) && output.begin( _this, _currentRenderTarget );
-
-			// update scene graph
-
-			// WITH_GENESYS
-			ProfilerService.begin( 'scene.updateMatrixWorld' );
-			// !WITH_GENESYS
-			if ( scene.matrixWorldAutoUpdate === true ) scene.updateMatrixWorld();
-			// WITH_GENESYS
-			ProfilerService.end( 'scene.updateMatrixWorld' );
-			// !WITH_GENESYS
-
-			// update camera matrices and frustum
-
-			if ( camera.parent === null && camera.matrixWorldAutoUpdate === true ) camera.updateMatrixWorld();
-
-			if ( xr.enabled === true && xr.isPresenting === true && ( output === null || output.isCompositing() === false ) ) {
-
-				if ( xr.cameraAutoUpdate === true ) xr.updateCamera( camera );
-
-				camera = xr.getCamera(); // use XR camera for rendering
-
-			}
-
-			//
-			if ( scene.isScene === true ) scene.onBeforeRender( _this, scene, camera, _currentRenderTarget );
-
-			currentRenderState = renderStates.get( scene, renderStateStack.length );
-			currentRenderState.init( camera );
-
-			currentRenderState.state.textureUnits = textures.getTextureUnits();
-			renderStateStack.push( currentRenderState );
-
-			_projScreenMatrix.multiplyMatrices( camera.projectionMatrix, camera.matrixWorldInverse );
-			_frustum.setFromProjectionMatrix( _projScreenMatrix, WebGLCoordinateSystem, camera.reversedDepth );
-
-			_localClippingEnabled = this.localClippingEnabled;
-			_clippingEnabled = clipping.init( this.clippingPlanes, _localClippingEnabled );
-
-			currentRenderList = renderLists.get( scene, renderListStack.length );
-			currentRenderList.init();
-
-			renderListStack.push( currentRenderList );
-
-			// WITH_GENESYS
-			ProfilerService.begin( 'buildRenderList' );
-			// !WITH_GENESYS
-
-			if ( xr.enabled === true && xr.isPresenting === true ) {
-
-				const depthSensingMesh = _this.xr.getDepthSensingMesh();
-
-				if ( depthSensingMesh !== null ) {
-
-					projectObject( depthSensingMesh, camera, - Infinity, _this.sortObjects );
+					error( 'WebGLRenderer.render: camera is not an instance of THREE.Camera.' );
+					return;
 
 				}
 
-			}
+				if ( _isContextLost === true ) {
 
-			// WITH_GENESYS
-			ProfilerService.begin( 'projectObject' );
-			// !WITH_GENESYS
+					return;
 
-			projectObject( scene, camera, 0, _this.sortObjects );
+				}
 
-			// WITH_GENESYS
-			ProfilerService.end( 'projectObject' );
-			// !WITH_GENESYS
+				// update node builder if available
+				if ( _nodesHandler !== null ) {
 
-			currentRenderList.finish();
-			if ( _nodesHandler !== null ) _nodesHandler.updateLights( currentRenderState.state.lightsArray );
+					_nodesHandler.renderStart( scene, camera );
 
-			if ( _this.sortObjects === true ) {
+				}
 
-				// WITH_GENESYS
-				ProfilerService.begin( 'sortRenderList' );
-				// !WITH_GENESYS
+				// use internal render target for HalfFloatType color buffer (only when tone mapping is enabled)
 
-				currentRenderList.sort( _opaqueSort, _transparentSort );
+				const isXRPresenting = xr.enabled === true && xr.isPresenting === true;
+
+				const useOutput = output !== null && ( _currentRenderTarget === null || isXRPresenting ) && output.begin( _this, _currentRenderTarget );
+
+				// update scene graph
 
 				// WITH_GENESYS
-				ProfilerService.end( 'sortRenderList' );
+				profileBlock( 'scene.updateMatrixWorld', () => {
+
+					if ( scene.matrixWorldAutoUpdate === true ) scene.updateMatrixWorld();
+
+				} );
 				// !WITH_GENESYS
 
-			}
+				// update camera matrices and frustum
 
-			// WITH_GENESYS
-			ProfilerService.end( 'buildRenderList' );
-			// !WITH_GENESYS
+				if ( camera.parent === null && camera.matrixWorldAutoUpdate === true ) camera.updateMatrixWorld();
 
-			_renderBackground = xr.enabled === false || xr.isPresenting === false || xr.hasDepthSensing() === false;
-			if ( _renderBackground ) {
+				if ( xr.enabled === true && xr.isPresenting === true && ( output === null || output.isCompositing() === false ) ) {
 
-				background.addToRenderList( currentRenderList, scene );
+					if ( xr.cameraAutoUpdate === true ) xr.updateCamera( camera );
 
-			}
+					camera = xr.getCamera(); // use XR camera for rendering
 
-			//
+				}
 
-			this.info.render.frame ++;
+				//
+				if ( scene.isScene === true ) scene.onBeforeRender( _this, scene, camera, _currentRenderTarget );
 
-			if ( this.info.autoReset === true ) this.info.reset();
+				currentRenderState = renderStates.get( scene, renderStateStack.length );
+				currentRenderState.init( camera );
 
-			if ( _clippingEnabled === true ) clipping.beginShadows();
+				currentRenderState.state.textureUnits = textures.getTextureUnits();
+				renderStateStack.push( currentRenderState );
 
-			const shadowsArray = currentRenderState.state.shadowsArray;
+				_projScreenMatrix.multiplyMatrices( camera.projectionMatrix, camera.matrixWorldInverse );
+				_frustum.setFromProjectionMatrix( _projScreenMatrix, WebGLCoordinateSystem, camera.reversedDepth );
 
-			// WITH_GENESYS
-			ProfilerService.begin( 'shadowMap.render' );
-			// !WITH_GENESYS
-			shadowMap.render( shadowsArray, scene, camera );
-			// WITH_GENESYS
-			ProfilerService.end( 'shadowMap.render' );
-			// !WITH_GENESYS
+				_localClippingEnabled = this.localClippingEnabled;
+				_clippingEnabled = clipping.init( this.clippingPlanes, _localClippingEnabled );
 
-			if ( _clippingEnabled === true ) clipping.endShadows();
+				currentRenderList = renderLists.get( scene, renderListStack.length );
+				currentRenderList.init();
 
-			//
-
-			// render scene (skip if first effect is a render pass - it will render the scene itself)
-
-			const skipSceneRender = useOutput && output.hasRenderPass();
-
-			if ( skipSceneRender === false ) {
+				renderListStack.push( currentRenderList );
 
 				// WITH_GENESYS
-				ProfilerService.begin( 'WebGLRenderer.renderScene' );
-				// !WITH_GENESYS
+				profileBlock( 'buildRenderList', () => {
 
-				const opaqueObjects = currentRenderList.opaque;
-				const transmissiveObjects = currentRenderList.transmissive;
+					if ( xr.enabled === true && xr.isPresenting === true ) {
 
-				currentRenderState.setupLights();
+						const depthSensingMesh = _this.xr.getDepthSensingMesh();
 
-				if ( camera.isArrayCamera ) {
+						if ( depthSensingMesh !== null ) {
 
-					const cameras = camera.cameras;
-
-					if ( transmissiveObjects.length > 0 ) {
-
-						for ( let i = 0, l = cameras.length; i < l; i ++ ) {
-
-							const camera2 = cameras[ i ];
-
-							renderTransmissionPass( opaqueObjects, transmissiveObjects, scene, camera2 );
+							projectObject( depthSensingMesh, camera, - Infinity, _this.sortObjects );
 
 						}
 
 					}
 
-					if ( _renderBackground ) background.render( scene );
+					// WITH_GENESYS
+					profileBlock( 'projectObject', () => {
 
-					for ( let i = 0, l = cameras.length; i < l; i ++ ) {
+						projectObject( scene, camera, 0, _this.sortObjects );
 
-						const camera2 = cameras[ i ];
+					} );
 
-						renderScene( currentRenderList, scene, camera2, camera2.viewport );
+					currentRenderList.finish();
+					if ( _nodesHandler !== null ) _nodesHandler.updateLights( currentRenderState.state.lightsArray );
+
+					if ( _this.sortObjects === true ) {
+
+						// WITH_GENESYS
+						profileBlock( 'sortRenderList', () => {
+
+							currentRenderList.sort( _opaqueSort, _transparentSort );
+
+						} );
+						// !WITH_GENESYS
 
 					}
 
+					// WITH_GENESYS
+
+				} );
+				// !WITH_GENESYS
+
+				_renderBackground = xr.enabled === false || xr.isPresenting === false || xr.hasDepthSensing() === false;
+				if ( _renderBackground ) {
+
+					background.addToRenderList( currentRenderList, scene );
+
+				}
+
+				//
+
+				this.info.render.frame ++;
+
+				if ( this.info.autoReset === true ) this.info.reset();
+
+				if ( _clippingEnabled === true ) clipping.beginShadows();
+
+				const shadowsArray = currentRenderState.state.shadowsArray;
+
+				// WITH_GENESYS
+				profileBlock( 'shadowMap.render', () => {
+
+					shadowMap.render( shadowsArray, scene, camera );
+
+				} );
+				// !WITH_GENESYS
+
+				if ( _clippingEnabled === true ) clipping.endShadows();
+
+				//
+
+				// render scene (skip if first effect is a render pass - it will render the scene itself)
+
+				const skipSceneRender = useOutput && output.hasRenderPass();
+
+				if ( skipSceneRender === false ) {
+
+					// WITH_GENESYS
+					profileBlock( 'WebGLRenderer.renderScene', () => {
+
+						const opaqueObjects = currentRenderList.opaque;
+						const transmissiveObjects = currentRenderList.transmissive;
+
+						currentRenderState.setupLights();
+
+						if ( camera.isArrayCamera ) {
+
+							const cameras = camera.cameras;
+
+							if ( transmissiveObjects.length > 0 ) {
+
+								for ( let i = 0, l = cameras.length; i < l; i ++ ) {
+
+									const camera2 = cameras[ i ];
+
+									renderTransmissionPass( opaqueObjects, transmissiveObjects, scene, camera2 );
+
+								}
+
+							}
+
+							if ( _renderBackground ) background.render( scene );
+
+							for ( let i = 0, l = cameras.length; i < l; i ++ ) {
+
+								const camera2 = cameras[ i ];
+
+								renderScene( currentRenderList, scene, camera2, camera2.viewport );
+
+							}
+
+						} else {
+
+							if ( transmissiveObjects.length > 0 ) renderTransmissionPass( opaqueObjects, transmissiveObjects, scene, camera );
+
+							if ( _renderBackground ) background.render( scene );
+
+							renderScene( currentRenderList, scene, camera );
+
+						}
+
+						// WITH_GENESYS
+
+					} );
+					// !WITH_GENESYS
+
+				}
+
+				//
+
+				if ( _currentRenderTarget !== null && _currentActiveMipmapLevel === 0 ) {
+
+					// resolve multisample renderbuffers to a single-sample texture if necessary
+
+					textures.updateMultisampleRenderTarget( _currentRenderTarget );
+
+					// Generate mipmap if we're using any kind of mipmap filtering
+
+					textures.updateRenderTargetMipmap( _currentRenderTarget );
+
+				}
+
+				// copy from internal render target to canvas using fullscreen quad
+
+				if ( useOutput ) {
+
+					// WITH_GENESYS
+					profileBlock( 'WebGLOutput.end', () => {
+
+						output.end( _this );
+
+					} );
+					// !WITH_GENESYS
+
+				}
+
+				//
+
+				if ( scene.isScene === true ) scene.onAfterRender( _this, scene, camera );
+
+				// _gl.finish();
+
+				bindingStates.resetDefaultState();
+				_currentMaterialId = - 1;
+				_currentCamera = null;
+
+				renderStateStack.pop();
+
+				if ( renderStateStack.length > 0 ) {
+
+					currentRenderState = renderStateStack[ renderStateStack.length - 1 ];
+
+					textures.setTextureUnits( currentRenderState.state.textureUnits );
+
+					if ( _clippingEnabled === true ) clipping.setGlobalState( _this.clippingPlanes, currentRenderState.state.camera );
+
 				} else {
 
-					if ( transmissiveObjects.length > 0 ) renderTransmissionPass( opaqueObjects, transmissiveObjects, scene, camera );
+					currentRenderState = null;
 
-					if ( _renderBackground ) background.render( scene );
+				}
 
-					renderScene( currentRenderList, scene, camera );
+				renderListStack.pop();
+
+				if ( renderListStack.length > 0 ) {
+
+					currentRenderList = renderListStack[ renderListStack.length - 1 ];
+
+				} else {
+
+					currentRenderList = null;
+
+				}
+
+				if ( _nodesHandler !== null ) {
+
+					_nodesHandler.renderEnd();
 
 				}
 
 				// WITH_GENESYS
-				ProfilerService.end( 'WebGLRenderer.renderScene' );
-				// !WITH_GENESYS
 
-			}
-
-			//
-
-			if ( _currentRenderTarget !== null && _currentActiveMipmapLevel === 0 ) {
-
-				// resolve multisample renderbuffers to a single-sample texture if necessary
-
-				textures.updateMultisampleRenderTarget( _currentRenderTarget );
-
-				// Generate mipmap if we're using any kind of mipmap filtering
-
-				textures.updateRenderTargetMipmap( _currentRenderTarget );
-
-			}
-
-			// copy from internal render target to canvas using fullscreen quad
-
-			if ( useOutput ) {
-
-				// WITH_GENESYS
-				ProfilerService.begin( 'WebGLOutput.end' );
-				// !WITH_GENESYS
-				output.end( _this );
-				// WITH_GENESYS
-				ProfilerService.end( 'WebGLOutput.end' );
-				// !WITH_GENESYS
-
-			}
-
-			//
-
-			if ( scene.isScene === true ) scene.onAfterRender( _this, scene, camera );
-
-			// _gl.finish();
-
-			bindingStates.resetDefaultState();
-			_currentMaterialId = - 1;
-			_currentCamera = null;
-
-			renderStateStack.pop();
-
-			if ( renderStateStack.length > 0 ) {
-
-				currentRenderState = renderStateStack[ renderStateStack.length - 1 ];
-
-				textures.setTextureUnits( currentRenderState.state.textureUnits );
-
-				if ( _clippingEnabled === true ) clipping.setGlobalState( _this.clippingPlanes, currentRenderState.state.camera );
-
-			} else {
-
-				currentRenderState = null;
-
-			}
-
-			renderListStack.pop();
-
-			if ( renderListStack.length > 0 ) {
-
-				currentRenderList = renderListStack[ renderListStack.length - 1 ];
-
-			} else {
-
-				currentRenderList = null;
-
-			}
-
-			if ( _nodesHandler !== null ) {
-
-				_nodesHandler.renderEnd();
-
-			}
-
-			// WITH_GENESYS
-			ProfilerService.end( 'WebGLRenderer.render' );
+			} );
 			// !WITH_GENESYS
 
 		};
@@ -2073,40 +2062,36 @@ class WebGLRenderer {
 		function renderTransmissionPass( opaqueObjects, transmissiveObjects, scene, camera ) {
 
 			// WITH_GENESYS
-			ProfilerService.begin( 'WebGLRenderer.renderTransmissionPass' );
-			// !WITH_GENESYS
+			profileBlock( 'WebGLRenderer.renderTransmissionPass', () => {
 
-			const overrideMaterial = scene.isScene === true ? scene.overrideMaterial : null;
+				const overrideMaterial = scene.isScene === true ? scene.overrideMaterial : null;
 
-			if ( overrideMaterial !== null ) {
+				if ( overrideMaterial !== null ) {
 
-				// WITH_GENESYS
-				ProfilerService.end( 'WebGLRenderer.renderTransmissionPass' );
-				// !WITH_GENESYS
-				return;
+					return;
 
-			}
+				}
 
-			if ( currentRenderState.state.transmissionRenderTarget[ camera.id ] === undefined ) {
+				if ( currentRenderState.state.transmissionRenderTarget[ camera.id ] === undefined ) {
 
-				const hasHalfFloatSupport = extensions.has( 'EXT_color_buffer_half_float' ) || extensions.has( 'EXT_color_buffer_float' );
+					const hasHalfFloatSupport = extensions.has( 'EXT_color_buffer_half_float' ) || extensions.has( 'EXT_color_buffer_float' );
 
-				currentRenderState.state.transmissionRenderTarget[ camera.id ] = new WebGLRenderTarget( 1, 1, {
-					generateMipmaps: true,
-					type: hasHalfFloatSupport ? HalfFloatType : UnsignedByteType,
-					minFilter: LinearMipmapLinearFilter,
-					samples: Math.max( 4, capabilities.samples ), // to avoid feedback loops, the transmission render target requires a resolve, see #26177
-					stencilBuffer: stencil,
-					resolveDepthBuffer: false,
-					resolveStencilBuffer: false,
-					storeMultisampledDepthBuffer: false,
-					storeMultisampledStencilBuffer: false,
-					colorSpace: ColorManagement.workingColorSpace,
-				} );
+					currentRenderState.state.transmissionRenderTarget[ camera.id ] = new WebGLRenderTarget( 1, 1, {
+						generateMipmaps: true,
+						type: hasHalfFloatSupport ? HalfFloatType : UnsignedByteType,
+						minFilter: LinearMipmapLinearFilter,
+						samples: Math.max( 4, capabilities.samples ), // to avoid feedback loops, the transmission render target requires a resolve, see #26177
+						stencilBuffer: stencil,
+						resolveDepthBuffer: false,
+						resolveStencilBuffer: false,
+						storeMultisampledDepthBuffer: false,
+						storeMultisampledStencilBuffer: false,
+						colorSpace: ColorManagement.workingColorSpace,
+					} );
 
-				// debug
+					// debug
 
-				/*
+					/*
 				const geometry = new PlaneGeometry();
 				const material = new MeshBasicMaterial( { map: _transmissionRenderTarget.texture } );
 
@@ -2114,96 +2099,96 @@ class WebGLRenderer {
 				scene.add( mesh );
 				*/
 
-			}
+				}
 
-			const transmissionRenderTarget = currentRenderState.state.transmissionRenderTarget[ camera.id ];
+				const transmissionRenderTarget = currentRenderState.state.transmissionRenderTarget[ camera.id ];
 
-			const activeViewport = camera.viewport || _currentViewport;
-			transmissionRenderTarget.setSize( activeViewport.z * _this.transmissionResolutionScale, activeViewport.w * _this.transmissionResolutionScale );
+				const activeViewport = camera.viewport || _currentViewport;
+				transmissionRenderTarget.setSize( activeViewport.z * _this.transmissionResolutionScale, activeViewport.w * _this.transmissionResolutionScale );
 
-			//
+				//
 
-			const currentRenderTarget = _this.getRenderTarget();
-			const currentActiveCubeFace = _this.getActiveCubeFace();
-			const currentActiveMipmapLevel = _this.getActiveMipmapLevel();
+				const currentRenderTarget = _this.getRenderTarget();
+				const currentActiveCubeFace = _this.getActiveCubeFace();
+				const currentActiveMipmapLevel = _this.getActiveMipmapLevel();
 
-			_this.setRenderTarget( transmissionRenderTarget );
+				_this.setRenderTarget( transmissionRenderTarget );
 
-			_this.getClearColor( _currentClearColor );
-			_currentClearAlpha = _this.getClearAlpha();
-			if ( _currentClearAlpha < 1 ) _this.setClearColor( 0xffffff, 0.5 );
+				_this.getClearColor( _currentClearColor );
+				_currentClearAlpha = _this.getClearAlpha();
+				if ( _currentClearAlpha < 1 ) _this.setClearColor( 0xffffff, 0.5 );
 
-			_this.clear();
+				_this.clear();
 
-			if ( _renderBackground ) background.render( scene );
+				if ( _renderBackground ) background.render( scene );
 
-			// Turn off the features which can affect the frag color for opaque objects pass.
-			// Otherwise they are applied twice in opaque objects pass and transmission objects pass.
-			const currentToneMapping = _this.toneMapping;
-			_this.toneMapping = NoToneMapping;
+				// Turn off the features which can affect the frag color for opaque objects pass.
+				// Otherwise they are applied twice in opaque objects pass and transmission objects pass.
+				const currentToneMapping = _this.toneMapping;
+				_this.toneMapping = NoToneMapping;
 
-			// Remove viewport from camera to avoid nested render calls resetting viewport to it (e.g Reflector).
-			// Transmission render pass requires viewport to match the transmissionRenderTarget.
-			const currentCameraViewport = camera.viewport;
-			if ( camera.viewport !== undefined ) camera.viewport = undefined;
+				// Remove viewport from camera to avoid nested render calls resetting viewport to it (e.g Reflector).
+				// Transmission render pass requires viewport to match the transmissionRenderTarget.
+				const currentCameraViewport = camera.viewport;
+				if ( camera.viewport !== undefined ) camera.viewport = undefined;
 
-			currentRenderState.setupLightsView( camera );
+				currentRenderState.setupLightsView( camera );
 
-			if ( _clippingEnabled === true ) clipping.setGlobalState( _this.clippingPlanes, camera );
+				if ( _clippingEnabled === true ) clipping.setGlobalState( _this.clippingPlanes, camera );
 
-			renderObjects( opaqueObjects, scene, camera );
+				renderObjects( opaqueObjects, scene, camera );
 
-			textures.updateMultisampleRenderTarget( transmissionRenderTarget );
-			textures.updateRenderTargetMipmap( transmissionRenderTarget );
+				textures.updateMultisampleRenderTarget( transmissionRenderTarget );
+				textures.updateRenderTargetMipmap( transmissionRenderTarget );
 
-			if ( extensions.has( 'WEBGL_multisampled_render_to_texture' ) === false ) { // see #28131
+				if ( extensions.has( 'WEBGL_multisampled_render_to_texture' ) === false ) { // see #28131
 
-				let renderTargetNeedsUpdate = false;
+					let renderTargetNeedsUpdate = false;
 
-				for ( let i = 0, l = transmissiveObjects.length; i < l; i ++ ) {
+					for ( let i = 0, l = transmissiveObjects.length; i < l; i ++ ) {
 
-					const renderItem = transmissiveObjects[ i ];
+						const renderItem = transmissiveObjects[ i ];
 
-					const { object, geometry, material, group } = renderItem;
+						const { object, geometry, material, group } = renderItem;
 
-					if ( material.side === DoubleSide && object.layers.test( camera.layers ) ) {
+						if ( material.side === DoubleSide && object.layers.test( camera.layers ) ) {
 
-						const currentSide = material.side;
+							const currentSide = material.side;
 
-						material.side = BackSide;
-						material.needsUpdate = true;
+							material.side = BackSide;
+							material.needsUpdate = true;
 
-						renderObject( object, scene, camera, geometry, material, group );
+							renderObject( object, scene, camera, geometry, material, group );
 
-						material.side = currentSide;
-						material.needsUpdate = true;
+							material.side = currentSide;
+							material.needsUpdate = true;
 
-						renderTargetNeedsUpdate = true;
+							renderTargetNeedsUpdate = true;
+
+						}
+
+					}
+
+					if ( renderTargetNeedsUpdate === true ) {
+
+						textures.updateMultisampleRenderTarget( transmissionRenderTarget );
+						textures.updateRenderTargetMipmap( transmissionRenderTarget );
 
 					}
 
 				}
 
-				if ( renderTargetNeedsUpdate === true ) {
+				_this.setRenderTarget( currentRenderTarget, currentActiveCubeFace, currentActiveMipmapLevel );
 
-					textures.updateMultisampleRenderTarget( transmissionRenderTarget );
-					textures.updateRenderTargetMipmap( transmissionRenderTarget );
+				_this.setClearColor( _currentClearColor, _currentClearAlpha );
 
-				}
+				if ( currentCameraViewport !== undefined ) camera.viewport = currentCameraViewport;
 
-			}
+				_this.toneMapping = currentToneMapping;
 
-			_this.setRenderTarget( currentRenderTarget, currentActiveCubeFace, currentActiveMipmapLevel );
+				// WITH_GENESYS
 
-			_this.setClearColor( _currentClearColor, _currentClearAlpha );
-
-			if ( currentCameraViewport !== undefined ) camera.viewport = currentCameraViewport;
-
-			_this.toneMapping = currentToneMapping;
-
-			// WITH_GENESYS
-			ProfilerService.end( 'WebGLRenderer.renderTransmissionPass' );
-			// !WITH_GENESYS
+			} );
 
 		}
 
@@ -2211,34 +2196,32 @@ class WebGLRenderer {
 
 			// WITH_GENESYS
 			const renderObjectsLabel = `renderObjects (${renderList.length})`;
-			ProfilerService.begin( renderObjectsLabel );
-			// !WITH_GENESYS
+			profileBlock( renderObjectsLabel, () => {
 
-			const overrideMaterial = scene.isScene === true ? scene.overrideMaterial : null;
+				const overrideMaterial = scene.isScene === true ? scene.overrideMaterial : null;
 
-			for ( let i = 0, l = renderList.length; i < l; i ++ ) {
+				for ( let i = 0, l = renderList.length; i < l; i ++ ) {
 
-				const renderItem = renderList[ i ];
+					const renderItem = renderList[ i ];
 
-				const { object, geometry, group } = renderItem;
-				let material = renderItem.material;
+					const { object, geometry, group } = renderItem;
+					let material = renderItem.material;
 
-				if ( material.allowOverride === true && overrideMaterial !== null ) {
+					if ( material.allowOverride === true && overrideMaterial !== null ) {
 
-					material = overrideMaterial;
+						material = overrideMaterial;
+
+					}
+
+					if ( object.layers.test( camera.layers ) ) {
+
+						renderObject( object, scene, camera, geometry, material, group );
+
+					}
 
 				}
 
-				if ( object.layers.test( camera.layers ) ) {
-
-					renderObject( object, scene, camera, geometry, material, group );
-
-				}
-
-			}
-
-			// WITH_GENESYS
-			ProfilerService.end( renderObjectsLabel );
+			} );
 			// !WITH_GENESYS
 
 		}

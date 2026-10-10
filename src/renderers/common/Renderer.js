@@ -36,7 +36,7 @@ import { float, vec3, vec4, Fn } from '../../nodes/tsl/TSLCore.js';
 // WITH_GENESYS
 import { detachRendererReference } from '../../nodes/accessors/RendererReferenceNode.js';
 import { toneMappingExposure } from '../../nodes/display/ToneMappingNode.js';
-import { ProfilerService } from '../../profiler/ProfilerService.js';
+import { ProfilerService, profileBlock } from '../../profiler/ProfilerService.js';
 import { DEBUG_VIEW_NONE, DEFAULT_QUAD_OVERDRAW_BUDGET, DEFAULT_SHADER_COMPLEXITY_BUDGET, debugViewAccumulates, debugViewSkipsToneMapping } from '../../nodes/display/ComplexityDebug.js';
 import { DEFAULT_LOD_COLORATION_COLORS } from '../../nodes/display/LODColorationDebug.js';
 import { DEBUG_VIEW_DOUBLE_SIDE, meshCanHideOwnBack } from '../../nodes/display/DoubleSideDebug.js';
@@ -1555,81 +1555,81 @@ class Renderer {
 	_renderBundle( bundle, sceneRef, lightsNode ) {
 
 		// WITH_GENESYS
-		ProfilerService.begin( 'renderBundle' );
-		// !WITH_GENESYS
+		profileBlock( 'renderBundle', () => {
 
-		const { bundleGroup, camera, renderList } = bundle;
+			const { bundleGroup, camera, renderList } = bundle;
 
-		const renderContext = this._currentRenderContext;
-
-		//
-
-		const renderBundle = this._bundles.get( bundleGroup, camera, renderContext );
-		const renderBundleData = this.backend.get( renderBundle );
-		const renderBundleNeedsUpdate = this._bundleNeedsUpdate( bundleGroup, renderBundleData );
-
-		if ( renderBundleNeedsUpdate ) {
-
-			this.backend.beginBundle( renderContext );
-
-			this._currentRenderBundle = renderBundle;
-
-			const {
-				transparentDoublePass: transparentDoublePassObjects,
-				transparent: transparentObjects,
-				opaque: opaqueObjects
-			} = renderList;
-
-			if ( this.opaque === true && opaqueObjects.length > 0 ) this._renderObjects( opaqueObjects, camera, sceneRef, lightsNode );
-			if ( this.transparent === true && transparentObjects.length > 0 ) this._renderTransparents( transparentObjects, transparentDoublePassObjects, camera, sceneRef, lightsNode );
-
-			this._currentRenderBundle = null;
+			const renderContext = this._currentRenderContext;
 
 			//
 
-			this.backend.finishBundle( renderContext, renderBundle );
+			const renderBundle = this._bundles.get( bundleGroup, camera, renderContext );
+			const renderBundleData = this.backend.get( renderBundle );
+			const renderBundleNeedsUpdate = this._bundleNeedsUpdate( bundleGroup, renderBundleData );
 
-			renderBundleData.version = bundleGroup.version;
+			if ( renderBundleNeedsUpdate ) {
 
-		} else {
+				this.backend.beginBundle( renderContext );
 
-			const { renderObjects } = renderBundleData;
+				this._currentRenderBundle = renderBundle;
 
-			for ( let i = 0, l = renderObjects.length; i < l; i ++ ) {
+				const {
+					transparentDoublePass: transparentDoublePassObjects,
+					transparent: transparentObjects,
+					opaque: opaqueObjects
+				} = renderList;
 
-				const renderObject = renderObjects[ i ];
+				if ( this.opaque === true && opaqueObjects.length > 0 ) this._renderObjects( opaqueObjects, camera, sceneRef, lightsNode );
+				if ( this.transparent === true && transparentObjects.length > 0 ) this._renderTransparents( transparentObjects, transparentDoublePassObjects, camera, sceneRef, lightsNode );
 
-				const refreshType = this._nodes.needsRefresh( renderObject );
+				this._currentRenderBundle = null;
 
-				if ( refreshType === RenderObjectRefreshType.FULL ) {
+				//
 
-					this._nodes.updateBefore( renderObject );
+				this.backend.finishBundle( renderContext, renderBundle );
 
-					this._geometries.updateForRender( renderObject );
-					this._nodes.updateForRender( renderObject );
-					this._bindings.updateForRender( renderObject );
+				renderBundleData.version = bundleGroup.version;
 
-					this._nodes.updateAfter( renderObject );
+			} else {
 
-				} else if ( refreshType === RenderObjectRefreshType.SHARED ) {
+				const { renderObjects } = renderBundleData;
 
-					this._nodes.updateBefore( renderObject );
+				for ( let i = 0, l = renderObjects.length; i < l; i ++ ) {
 
-					this._nodes.updateForRender( renderObject );
-					this._bindings.updateSharedForRender( renderObject );
+					const renderObject = renderObjects[ i ];
 
-					this._nodes.updateAfter( renderObject );
+					const refreshType = this._nodes.needsRefresh( renderObject );
+
+					if ( refreshType === RenderObjectRefreshType.FULL ) {
+
+						this._nodes.updateBefore( renderObject );
+
+						this._geometries.updateForRender( renderObject );
+						this._nodes.updateForRender( renderObject );
+						this._bindings.updateForRender( renderObject );
+
+						this._nodes.updateAfter( renderObject );
+
+					} else if ( refreshType === RenderObjectRefreshType.SHARED ) {
+
+						this._nodes.updateBefore( renderObject );
+
+						this._nodes.updateForRender( renderObject );
+						this._bindings.updateSharedForRender( renderObject );
+
+						this._nodes.updateAfter( renderObject );
+
+					}
 
 				}
 
 			}
 
-		}
+			this.backend.addBundle( renderContext, renderBundle );
 
-		this.backend.addBundle( renderContext, renderBundle );
+			// WITH_GENESYS
 
-		// WITH_GENESYS
-		ProfilerService.end( 'renderBundle' );
+		} );
 		// !WITH_GENESYS
 
 	}
@@ -1948,11 +1948,11 @@ class Renderer {
 		//
 
 		// WITH_GENESYS
-		ProfilerService.begin( 'scene.updateMatrixWorld' );
-		// !WITH_GENESYS
-		if ( scene.matrixWorldAutoUpdate === true ) scene.updateMatrixWorld();
-		// WITH_GENESYS
-		ProfilerService.end( 'scene.updateMatrixWorld' );
+		profileBlock( 'scene.updateMatrixWorld', () => {
+
+			if ( scene.matrixWorldAutoUpdate === true ) scene.updateMatrixWorld();
+
+		} );
 		// !WITH_GENESYS
 
 		camera = this._updateCamera( camera, useXRCamera );
@@ -2014,34 +2014,29 @@ class Renderer {
 		}
 
 		// WITH_GENESYS
-		ProfilerService.begin( 'buildRenderList' );
-		// !WITH_GENESYS
+		let renderList;
+		profileBlock( 'buildRenderList', () => {
 
-		this._renderLists.update( nodeFrame.frameId );
+			this._renderLists.update( nodeFrame.frameId );
 
-		const renderList = this._renderLists.get( scene, camera, this.lighting );
-		renderList.begin();
+			renderList = this._renderLists.get( scene, camera, this.lighting );
+			renderList.begin();
 
-		// WITH_GENESYS
-		ProfilerService.begin( 'projectObject' );
-		// !WITH_GENESYS
+			profileBlock( 'projectObject', () => {
 
-		this._projectObject( scene, camera, 0, renderList, renderContext.clippingContext );
+				this._projectObject( scene, camera, 0, renderList, renderContext.clippingContext );
 
-		// WITH_GENESYS
-		ProfilerService.end( 'projectObject' );
-		// !WITH_GENESYS
+			} );
 
-		renderList.finish();
+			renderList.finish();
 
-		if ( this.sortObjects === true ) {
+			if ( this.sortObjects === true ) {
 
-			renderList.sort( this._opaqueSort, this._transparentSort );
+				renderList.sort( this._opaqueSort, this._transparentSort );
 
-		}
+			}
 
-		// WITH_GENESYS
-		ProfilerService.end( 'buildRenderList' );
+		} );
 		// !WITH_GENESYS
 
 		//
@@ -2084,117 +2079,117 @@ class Renderer {
 		const profilerLabel = renderContext.fullscreenPass === true ? 'Renderer._renderQuad' : 'Renderer._renderScene';
 		const tracing = ProfilerService.isTracing();
 		const toScreen = outputRenderTarget === null;
-		ProfilerService.begin( profilerLabel, tracing ? getRenderSceneTraceName( gpuProfilerLabel ?? '', renderContext, toScreen, profilerLabel ) : undefined );
+		profileBlock( profilerLabel, () => {
 
-		// The GPU track has no CPU scope names, so its slices lead with what was rendered.
-		if ( tracing && gpuRenderSpan !== null && gpuRenderSpan._seq !== 0 ) {
+			// The GPU track has no CPU scope names, so its slices lead with what was rendered.
+			if ( tracing && gpuRenderSpan !== null && gpuRenderSpan._seq !== 0 ) {
 
-			gpuRenderSpan.traceName = getRenderSceneTraceName( gpuProfilerLabel ?? '', renderContext, toScreen, null );
+				gpuRenderSpan.traceName = getRenderSceneTraceName( gpuProfilerLabel ?? '', renderContext, toScreen, null );
 
-		}
+			}
 
-		const previousProfileRenderObjects = this._profileRenderObjects;
-		this._profileRenderObjects = renderContext.fullscreenPass !== true;
-		// !WITH_GENESYS
+			const previousProfileRenderObjects = this._profileRenderObjects;
+			this._profileRenderObjects = renderContext.fullscreenPass !== true;
 
-		//
+			//
 
-		renderContext.scissorValue.max( _vector4.set( 0, 0, 0, 0 ) );
+			renderContext.scissorValue.max( _vector4.set( 0, 0, 0, 0 ) );
 
-		if ( renderContext.scissorValue.x + renderContext.scissorValue.width > renderContext.width ) {
+			if ( renderContext.scissorValue.x + renderContext.scissorValue.width > renderContext.width ) {
 
-			renderContext.scissorValue.width = Math.max( renderContext.width - renderContext.scissorValue.x, 0 );
+				renderContext.scissorValue.width = Math.max( renderContext.width - renderContext.scissorValue.x, 0 );
 
-		}
+			}
 
-		if ( renderContext.scissorValue.y + renderContext.scissorValue.height > renderContext.height ) {
+			if ( renderContext.scissorValue.y + renderContext.scissorValue.height > renderContext.height ) {
 
-			renderContext.scissorValue.height = Math.max( renderContext.height - renderContext.scissorValue.y, 0 );
+				renderContext.scissorValue.height = Math.max( renderContext.height - renderContext.scissorValue.y, 0 );
 
-		}
+			}
 
-		//
+			//
 
-		this._background.update( sceneRef, renderList, renderContext );
+			this._background.update( sceneRef, renderList, renderContext );
 
-		//
+			//
 
-		renderContext.camera = camera;
-		this.backend.beginRender( renderContext );
+			renderContext.camera = camera;
+			this.backend.beginRender( renderContext );
 
-		// process render lists
+			// process render lists
 
-		const {
-			bundles,
-			lightsNode,
-			transparentDoublePass: transparentDoublePassObjects,
-			transparent: transparentObjects,
-			opaque: opaqueObjects
-		} = renderList;
+			const {
+				bundles,
+				lightsNode,
+				transparentDoublePass: transparentDoublePassObjects,
+				transparent: transparentObjects,
+				opaque: opaqueObjects
+			} = renderList;
 
-		if ( bundles.length > 0 ) this._renderBundles( bundles, sceneRef, lightsNode );
-		// WITH_GENESYS
-		if ( this.opaque === true && opaqueObjects.length > 0 ) {
+			if ( bundles.length > 0 ) this._renderBundles( bundles, sceneRef, lightsNode );
+			// WITH_GENESYS
+			if ( this.opaque === true && opaqueObjects.length > 0 ) {
 
-			const opaqueSpan = this.backend.beginPassTimestampSpan( renderContext, 'Opaque', PassTimestampLevel.STAGE );
-			this._renderObjects( opaqueObjects, camera, sceneRef, lightsNode );
-			this.backend.endPassTimestampSpan( opaqueSpan );
+				const opaqueSpan = this.backend.beginPassTimestampSpan( renderContext, 'Opaque', PassTimestampLevel.STAGE );
+				this._renderObjects( opaqueObjects, camera, sceneRef, lightsNode );
+				this.backend.endPassTimestampSpan( opaqueSpan );
 
-		}
+			}
 
-		if ( this.transparent === true && transparentObjects.length > 0 ) {
+			if ( this.transparent === true && transparentObjects.length > 0 ) {
 
-			const transparentSpan = this.backend.beginPassTimestampSpan( renderContext, 'Transparent', PassTimestampLevel.STAGE );
-			this._renderTransparents( transparentObjects, transparentDoublePassObjects, camera, sceneRef, lightsNode );
-			this.backend.endPassTimestampSpan( transparentSpan );
+				const transparentSpan = this.backend.beginPassTimestampSpan( renderContext, 'Transparent', PassTimestampLevel.STAGE );
+				this._renderTransparents( transparentObjects, transparentDoublePassObjects, camera, sceneRef, lightsNode );
+				this.backend.endPassTimestampSpan( transparentSpan );
 
-		}
-		// !WITH_GENESYS
-		// if ( this.opaque === true && opaqueObjects.length > 0 ) this._renderObjects( opaqueObjects, camera, sceneRef, lightsNode );
-		// if ( this.transparent === true && transparentObjects.length > 0 ) this._renderTransparents( transparentObjects, transparentDoublePassObjects, camera, sceneRef, lightsNode );
+			}
+			// !WITH_GENESYS
+			// if ( this.opaque === true && opaqueObjects.length > 0 ) this._renderObjects( opaqueObjects, camera, sceneRef, lightsNode );
+			// if ( this.transparent === true && transparentObjects.length > 0 ) this._renderTransparents( transparentObjects, transparentDoublePassObjects, camera, sceneRef, lightsNode );
 
-		// WITH_GENESYS
-		this._renderDoubleSideHidden( opaqueObjects, transparentObjects, camera, sceneRef, lightsNode );
-		// !WITH_GENESYS
+			// WITH_GENESYS
+			this._renderDoubleSideHidden( opaqueObjects, transparentObjects, camera, sceneRef, lightsNode );
+			// !WITH_GENESYS
 
-		// finish render pass
+			// finish render pass
 
-		this.backend.finishRender( renderContext );
+			this.backend.finishRender( renderContext );
 
-		// restore render tree
+			// restore render tree
 
-		nodeFrame.renderId = previousRenderId;
-		this._currentRenderContext = previousRenderContext;
-		this._currentRenderObjectFunction = previousRenderObjectFunction;
-		this._handleObjectFunction = previousHandleObjectFunction;
+			nodeFrame.renderId = previousRenderId;
+			this._currentRenderContext = previousRenderContext;
+			this._currentRenderObjectFunction = previousRenderObjectFunction;
+			this._handleObjectFunction = previousHandleObjectFunction;
 
-		this.lighting.finishRender( scene );
+			this.lighting.finishRender( scene );
 
-		//
+			//
 
-		this._callDepth --;
+			this._callDepth --;
 
-		if ( frameBufferTarget !== null ) {
+			if ( frameBufferTarget !== null ) {
 
-			this.setRenderTarget( outputRenderTarget, activeCubeFace, activeMipmapLevel );
+				this.setRenderTarget( outputRenderTarget, activeCubeFace, activeMipmapLevel );
 
-			this._renderOutput( renderTarget );
+				this._renderOutput( renderTarget );
 
-		}
+			}
 
-		//
+			//
 
-		sceneRef.onAfterRender( this, scene, camera, renderTarget );
+			sceneRef.onAfterRender( this, scene, camera, renderTarget );
 
-		//
+			//
 
-		this.inspector.finishRender( this.backend.getTimestampUID( renderContext ) );
+			this.inspector.finishRender( this.backend.getTimestampUID( renderContext ) );
 
-		//
+			//
 
-		// WITH_GENESYS
-		this._profileRenderObjects = previousProfileRenderObjects;
-		ProfilerService.end( profilerLabel );
+			// WITH_GENESYS
+			this._profileRenderObjects = previousProfileRenderObjects;
+
+		}, tracing ? getRenderSceneTraceName( gpuProfilerLabel ?? '', renderContext, toScreen, profilerLabel ) : undefined );
 		// !WITH_GENESYS
 
 		return renderContext;
@@ -3827,47 +3822,48 @@ class Renderer {
 
 		// WITH_GENESYS
 		const profile = this._profileRenderObjects;
-		if ( profile ) ProfilerService.begin( '_renderTransparents' );
-		// !WITH_GENESYS
+		const renderTransparents = () => {
 
-		if ( doublePassList.length > 0 ) {
+			if ( doublePassList.length > 0 ) {
 
-			// render back side
+				// render back side
 
-			for ( const { material } of doublePassList ) {
+				for ( const { material } of doublePassList ) {
 
-				material.side = BackSide;
+					material.side = BackSide;
+
+				}
+
+				this._renderObjects( doublePassList, camera, scene, lightsNode, 'backSide' );
+
+				// render front side
+
+				for ( const { material } of doublePassList ) {
+
+					material.side = FrontSide;
+
+				}
+
+				this._renderObjects( renderList, camera, scene, lightsNode );
+
+				// restore
+
+				for ( const { material } of doublePassList ) {
+
+					material.side = DoubleSide;
+
+				}
+
+			} else {
+
+				this._renderObjects( renderList, camera, scene, lightsNode );
 
 			}
 
-			this._renderObjects( doublePassList, camera, scene, lightsNode, 'backSide' );
+		};
 
-			// render front side
-
-			for ( const { material } of doublePassList ) {
-
-				material.side = FrontSide;
-
-			}
-
-			this._renderObjects( renderList, camera, scene, lightsNode );
-
-			// restore
-
-			for ( const { material } of doublePassList ) {
-
-				material.side = DoubleSide;
-
-			}
-
-		} else {
-
-			this._renderObjects( renderList, camera, scene, lightsNode );
-
-		}
-
-		// WITH_GENESYS
-		if ( profile ) ProfilerService.end( '_renderTransparents' );
+		if ( profile ) profileBlock( '_renderTransparents', renderTransparents );
+		else renderTransparents();
 		// !WITH_GENESYS
 
 	}
@@ -3886,19 +3882,31 @@ class Renderer {
 
 		// WITH_GENESYS
 		const profile = this._profileRenderObjects;
-		if ( profile ) ProfilerService.begin( '_renderObjects', ProfilerService.isTracing() ? `_renderObjects (${renderList.length})` : undefined );
-		// !WITH_GENESYS
+		const renderObjects = () => {
 
-		for ( let i = 0, il = renderList.length; i < il; i ++ ) {
+			for ( let i = 0, il = renderList.length; i < il; i ++ ) {
 
-			const { object, geometry, material, group, clippingContext } = renderList[ i ];
+				const { object, geometry, material, group, clippingContext } = renderList[ i ];
 
-			this._currentRenderObjectFunction( object, scene, camera, geometry, material, group, lightsNode, clippingContext, passId );
+				this._currentRenderObjectFunction( object, scene, camera, geometry, material, group, lightsNode, clippingContext, passId );
+
+			}
+
+		};
+
+		if ( profile ) {
+
+			profileBlock(
+				'_renderObjects',
+				renderObjects,
+				ProfilerService.isTracing() ? `_renderObjects (${renderList.length})` : undefined
+			);
+
+		} else {
+
+			renderObjects();
 
 		}
-
-		// WITH_GENESYS
-		if ( profile ) ProfilerService.end( '_renderObjects' );
 		// !WITH_GENESYS
 
 	}
@@ -4123,129 +4131,124 @@ class Renderer {
 
 		// WITH_GENESYS
 		const profile = this._profileRenderObjects;
-		if ( profile ) {
+		const traceName = ProfilerService.isTracing() ? `renderObject (${object.name || object.type} - ${material.name || material.type})` : undefined;
+		const renderObjectProfiled = () => {
 
-			ProfilerService.begin(
-				'renderObject',
-				ProfilerService.isTracing() ? `renderObject (${object.name || object.type} - ${material.name || material.type})` : undefined
-			);
+			let materialOverride = false;
+			let materialColorNode;
+			let materialDepthNode;
+			let materialPositionNode;
+			let materialSide;
+			let materialDisplacementMap;
+			let materialDisplacementScale;
+			let materialDisplacementBias;
 
-		}
-		// !WITH_GENESYS
+			const previousSourceMaterial = this._currentSourceMaterial;
 
-		let materialOverride = false;
-		let materialColorNode;
-		let materialDepthNode;
-		let materialPositionNode;
-		let materialSide;
-		let materialDisplacementMap;
-		let materialDisplacementScale;
-		let materialDisplacementBias;
+			//
 
-		const previousSourceMaterial = this._currentSourceMaterial;
+			object.onBeforeRender( this, scene, camera, geometry, material, group );
 
-		//
+			//
 
-		object.onBeforeRender( this, scene, camera, geometry, material, group );
+			if ( material.allowOverride === true && scene.overrideMaterial !== null ) {
 
-		//
+				this._currentSourceMaterial = material;
 
-		if ( material.allowOverride === true && scene.overrideMaterial !== null ) {
+				const overrideMaterial = scene.overrideMaterial;
 
-			this._currentSourceMaterial = material;
+				materialOverride = true;
 
-			const overrideMaterial = scene.overrideMaterial;
+				// store original nodes
+				materialColorNode = ( overrideMaterial.isNodeMaterial ) ? overrideMaterial.colorNode : null;
+				materialDepthNode = ( overrideMaterial.isNodeMaterial ) ? overrideMaterial.depthNode : null;
+				materialPositionNode = ( overrideMaterial.isNodeMaterial ) ? overrideMaterial.positionNode : null;
+				materialSide = scene.overrideMaterial.side;
+				materialDisplacementMap = overrideMaterial.displacementMap;
+				materialDisplacementScale = overrideMaterial.displacementScale;
+				materialDisplacementBias = overrideMaterial.displacementBias;
 
-			materialOverride = true;
+				if ( material.positionNode && material.positionNode.isNode ) {
 
-			// store original nodes
-			materialColorNode = ( overrideMaterial.isNodeMaterial ) ? overrideMaterial.colorNode : null;
-			materialDepthNode = ( overrideMaterial.isNodeMaterial ) ? overrideMaterial.depthNode : null;
-			materialPositionNode = ( overrideMaterial.isNodeMaterial ) ? overrideMaterial.positionNode : null;
-			materialSide = scene.overrideMaterial.side;
-			materialDisplacementMap = overrideMaterial.displacementMap;
-			materialDisplacementScale = overrideMaterial.displacementScale;
-			materialDisplacementBias = overrideMaterial.displacementBias;
-
-			if ( material.positionNode && material.positionNode.isNode ) {
-
-				overrideMaterial.positionNode = material.positionNode;
-
-			}
-
-			overrideMaterial.alphaTest = material.alphaTest;
-			overrideMaterial.alphaMap = material.alphaMap;
-			overrideMaterial.displacementMap = material.displacementMap;
-			overrideMaterial.displacementScale = material.displacementScale;
-			overrideMaterial.displacementBias = material.displacementBias;
-			overrideMaterial.transparent = material.transparent || material.transmission > 0 ||
-				( material.transmissionNode && material.transmissionNode.isNode ) ||
-				( material.backdropNode && material.backdropNode.isNode );
-
-			if ( overrideMaterial.isShadowPassMaterial ) {
-
-				const { colorNode, depthNode, positionNode } = this._getShadowNodes( material );
-
-				if ( this.shadowMap.type === VSMShadowMap ) {
-
-					overrideMaterial.side = ( material.shadowSide !== null ) ? material.shadowSide : material.side;
-
-				} else {
-
-					overrideMaterial.side = ( material.shadowSide !== null ) ? material.shadowSide : _shadowSide[ material.side ];
+					overrideMaterial.positionNode = material.positionNode;
 
 				}
 
-				if ( colorNode !== null ) overrideMaterial.colorNode = colorNode;
-				if ( depthNode !== null ) overrideMaterial.depthNode = depthNode;
-				if ( positionNode !== null ) overrideMaterial.positionNode = positionNode;
+				overrideMaterial.alphaTest = material.alphaTest;
+				overrideMaterial.alphaMap = material.alphaMap;
+				overrideMaterial.displacementMap = material.displacementMap;
+				overrideMaterial.displacementScale = material.displacementScale;
+				overrideMaterial.displacementBias = material.displacementBias;
+				overrideMaterial.transparent = material.transparent || material.transmission > 0 ||
+				( material.transmissionNode && material.transmissionNode.isNode ) ||
+				( material.backdropNode && material.backdropNode.isNode );
+
+				if ( overrideMaterial.isShadowPassMaterial ) {
+
+					const { colorNode, depthNode, positionNode } = this._getShadowNodes( material );
+
+					if ( this.shadowMap.type === VSMShadowMap ) {
+
+						overrideMaterial.side = ( material.shadowSide !== null ) ? material.shadowSide : material.side;
+
+					} else {
+
+						overrideMaterial.side = ( material.shadowSide !== null ) ? material.shadowSide : _shadowSide[ material.side ];
+
+					}
+
+					if ( colorNode !== null ) overrideMaterial.colorNode = colorNode;
+					if ( depthNode !== null ) overrideMaterial.depthNode = depthNode;
+					if ( positionNode !== null ) overrideMaterial.positionNode = positionNode;
+
+				}
+
+				material = overrideMaterial;
 
 			}
 
-			material = overrideMaterial;
+			//
 
-		}
+			if ( material.transparent === true && material.side === DoubleSide && material.forceSinglePass === false ) {
 
-		//
+				material.side = BackSide;
+				this._handleObjectFunction( object, material, scene, camera, lightsNode, group, clippingContext, 'backSide' ); // create backSide pass id
 
-		if ( material.transparent === true && material.side === DoubleSide && material.forceSinglePass === false ) {
+				material.side = FrontSide;
+				this._handleObjectFunction( object, material, scene, camera, lightsNode, group, clippingContext, passId ); // use default pass id
 
-			material.side = BackSide;
-			this._handleObjectFunction( object, material, scene, camera, lightsNode, group, clippingContext, 'backSide' ); // create backSide pass id
+				material.side = DoubleSide;
 
-			material.side = FrontSide;
-			this._handleObjectFunction( object, material, scene, camera, lightsNode, group, clippingContext, passId ); // use default pass id
+			} else {
 
-			material.side = DoubleSide;
+				this._handleObjectFunction( object, material, scene, camera, lightsNode, group, clippingContext, passId );
 
-		} else {
+			}
 
-			this._handleObjectFunction( object, material, scene, camera, lightsNode, group, clippingContext, passId );
+			//
 
-		}
+			if ( materialOverride ) {
 
-		//
+				scene.overrideMaterial.colorNode = materialColorNode;
+				scene.overrideMaterial.depthNode = materialDepthNode;
+				scene.overrideMaterial.positionNode = materialPositionNode;
+				scene.overrideMaterial.side = materialSide;
+				scene.overrideMaterial.displacementMap = materialDisplacementMap;
+				scene.overrideMaterial.displacementScale = materialDisplacementScale;
+				scene.overrideMaterial.displacementBias = materialDisplacementBias;
 
-		if ( materialOverride ) {
+			}
 
-			scene.overrideMaterial.colorNode = materialColorNode;
-			scene.overrideMaterial.depthNode = materialDepthNode;
-			scene.overrideMaterial.positionNode = materialPositionNode;
-			scene.overrideMaterial.side = materialSide;
-			scene.overrideMaterial.displacementMap = materialDisplacementMap;
-			scene.overrideMaterial.displacementScale = materialDisplacementScale;
-			scene.overrideMaterial.displacementBias = materialDisplacementBias;
+			this._currentSourceMaterial = previousSourceMaterial;
 
-		}
+			//
 
-		this._currentSourceMaterial = previousSourceMaterial;
+			object.onAfterRender( this, scene, camera, geometry, material, group );
 
-		//
+		};
 
-		object.onAfterRender( this, scene, camera, geometry, material, group );
-
-		// WITH_GENESYS
-		if ( profile ) ProfilerService.end( 'renderObject' );
+		if ( profile ) profileBlock( 'renderObject', renderObjectProfiled, traceName );
+		else renderObjectProfiled();
 		// !WITH_GENESYS
 
 	}

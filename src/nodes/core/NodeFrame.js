@@ -1,7 +1,7 @@
 import { NodeUpdateType } from './constants.js';
 
 // WITH_GENESYS
-import { ProfilerService } from '../../profiler/ProfilerService.js';
+import { ProfilerService, profileBlock, profileGpuBlock } from '../../profiler/ProfilerService.js';
 
 const _updateLabels = { updateBefore: new Map(), updateAfter: new Map() };
 
@@ -49,24 +49,16 @@ function callProfiled( node, method, frame ) {
 	const owner = node.debugLabel || node.name;
 	const tracing = ProfilerService.isTracing();
 
-	ProfilerService.begin( label, owner && tracing ? `${ owner } (${ label })` : undefined );
-	const gpuSpan = ProfilerService.beginGpu( label, frame.renderer, tracing ? owner || label.slice( 0, label.lastIndexOf( '.' ) ) : undefined );
-	let result;
-
-	try {
-
-		result = node[ method ]( frame );
-
-	} finally {
-
-		// An open GPU span holds back every later GPU timing, so it must close on a throw.
-		ProfilerService.endGpu( gpuSpan );
-
-	}
-
-	ProfilerService.end( label );
-
-	return result;
+	return profileBlock(
+		label,
+		() => profileGpuBlock(
+			label,
+			frame.renderer,
+			() => node[ method ]( frame ),
+			tracing ? owner || label.slice( 0, label.lastIndexOf( '.' ) ) : undefined
+		),
+		owner && tracing ? `${ owner } (${ label })` : undefined
+	);
 
 }
 // !WITH_GENESYS

@@ -22,7 +22,7 @@ import { uniform } from '../core/UniformNode.js';
 import { equirectDirection } from '../utils/EquirectUV.js';
 import { context } from '../core/ContextNode.js';
 // WITH_GENESYS
-import { ProfilerService } from '../../profiler/ProfilerService.js';
+import { profileBlock } from '../../profiler/ProfilerService.js';
 // !WITH_GENESYS
 
 /**
@@ -684,13 +684,13 @@ class ShadowNode extends ShadowBaseNode {
 		const { renderer, scene } = frame;
 
 		// WITH_GENESYS
-		ProfilerService.begin( 'shadowMap.render.updateMatrices' );
-		// !WITH_GENESYS
-		shadow.updateMatrices( light );
+		profileBlock( 'shadowMap.render.updateMatrices', () => {
 
-		shadowMap.setSize( shadow.mapSize.width, shadow.mapSize.height, shadowMap.depth );
-		// WITH_GENESYS
-		ProfilerService.end( 'shadowMap.render.updateMatrices' );
+			shadow.updateMatrices( light );
+
+			shadowMap.setSize( shadow.mapSize.width, shadow.mapSize.height, shadowMap.depth );
+
+		} );
 		// !WITH_GENESYS
 
 		const currentSceneName = scene.name;
@@ -698,11 +698,11 @@ class ShadowNode extends ShadowBaseNode {
 		scene.name = `Shadow Map [ ${ light.name || 'ID: ' + light.id } ]`;
 
 		// WITH_GENESYS
-		ProfilerService.begin( 'shadowMap.render.depthPass' );
-		// !WITH_GENESYS
-		renderer.render( scene, shadow.camera );
-		// WITH_GENESYS
-		ProfilerService.end( 'shadowMap.render.depthPass' );
+		profileBlock( 'shadowMap.render.depthPass', () => {
+
+			renderer.render( scene, shadow.camera );
+
+		} );
 		// !WITH_GENESYS
 
 		scene.name = currentSceneName;
@@ -721,64 +721,64 @@ class ShadowNode extends ShadowBaseNode {
 
 		// WITH_GENESYS
 		const lightLabel = `shadowMap.render.light (${this.light.name || this.light.type})`;
-		ProfilerService.begin( lightLabel );
-		// !WITH_GENESYS
+		profileBlock( lightLabel, () => {
 
-		const shadowType = renderer.shadowMap.type;
+			const shadowType = renderer.shadowMap.type;
 
-		const depthVersion = shadowMap.depthTexture.version;
-		this._depthVersionCached = depthVersion;
+			const depthVersion = shadowMap.depthTexture.version;
+			this._depthVersionCached = depthVersion;
 
-		const _shadowCameraLayer = shadow.camera.layers.mask;
+			const _shadowCameraLayer = shadow.camera.layers.mask;
 
-		if ( ( shadow.camera.layers.mask & 0xFFFFFFFE ) === 0 ) {
+			if ( ( shadow.camera.layers.mask & 0xFFFFFFFE ) === 0 ) {
 
-			shadow.camera.layers.mask = camera.layers.mask;
+				shadow.camera.layers.mask = camera.layers.mask;
 
-		}
+			}
 
-		const currentRenderObjectFunction = renderer.getRenderObjectFunction();
-
-		// WITH_GENESYS
-		ProfilerService.begin( 'shadowMap.render.setupPass' );
-		// !WITH_GENESYS
-		_rendererState = resetRendererAndSceneState( renderer, scene, _rendererState );
-
-		scene.overrideMaterial = this.getShadowMaterial();
-
-		renderer.setRenderObjectFunction( this.getShadowRenderObjectFunction( renderer, this.shadow || this.light.shadow ) );
-
-		renderer.setClearColor( 0x000000, 0 );
-
-		renderer.setRenderTarget( shadowMap );
-		// WITH_GENESYS
-		ProfilerService.end( 'shadowMap.render.setupPass' );
-		// !WITH_GENESYS
-
-		this.renderShadow( frame );
-
-		renderer.setRenderObjectFunction( currentRenderObjectFunction );
-
-		// vsm blur pass
-
-		if ( shadowType === VSMShadowMap && shadow.isPointLightShadow !== true ) {
+			const currentRenderObjectFunction = renderer.getRenderObjectFunction();
 
 			// WITH_GENESYS
-			ProfilerService.begin( 'shadowMap.render.vsmPass' );
+			profileBlock( 'shadowMap.render.setupPass', () => {
+
+				_rendererState = resetRendererAndSceneState( renderer, scene, _rendererState );
+
+				scene.overrideMaterial = this.getShadowMaterial();
+
+				renderer.setRenderObjectFunction( this.getShadowRenderObjectFunction( renderer, this.shadow || this.light.shadow ) );
+
+				renderer.setClearColor( 0x000000, 0 );
+
+				renderer.setRenderTarget( shadowMap );
+
+			} );
 			// !WITH_GENESYS
-			this.vsmPass( renderer );
+
+			this.renderShadow( frame );
+
+			renderer.setRenderObjectFunction( currentRenderObjectFunction );
+
+			// vsm blur pass
+
+			if ( shadowType === VSMShadowMap && shadow.isPointLightShadow !== true ) {
+
+				// WITH_GENESYS
+				profileBlock( 'shadowMap.render.vsmPass', () => {
+
+					this.vsmPass( renderer );
+
+				} );
+				// !WITH_GENESYS
+
+			}
+
+			shadow.camera.layers.mask = _shadowCameraLayer;
+
+			restoreRendererAndSceneState( renderer, scene, _rendererState );
+
 			// WITH_GENESYS
-			ProfilerService.end( 'shadowMap.render.vsmPass' );
-			// !WITH_GENESYS
 
-		}
-
-		shadow.camera.layers.mask = _shadowCameraLayer;
-
-		restoreRendererAndSceneState( renderer, scene, _rendererState );
-
-		// WITH_GENESYS
-		ProfilerService.end( lightLabel );
+		} );
 		// !WITH_GENESYS
 
 	}
@@ -797,23 +797,21 @@ class ShadowNode extends ShadowBaseNode {
 		this.vsmShadowMapHorizontal.setSize( shadow.mapSize.width, shadow.mapSize.height, depth );
 
 		// WITH_GENESYS
-		ProfilerService.begin( 'shadowMap.vsmPass.vertical' );
-		// !WITH_GENESYS
-		renderer.setRenderTarget( this.vsmShadowMapVertical );
-		_quadMesh.material = this.vsmMaterialVertical;
-		_quadMesh.render( renderer );
-		// WITH_GENESYS
-		ProfilerService.end( 'shadowMap.vsmPass.vertical' );
-		// !WITH_GENESYS
+		profileBlock( 'shadowMap.vsmPass.vertical', () => {
 
-		// WITH_GENESYS
-		ProfilerService.begin( 'shadowMap.vsmPass.horizontal' );
-		// !WITH_GENESYS
-		renderer.setRenderTarget( this.vsmShadowMapHorizontal );
-		_quadMesh.material = this.vsmMaterialHorizontal;
-		_quadMesh.render( renderer );
-		// WITH_GENESYS
-		ProfilerService.end( 'shadowMap.vsmPass.horizontal' );
+			renderer.setRenderTarget( this.vsmShadowMapVertical );
+			_quadMesh.material = this.vsmMaterialVertical;
+			_quadMesh.render( renderer );
+
+		} );
+
+		profileBlock( 'shadowMap.vsmPass.horizontal', () => {
+
+			renderer.setRenderTarget( this.vsmShadowMapHorizontal );
+			_quadMesh.material = this.vsmMaterialHorizontal;
+			_quadMesh.render( renderer );
+
+		} );
 		// !WITH_GENESYS
 
 	}

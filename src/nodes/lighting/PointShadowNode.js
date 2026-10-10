@@ -15,7 +15,7 @@ import { abs, normalize, cross } from '../math/MathNode.js';
 import { viewZToLogarithmicDepth, viewZToPerspectiveDepth, viewZToReversedPerspectiveDepth } from '../display/ViewportDepthNode.js';
 
 // WITH_GENESYS
-import { ProfilerService } from '../../profiler/ProfilerService.js';
+import { profileBlock } from '../../profiler/ProfilerService.js';
 // !WITH_GENESYS
 
 const _clearColor = /*@__PURE__*/ new Color();
@@ -311,34 +311,32 @@ class PointShadowNode extends ShadowNode {
 			// Update shadow camera matrices for this face
 
 			// WITH_GENESYS
-			ProfilerService.begin( 'shadowMap.render.updateMatrices' );
-			// !WITH_GENESYS
+			profileBlock( 'shadowMap.render.updateMatrices', () => {
 
-			const far = light.distance || camera.far;
+				const far = light.distance || camera.far;
 
-			if ( far !== camera.far ) {
+				if ( far !== camera.far ) {
 
-				camera.far = far;
-				camera.updateProjectionMatrix();
+					camera.far = far;
+					camera.updateProjectionMatrix();
 
-			}
+				}
 
-			_lightPositionWorld.setFromMatrixPosition( light.matrixWorld );
-			camera.position.copy( _lightPositionWorld );
+				_lightPositionWorld.setFromMatrixPosition( light.matrixWorld );
+				camera.position.copy( _lightPositionWorld );
 
-			_lookTarget.copy( camera.position );
-			_lookTarget.add( cubeDirections[ face ] );
-			camera.up.copy( cubeUps[ face ] );
-			camera.lookAt( _lookTarget );
-			camera.updateMatrixWorld();
+				_lookTarget.copy( camera.position );
+				_lookTarget.add( cubeDirections[ face ] );
+				camera.up.copy( cubeUps[ face ] );
+				camera.lookAt( _lookTarget );
+				camera.updateMatrixWorld();
 
-			shadowMatrix.makeTranslation( - _lightPositionWorld.x, - _lightPositionWorld.y, - _lightPositionWorld.z );
+				shadowMatrix.makeTranslation( - _lightPositionWorld.x, - _lightPositionWorld.y, - _lightPositionWorld.z );
 
-			_projScreenMatrix.multiplyMatrices( camera.projectionMatrix, camera.matrixWorldInverse );
-			shadow._frustum.setFromProjectionMatrix( _projScreenMatrix, camera.coordinateSystem, camera.reversedDepth );
+				_projScreenMatrix.multiplyMatrices( camera.projectionMatrix, camera.matrixWorldInverse );
+				shadow._frustum.setFromProjectionMatrix( _projScreenMatrix, camera.coordinateSystem, camera.reversedDepth );
 
-			// WITH_GENESYS
-			ProfilerService.end( 'shadowMap.render.updateMatrices' );
+			} );
 			// !WITH_GENESYS
 
 			//
@@ -348,11 +346,11 @@ class PointShadowNode extends ShadowNode {
 			scene.name = `Point Light Shadow [ ${ light.name || 'ID: ' + light.id } ] - Face ${ face + 1 }`;
 
 			// WITH_GENESYS
-			ProfilerService.begin( faceLabel );
-			// !WITH_GENESYS
-			renderer.render( scene, camera );
-			// WITH_GENESYS
-			ProfilerService.end( faceLabel );
+			profileBlock( faceLabel, () => {
+
+				renderer.render( scene, camera );
+
+			} );
 			// !WITH_GENESYS
 
 			scene.name = currentSceneName;

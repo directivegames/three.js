@@ -183,7 +183,7 @@ export * from './constants.js';
 export * from './Three.Legacy.js';
 
 // WITH_GENESYS
-export { ProfilerService, profile, profileClass } from './profiler/ProfilerService.js';
+export { ProfilerService, profile, profileBlock, profileGpuBlock, profileClass } from './profiler/ProfilerService.js';
 // !WITH_GENESYS
 
 
